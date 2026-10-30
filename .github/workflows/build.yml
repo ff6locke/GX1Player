@@ -38,8 +38,15 @@ jobs:
       - name: Patch Media3 1.4.1 audio sink API
         run: |
           # Float output is already disabled on the renderers factory.
-          # Media3 1.4.1's DefaultAudioSink.Builder does not expose this builder method.
-          sed -i '/\.setEnableFloatOutput(false)/d' "$PROJECT_DIR/app/src/main/java/com/example/gx1player/PassthroughRenderersFactory.kt"
+          # Remove any source line that calls the unsupported Media3 1.4.1 builder method.
+          TARGET="$PROJECT_DIR/app/src/main/java/com/example/gx1player/PassthroughRenderersFactory.kt"
+          test -f "$TARGET"
+          grep -n 'setEnableFloatOutput' "$TARGET" || true
+          sed -i '/setEnableFloatOutput/d' "$TARGET"
+          if grep -n 'setEnableFloatOutput' "$TARGET"; then
+            echo "::error::Unsupported float-output builder call remains"
+            exit 1
+          fi
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
