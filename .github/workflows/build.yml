@@ -263,7 +263,9 @@ jobs:
 
           p.write_text(s)
           required = ['add("Resume last video")', 'add("Restart current video")',
-                      'add("Load subtitle file")', 'override fun onPositionDiscontinuity(']
+                      'add("Load subtitle 1")', 'add("Load subtitle 2")',
+                      'add("History")', 'private fun showHistory()', 'subtitleUri2',
+                      'override fun onPositionDiscontinuity(']
           missing = [item for item in required if item not in s]
           if missing:
               raise SystemExit("Missing features: " + ", ".join(missing))
