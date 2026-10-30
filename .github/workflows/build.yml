@@ -60,7 +60,7 @@ jobs:
           # Add Matroska MIME recognition and report decoder failures clearly.
           for imp in ["import androidx.activity.OnBackPressedCallback", "import androidx.media3.common.PlaybackException"]:
               if imp not in s:
-                  s = s.replace("import androidx.activity.result.contract.ActivityResultContracts", imp + "\\n" + "import androidx.activity.result.contract.ActivityResultContracts", 1)
+                  s = s.replace("import androidx.activity.result.contract.ActivityResultContracts", imp + "\n" + "import androidx.activity.result.contract.ActivityResultContracts", 1)
           s = s.replace('arrayOf("video/*", "audio/*")', 'arrayOf("video/*", "audio/*", "application/octet-stream", "application/x-matroska")')
           s = s.replace(
               'val builder = MediaItem.Builder().setUri(uri)',
