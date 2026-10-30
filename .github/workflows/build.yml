@@ -35,6 +35,12 @@ jobs:
           unzip -oq "$ZIP_FILE" -d .
           test -f "$PROJECT_DIR/settings.gradle.kts"
 
+      - name: Patch Media3 1.4.1 audio sink API
+        run: |
+          # Float output is already disabled on the renderers factory.
+          # Media3 1.4.1's DefaultAudioSink.Builder does not expose this builder method.
+          sed -i '/\.setEnableFloatOutput(false)/d' "$PROJECT_DIR/app/src/main/java/com/example/gx1player/PassthroughRenderersFactory.kt"
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
