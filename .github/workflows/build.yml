@@ -57,6 +57,38 @@ jobs:
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
 
+          # Add Matroska MIME recognition and report decoder failures clearly.
+          for imp in ["import androidx.activity.OnBackPressedCallback", "import androidx.media3.common.PlaybackException"]:
+              if imp not in s:
+                  s = s.replace("import androidx.activity.result.contract.ActivityResultContracts", imp + "\\n" + "import androidx.activity.result.contract.ActivityResultContracts", 1)
+          s = s.replace('arrayOf("video/*", "audio/*")', 'arrayOf("video/*", "audio/*", "application/octet-stream", "application/x-matroska")')
+          s = s.replace(
+              'val builder = MediaItem.Builder().setUri(uri)',
+              '''val builder = MediaItem.Builder().setUri(uri)
+                  if (displayName(uri).endsWith(".mkv", ignoreCase = true)) {
+                      builder.setMimeType(MimeTypes.APPLICATION_MATROSKA)
+                  }''', 1)
+          s = s.replace(
+              '                if (!isPlaying) savePosition(exo)\n            }',
+              '''                if (!isPlaying) savePosition(exo)
+              }
+              override fun onPlayerError(error: PlaybackException) {
+                  val detail = error.message ?: error.errorCodeName
+                  Toast.makeText(this@MainActivity, "Cannot play this file: $detail", Toast.LENGTH_LONG).show()
+              }''', 1)
+          back_marker = '        val initial = intent?.data ?: prefs.getString(KEY_LAST_URI, null)?.let { Uri.parse(it) }'
+          back_callback = '''        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+              override fun handleOnBackPressed() {
+                  showMenu()
+              }
+          })
+
+          '''
+          if 'onBackPressedDispatcher.addCallback(this' not in s:
+              if back_marker not in s:
+                  raise SystemExit("Could not find onCreate insertion point for Back handling")
+              s = s.replace(back_marker, back_callback + back_marker, 1)
+
           # Make the menu discoverable on phones and touchscreens, not only via
           # the Android TV remote MENU/INFO/Y keys.
           for imp in ["import android.view.Gravity", "import android.widget.Button", "import android.widget.FrameLayout"]:
