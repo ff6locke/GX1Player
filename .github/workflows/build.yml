@@ -53,31 +53,25 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
 
-          old_select = """    private fun selectMedia(uri: Uri) {
-                  mediaUri = uri
-                  subtitleUri = prefs.getString(subKey(uri), null)?.let { Uri.parse(it) }
-              }"""
-          new_select = """    private fun selectMedia(uri: Uri) {
+          if 'add("Resume last video")' not in s:
+              s, n = re.subn(
+                  r'    private fun selectMedia\(uri: Uri\) \{.*?\n    \}',
+                  '''    private fun selectMedia(uri: Uri) {
                   mediaUri = uri
                   prefs.edit().putString(KEY_LAST_URI, uri.toString()).apply()
                   subtitleUri = prefs.getString(subKey(uri), null)?.let { Uri.parse(it) }
-              }"""
-          if old_select in s:
-              s = s.replace(old_select, new_select, 1)
-          elif 'prefs.edit().putString(KEY_LAST_URI, uri.toString()).apply()' not in s:
-              raise SystemExit("Could not locate selectMedia() to persist the last video")
+              }''',
+                  s, count=1, flags=re.S)
+              if n != 1:
+                  raise SystemExit("Could not patch selectMedia()")
 
-          anchor = """            .setHandleAudioBecomingNoisy(true)
-                  .build()
-
-                  exo.addAnalyticsListener"""
-          replacement = """            .setHandleAudioBecomingNoisy(true)
-                  .build()
-
-                  // Save the current playback position on pause, seek, and playback-state changes.
+          if "override fun onPositionDiscontinuity(" not in s:
+              marker = "        exo.addAnalyticsListener(object : AnalyticsListener {"
+              listener = """        // Persist resume position immediately on pause, seek, and playback-state changes.
                   exo.addListener(object : Player.Listener {
                       override fun onIsPlayingChanged(isPlaying: Boolean) {
                           if (!isPlaying) savePosition(exo)
@@ -96,16 +90,14 @@ jobs:
                       }
                   })
 
-                  exo.addAnalyticsListener"""
-          if "override fun onPositionDiscontinuity(" not in s:
-              if anchor not in s:
-                  raise SystemExit("Could not locate ExoPlayer creation point for resume listener")
-              s = s.replace(anchor, replacement, 1)
+          """
+              if marker not in s:
+                  raise SystemExit("Could not find player listener insertion point")
+              s = s.replace(marker, listener + marker, 1)
 
-          old_menu = """        add("Open video file") { pickVideo.launch(arrayOf("video/*", "audio/*")) }
-                  add("Load subtitle file")"""
-          new_menu = """        add("Open video file") { pickVideo.launch(arrayOf("video/*", "audio/*")) }
-                  add("Resume last video") {
+          if 'add("Resume last video")' not in s:
+              marker = '        add("Open video file") { pickVideo.launch(arrayOf("video/*", "audio/*")) }'
+              resume = """        add("Resume last video") {
                       val last = prefs.getString(KEY_LAST_URI, null)?.let { Uri.parse(it) }
                       if (last != null) {
                           selectMedia(last)
@@ -114,14 +106,13 @@ jobs:
                           Toast.makeText(this, "No previous video", Toast.LENGTH_SHORT).show()
                       }
                   }
-                  add("Load subtitle file")"""
-          if 'add("Resume last video")' not in s:
-              if old_menu not in s:
-                  raise SystemExit("Could not locate menu insertion point")
-              s = s.replace(old_menu, new_menu, 1)
+          """
+              if marker not in s:
+                  raise SystemExit("Could not find Open video menu item")
+              s = s.replace(marker, marker + "\\n" + resume, 1)
 
           if 'add("Restart current video")' not in s:
-              anchor2 = """        add(if (passthrough) "Audio pass-through: On (select to turn off)" else "Audio pass-through: Off (select to turn on)") {"""
+              marker = '        add(if (passthrough) "Audio pass-through: On (select to turn off)" else "Audio pass-through: Off (select to turn on)") {'
               restart = """        add("Restart current video") {
                       mediaUri?.let { uri ->
                           prefs.edit().remove(posKey(uri)).apply()
@@ -129,17 +120,17 @@ jobs:
                       }
                   }
           """
-              if anchor2 not in s:
-                  raise SystemExit("Could not locate restart-menu insertion point")
-              s = s.replace(anchor2, restart + anchor2, 1)
+              if marker not in s:
+                  raise SystemExit("Could not find audio menu item")
+              s = s.replace(marker, restart + marker, 1)
 
           p.write_text(s)
           required = ['add("Resume last video")', 'add("Restart current video")',
                       'add("Load subtitle file")', 'override fun onPositionDiscontinuity(']
-          missing = [x for x in required if x not in s]
+          missing = [item for item in required if item not in s]
           if missing:
-              raise SystemExit("Requested features missing after patch: " + ", ".join(missing))
-          print("Requested video, subtitle, resume, and restart functions are present.")
+              raise SystemExit("Missing features: " + ", ".join(missing))
+          print("All requested menu and resume features verified.")
           PY
 
       - name: Set up JDK 17
