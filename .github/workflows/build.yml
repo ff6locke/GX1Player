@@ -186,6 +186,81 @@ jobs:
                   raise SystemExit("Could not find audio menu item")
               s = s.replace(marker, restart + marker, 1)
 
+          # Support two external subtitle tracks per video and persist both choices.
+          s = s.replace('        private const val KEY_SUBS_ON = "subs_on"',
+                        '        private const val KEY_SUBS_ON = "subs_on"\n        private const val KEY_HISTORY_PREFIX = "history|"')
+          s = s.replace('    private var subtitleUri: Uri? = null     // external subtitle file for mediaUri',
+                        '    private var subtitleUri: Uri? = null     // first external subtitle\n    private var subtitleUri2: Uri? = null    // second external subtitle')
+          second_picker = """
+          private val pickSubtitle2 = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+              if (uri == null) return@registerForActivityResult
+              takePermission(uri)
+              subtitleUri2 = uri
+              mediaUri?.let { prefs.edit().putString(subKey(it) + "|2", uri.toString()).apply() }
+              startPlayer()
+          }
+          """
+          if "private val pickSubtitle2" not in s:
+              s = s.replace('    override fun onCreate(savedInstanceState: Bundle?) {', second_picker + '\\n    override fun onCreate(savedInstanceState: Bundle?) {', 1)
+          s = s.replace('        subtitleUri = prefs.getString(subKey(uri), null)?.let { Uri.parse(it) }',
+                        '        subtitleUri = prefs.getString(subKey(uri), null)?.let { Uri.parse(it) }\n        subtitleUri2 = prefs.getString(subKey(uri) + "|2", null)?.let { Uri.parse(it) }')
+          old_subs = """        subtitleUri?.let { sub ->
+              val name = displayName(sub)
+              builder.setSubtitleConfigurations(
+                  listOf(
+                      MediaItem.SubtitleConfiguration.Builder(sub)
+                          .setMimeType(subtitleMime(name))
+                          .setLabel(name)
+                          .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
+                          .build()
+                  )
+              )
+          }"""
+          new_subs = """        val subtitleConfigs = listOfNotNull(subtitleUri, subtitleUri2).mapIndexed { index, sub ->
+              val name = displayName(sub)
+              MediaItem.SubtitleConfiguration.Builder(sub)
+                  .setMimeType(subtitleMime(name))
+                  .setLabel(name)
+                  .setSelectionFlags(if (index == 0) C.SELECTION_FLAG_DEFAULT else 0)
+                  .build()
+          }
+          if (subtitleConfigs.isNotEmpty()) builder.setSubtitleConfigurations(subtitleConfigs)"""
+          if old_subs in s:
+              s = s.replace(old_subs, new_subs, 1)
+          s = s.replace('        subtitleUri = null\n        mediaUri?.let { prefs.edit().remove(subKey(it)).apply() }',
+                        '        subtitleUri = null\n        subtitleUri2 = null\n        mediaUri?.let { prefs.edit().remove(subKey(it)).remove(subKey(it) + "|2").apply() }')
+          s = s.replace('        add("Load subtitle file") {\n            pickSubtitle.launch(arrayOf("application/x-subrip", "text/vtt", "text/plain", "application/octet-stream"))\n        }',
+                        '        add("Load subtitle 1") { pickSubtitle.launch(arrayOf("application/x-subrip", "text/vtt", "text/plain", "application/octet-stream")) }\n        add("Load subtitle 2") { pickSubtitle2.launch(arrayOf("application/x-subrip", "text/vtt", "text/plain", "application/octet-stream")) }')
+          s = s.replace('        if (subtitleUri != null) add("Remove external subtitle") { removeExternalSubtitle() }',
+                        '        if (subtitleUri != null || subtitleUri2 != null) add("Remove external subtitles") { removeExternalSubtitle() }')
+          s = s.replace('        add("Build info") { showBuildInfo() }',
+                        '        add("History") { showHistory() }\n        add("Build info") { showBuildInfo() }')
+          history_method = """
+          private fun showHistory() {
+              val entries = prefs.all.entries
+                  .filter { it.key.startsWith(KEY_HISTORY_PREFIX) && it.value is Long }
+                  .sortedByDescending { it.value as Long }
+                  .mapNotNull { runCatching { Uri.parse(it.key.removePrefix(KEY_HISTORY_PREFIX)) }.getOrNull() }
+              if (entries.isEmpty()) {
+                  Toast.makeText(this, "No playback history yet", Toast.LENGTH_SHORT).show()
+                  return
+              }
+              AlertDialog.Builder(this)
+                  .setTitle("History")
+                  .setItems(entries.map { displayName(it) }.toTypedArray()) { _, which ->
+                      selectMedia(entries[which])
+                      startPlayer()
+                  }
+                  .setNegativeButton("Close", null)
+                  .show()
+          }
+
+          """
+          if "private fun showHistory()" not in s:
+              s = s.replace('    private fun togglePassthrough() {', history_method + '    private fun togglePassthrough() {', 1)
+          s = s.replace('        prefs.edit().putString(KEY_LAST_URI, uri.toString()).apply()\n        subtitleUri =',
+                        '        prefs.edit().putString(KEY_LAST_URI, uri.toString()).putLong(KEY_HISTORY_PREFIX + uri.toString(), System.currentTimeMillis()).apply()\n        subtitleUri =')
+
           p.write_text(s)
           required = ['add("Resume last video")', 'add("Restart current video")',
                       'add("Load subtitle file")', 'override fun onPositionDiscontinuity(']
