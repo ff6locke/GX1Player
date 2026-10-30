@@ -43,29 +43,6 @@ jobs:
           unzip -q "$ZIP_FILE" -d .
           test -f "$PROJECT_DIR/settings.gradle.kts" || { echo "::error::settings.gradle.kts missing after unzip"; exit 1; }
 
-      - name: Patch Media3 renderer API compatibility
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          FILE="app/src/main/java/com/example/gx1player/PassthroughRenderersFactory.kt"
-          if grep -q 'setEnableFloatOutput(false)' "$FILE"; then
-            # Float-output control belongs to DefaultAudioSink.Builder in Media3 1.4.1,
-            # not DefaultRenderersFactory. Keep the valid sink-builder setting below.
-            sed -i '/^[[:space:]]*setEnableFloatOutput(false)[[:space:]]*$/d' "$FILE"
-          fi
-          if grep -q 'setEnableFloatOutput(false)' "$FILE" && sed -n '/init {/,/}/p' "$FILE" | grep -q 'setEnableFloatOutput(false)'; then
-            echo "::error::Unsupported DefaultRenderersFactory float-output call remains"
-            exit 1
-          fi
-
-      - name: Set Android build number
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          # Keep versionCode increasing so Android can install newer builds over older ones.
-          BUILD_NUMBER=$((${GITHUB_RUN_NUMBER} + 1))
-          sed -i "s/versionCode = [0-9]*/versionCode = ${BUILD_NUMBER}/" app/build.gradle.kts
-          sed -i "s/versionName = \"[^\"]*\"/versionName = \"1.0.${BUILD_NUMBER}\"/" app/build.gradle.kts
-          grep -E 'version(Code|Name) =' app/build.gradle.kts
-
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
