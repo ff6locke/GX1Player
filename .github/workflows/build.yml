@@ -57,6 +57,36 @@ jobs:
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
 
+          # Make the menu discoverable on phones and touchscreens, not only via
+          # the Android TV remote MENU/INFO/Y keys.
+          for imp in ["import android.view.Gravity", "import android.widget.Button", "import android.widget.FrameLayout"]:
+              if imp not in s:
+                  s = s.replace("import android.view.KeyEvent", "import android.view.KeyEvent\\n" + imp, 1)
+
+          if "setContentView(playerView)" in s and 'text = "Menu"' not in s:
+              s = s.replace(
+                  "        setContentView(playerView)",
+                  """        val root = FrameLayout(this)
+                  root.addView(playerView, FrameLayout.LayoutParams(
+                      FrameLayout.LayoutParams.MATCH_PARENT,
+                      FrameLayout.LayoutParams.MATCH_PARENT
+                  ))
+                  val menuButton = Button(this).apply {
+                      text = "Menu"
+                      isAllCaps = false
+                      contentDescription = "Open player menu"
+                      setOnClickListener { showMenu() }
+                  }
+                  val menuParams = FrameLayout.LayoutParams(
+                      FrameLayout.LayoutParams.WRAP_CONTENT,
+                      FrameLayout.LayoutParams.WRAP_CONTENT,
+                      Gravity.TOP or Gravity.END
+                  ).apply { setMargins(0, 24, 24, 0) }
+                  root.addView(menuButton, menuParams)
+                  setContentView(root)""",
+                  1
+              )
+
           if 'add("Resume last video")' not in s:
               s, n = re.subn(
                   r'    private fun selectMedia\(uri: Uri\) \{.*?\n    \}',
