@@ -315,7 +315,7 @@ jobs:
           # Replace the player-only launch with a TV-first home dashboard.
           for imp in ["import android.graphics.drawable.GradientDrawable", "import android.view.View", "import android.widget.LinearLayout", "import android.widget.TextView"]:
               if imp not in s:
-                  s = s.replace("import android.view.KeyEvent", "import android.view.KeyEvent\\n" + imp, 1)
+                  s = s.replace("import android.view.KeyEvent", "import android.view.KeyEvent\n" + imp, 1)
           fields = """    private lateinit var rootLayout: FrameLayout
           private lateinit var homePanel: LinearLayout
           private lateinit var menuButtonRef: Button
