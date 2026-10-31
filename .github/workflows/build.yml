@@ -201,7 +201,7 @@ jobs:
           }
           """
           if "private val pickSubtitle2" not in s:
-              s = s.replace('    override fun onCreate(savedInstanceState: Bundle?) {', second_picker + '\\n    override fun onCreate(savedInstanceState: Bundle?) {', 1)
+              s = s.replace('    override fun onCreate(savedInstanceState: Bundle?) {', second_picker + '\n    override fun onCreate(savedInstanceState: Bundle?) {', 1)
           s = s.replace('        subtitleUri = prefs.getString(subKey(uri), null)?.let { Uri.parse(it) }',
                         '        subtitleUri = prefs.getString(subKey(uri), null)?.let { Uri.parse(it) }\n        subtitleUri2 = prefs.getString(subKey(uri) + "|2", null)?.let { Uri.parse(it) }')
           old_subs = """        subtitleUri?.let { sub ->
