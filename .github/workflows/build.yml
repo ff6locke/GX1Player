@@ -716,16 +716,19 @@ jobs:
               raise SystemExit("Could not locate ExoPlayer.Builder(...) in extracted source")
           if "FLAG_DISABLE_SEEK_FOR_CUES" not in s:
               context = match.group(1)
-              factory = """ExoPlayer.Builder(""" + context + """)
-                      .setMediaSourceFactory(
-                          androidx.media3.exoplayer.source.DefaultMediaSourceFactory(
-                              """ + context + """,
-                              androidx.media3.extractor.DefaultExtractorsFactory()
-                                  .setMatroskaExtractorFlags(
-                                      androidx.media3.extractor.mkv.MatroskaExtractor.FLAG_DISABLE_SEEK_FOR_CUES
-                                  ) as androidx.media3.extractor.ExtractorsFactory
+              factory = """run {
+                      val gx1Extractors: androidx.media3.extractor.ExtractorsFactory =
+                          androidx.media3.extractor.DefaultExtractorsFactory()
+                              .setMatroskaExtractorFlags(
+                                  androidx.media3.extractor.mkv.MatroskaExtractor.FLAG_DISABLE_SEEK_FOR_CUES
+                              )
+                      ExoPlayer.Builder(""" + context + """)
+                          .setMediaSourceFactory(
+                              androidx.media3.exoplayer.source.DefaultMediaSourceFactory(
+                                  """ + context + """, gx1Extractors
+                              )
                           )
-                      )"""
+                  }"""
               s = s[:match.start()] + factory + s[match.end():]
           if "@file:OptIn(androidx.media3.common.util.UnstableApi::class)" not in s:
               s = s.replace("package com.example.gx1player", "@file:OptIn(androidx.media3.common.util.UnstableApi::class)\npackage com.example.gx1player", 1)
