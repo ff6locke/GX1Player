@@ -1090,7 +1090,7 @@ jobs:
                       val bodyStart = match.range.last + 1
                       val bodyEnd = if (index + 1 < matches.size) matches[index + 1].range.first else raw.length
                       val body = raw.substring(bodyStart, bodyEnd).lines()
-                          .filter { it.isNotBlank() && !it.trim().matches(Regex("\d+")) }
+                          .filter { it.isNotBlank() && !it.trim().matches(Regex("""\d+""")) }
                           .joinToString("\n") { it.replace(Regex("<[^>]*>"), "").trim() }
                       if (body.isNotBlank()) cues.add(Gx1SubtitleCue(millis(match.groupValues[1]), millis(match.groupValues[2]), body))
                   }
