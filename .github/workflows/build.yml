@@ -77,6 +77,14 @@ jobs:
               raise SystemExit("Could not set launcher icon in manifest")
           PY
 
+      - name: Inspect extracted Media3 player construction
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          echo "=== Player construction and media source lines ==="
+          grep -n -E 'ExoPlayer|MediaSourceFactory|setMediaItem|setMediaSourceFactory|\.prepare\(' app/src/main/java/com/example/gx1player/MainActivity.kt || true
+          echo "=== Media3 dependency versions ==="
+          grep -R -n 'media3-exoplayer\|media3-extractor' --include='*.gradle*' .
+
       - name: Stage picked media files for reliable random access
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
