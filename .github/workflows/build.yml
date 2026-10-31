@@ -120,7 +120,7 @@ jobs:
           import re
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
-          builder = r'ExoPlayer\\.Builder\\((?:this|this@MainActivity)\\)\\.build\\(\\)'
+          builder = r'ExoPlayer\.Builder\((?:this|this@MainActivity)\)\.build\(\)'
           replacement = """ExoPlayer.Builder(
                       this,
                       androidx.media3.exoplayer.source.DefaultMediaSourceFactory(
