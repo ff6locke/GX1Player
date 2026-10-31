@@ -394,7 +394,7 @@ jobs:
 
           '''
           if "private fun showLibrary()" not in s:
-              s = s.replace("    private fun buildHomePanel(): LinearLayout {", library_methods + "    private fun buildHomePanel(): LinearLayout {", 1)
+              s = s.replace("    private fun showMenu() {", library_methods + "    private fun showMenu() {", 1)
           if 'addTile("Library"' not in s:
               s = s.replace('              addTile("Open video", "Browse files") {',
                             '              addTile("Library", "Browse your folders") { showLibrary() }\n              addTile("Open video", "Choose one file") {', 1)
