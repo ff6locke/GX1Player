@@ -935,6 +935,114 @@ jobs:
           print("Installed touch-friendly VLC-style floating menu panel.")
           PY
 
+      - name: Build VLC-style gear anchored player menu
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          if "private fun showGearMenu()" not in s:
+              s = s.replace("    private fun showMenu() {", "    private fun showLegacyMenu() {", 1)
+              s = s.replace("showMenu() }", "showGearMenu() }")
+              # Keep hardware Back/menu shortcuts opening the new gear menu.
+              popup = r'''
+          private fun showMenu() = showGearMenu()
+
+          private fun showGearMenu() {
+              if (!::menuButtonRef.isInitialized) return
+              val panel = LinearLayout(this).apply {
+                  orientation = LinearLayout.VERTICAL
+                  setPadding(10, 10, 10, 10)
+                  background = GradientDrawable().apply {
+                      setColor(Color.rgb(29, 31, 36))
+                      cornerRadius = 22f
+                      setStroke(2, Color.rgb(105, 110, 120))
+                  }
+                  elevation = 18f
+              }
+              fun addItem(symbol: String, label: String, detail: String = "", action: () -> Unit) {
+                  val row = LinearLayout(this).apply {
+                      orientation = LinearLayout.HORIZONTAL
+                      gravity = Gravity.CENTER_VERTICAL
+                      isFocusable = true
+                      isClickable = true
+                      setPadding(18, 0, 18, 0)
+                      background = android.graphics.drawable.StateListDrawable().apply {
+                          val focused = GradientDrawable().apply {
+                              setColor(Color.rgb(67, 70, 77)); cornerRadius = 12f
+                          }
+                          addState(intArrayOf(android.R.attr.state_focused), focused)
+                          addState(intArrayOf(), android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
+                      }
+                      setOnClickListener { gearPopup?.dismiss(); action() }
+                  }
+                  val icon = TextView(this).apply {
+                      text = symbol; textSize = 23f; setTextColor(Color.WHITE)
+                      gravity = Gravity.CENTER; width = 48
+                  }
+                  val textBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL }
+                  val title = TextView(this).apply {
+                      text = label; textSize = 16f; setTextColor(Color.WHITE)
+                  }
+                  textBox.addView(title)
+                  if (detail.isNotEmpty()) textBox.addView(TextView(this).apply {
+                      text = detail; textSize = 11f; setTextColor(Color.LTGRAY)
+                  })
+                  val arrow = TextView(this).apply {
+                      text = "›"; textSize = 25f; setTextColor(Color.WHITE); gravity = Gravity.CENTER
+                  }
+                  row.addView(icon)
+                  row.addView(textBox, LinearLayout.LayoutParams(0, -1, 1f))
+                  row.addView(arrow, LinearLayout.LayoutParams(28, -1))
+                  panel.addView(row, LinearLayout.LayoutParams(-1, 54))
+              }
+              addItem("◴", "Playback Speed") { showLegacyMenu() }
+              addItem("♫", "Audio Track") { showLegacyMenu() }
+              addItem("▣", "Subtitle Track") { showLegacyMenu() }
+              val separator = View(this).apply { setBackgroundColor(Color.rgb(76, 79, 86)) }
+              panel.addView(separator, LinearLayout.LayoutParams(-1, 1).apply {
+                  setMargins(8, 6, 8, 6)
+              })
+              addItem("▭", "Aspect Ratio") { showLegacyMenu() }
+              addItem("⟳", "Repeat", if (player?.repeatMode == Player.REPEAT_MODE_ONE) "On" else "Off") {
+                  player?.let { it.repeatMode = if (it.repeatMode == Player.REPEAT_MODE_ONE) Player.REPEAT_MODE_OFF else Player.REPEAT_MODE_ONE }
+                  showGearMenu()
+              }
+              addItem("◷", "Sleep Timer") { showLegacyMenu() }
+              addItem("☷", "Settings") { showLegacyMenu() }
+              gearPopup?.dismiss()
+              gearPopup = android.widget.PopupWindow(panel, 310, -2, true).apply {
+                  isOutsideTouchable = true
+                  setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
+                  elevation = 20f
+                  setOnDismissListener { gearPopup = null }
+                  val anchor = menuButtonRef
+                  contentView.measure(
+                      View.MeasureSpec.makeMeasureSpec(310, View.MeasureSpec.AT_MOST),
+                      View.MeasureSpec.makeMeasureSpec(900, View.MeasureSpec.AT_MOST)
+                  )
+                  val x = (anchor.width - 310).coerceAtLeast(0)
+                  showAsDropDown(anchor, x, -anchor.height - panel.measuredHeight - 12, Gravity.END)
+                  panel.getChildAt(0)?.requestFocus()
+              }
+          }
+
+          '''
+              if "private var gearPopup:" not in s:
+                  s = s.replace("    private lateinit var menuButtonRef: Button",
+                                "    private lateinit var menuButtonRef: Button\n    private var gearPopup: android.widget.PopupWindow? = null", 1)
+              if "import android.widget.PopupWindow" not in s:
+                  s = s.replace("import android.widget.Button", "import android.widget.Button\nimport android.widget.PopupWindow", 1)
+              s = s.replace("    private fun showLegacyMenu() {", popup + "    private fun showLegacyMenu() {", 1)
+          # Render the gear as a clean white cog, matching the lower-right VLC reference.
+          s = s.replace('text = "⚙"\n                      textSize = 34f',
+                        'text = "⚙"\n                      textSize = 34f')
+          p.write_text(s)
+          print("Installed lower-right white gear and anchored VLC-style menu.")
+          PY
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
