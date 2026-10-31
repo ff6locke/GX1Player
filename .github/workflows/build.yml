@@ -548,6 +548,155 @@ jobs:
           print("All requested menu and resume features verified.")
           PY
 
+      - name: Add full-screen VLC-style TV library
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          method = r"""
+          private fun showLibraryHub(category: String = "All", parentId: String? = null) {
+              val tree = prefs.getString("library_tree_uri", null)?.let { Uri.parse(it) }
+              if (tree == null) {
+                  AlertDialog.Builder(this).setTitle("Set up your library")
+                      .setMessage("Choose the folder containing your movies and music.")
+                      .setPositiveButton("Choose folder") { _, _ -> pickLibraryFolder.launch(null) }
+                      .setNegativeButton("Cancel", null).show()
+                  return
+              }
+              val id = parentId ?: DocumentsContract.getTreeDocumentId(tree)
+              val children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, id)
+              data class Entry(val name: String, val uri: Uri, val mime: String, val dir: Boolean)
+              val entries = mutableListOf<Entry>()
+              contentResolver.query(children, arrayOf(
+                  DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                  DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                  DocumentsContract.Document.COLUMN_MIME_TYPE
+              ), null, null, null)?.use { c ->
+                  val ci = c.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
+                  val cn = c.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+                  val cm = c.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_MIME_TYPE)
+                  while (c.moveToNext()) {
+                      val name = c.getString(cn) ?: continue
+                      val mime = c.getString(cm) ?: ""
+                      val dir = mime == DocumentsContract.Document.MIME_TYPE_DIR
+                      val ext = name.substringAfterLast(".", "").lowercase()
+                      val media = mime.startsWith("video/") || mime.startsWith("audio/") ||
+                          ext in listOf("mkv","mp4","avi","mov","webm","mp3","flac","m4a","aac","wav")
+                      if (dir || media) entries.add(Entry(name,
+                          DocumentsContract.buildDocumentUriUsingTree(tree, c.getString(ci)), mime, dir))
+                  }
+              }
+              val filtered = entries.filter { e ->
+                  val audio = e.mime.startsWith("audio/") || e.name.substringAfterLast(".", "").lowercase() in listOf("mp3","flac","m4a","aac","wav")
+                  when (category) { "Movies" -> !e.dir && !audio; "Music" -> !e.dir && audio; "Folders" -> e.dir; else -> true }
+              }.sortedWith(compareByDescending<Entry> { it.dir }.thenBy { it.name.lowercase() })
+              val panel = LinearLayout(this).apply {
+                  orientation = LinearLayout.VERTICAL; setPadding(32, 24, 32, 20)
+                  setBackgroundColor(Color.rgb(8, 11, 18)); isFocusableInTouchMode = true
+              }
+              val header = TextView(this).apply {
+                  text = "GX1  /  LIBRARY"; textSize = 27f; setTextColor(Color.WHITE)
+                  setTypeface(null, android.graphics.Typeface.BOLD)
+              }
+              panel.addView(header)
+              val tabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, 16, 0, 16) }
+              fun addTab(label: String, selected: Boolean, action: () -> Unit) {
+                  val b = Button(this).apply {
+                      text = label; isAllCaps = false; textSize = 13f; setTextColor(Color.WHITE)
+                      background = GradientDrawable().apply {
+                          setColor(if (selected) Color.rgb(190, 93, 0) else Color.rgb(31, 39, 52))
+                          cornerRadius = 12f
+                      }
+                      setOnClickListener { action() }
+                  }
+                  tabs.addView(b, LinearLayout.LayoutParams(-2, 48).apply { setMargins(0, 0, 9, 0) })
+              }
+              addTab("All", category == "All") { showLibraryHub("All", parentId) }
+              addTab("Movies", category == "Movies") { showLibraryHub("Movies", parentId) }
+              addTab("Music", category == "Music") { showLibraryHub("Music", parentId) }
+              addTab("Folders", category == "Folders") { showLibraryHub("Folders", parentId) }
+              addTab("History", false) { showHistory() }
+              addTab("Change folder", false) { pickLibraryFolder.launch(null) }
+              panel.addView(tabs)
+              val summary = TextView(this).apply {
+                  text = filtered.size.toString() + " ITEMS"; textSize = 12f
+                  setTextColor(Color.rgb(255, 152, 0)); setPadding(0, 0, 0, 10)
+              }
+              panel.addView(summary)
+              val scroll = android.widget.ScrollView(this)
+              val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+              val rows = filtered.chunked(2)
+              if (rows.isEmpty()) list.addView(TextView(this).apply {
+                  text = "No media found in this folder."; textSize = 18f
+                  setTextColor(Color.LTGRAY); setPadding(12, 28, 12, 28)
+              })
+              rows.forEach { pair ->
+                  val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+                  pair.forEach { e ->
+                      val card = LinearLayout(this).apply {
+                          orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL
+                          isFocusable = true; isFocusableInTouchMode = true; setPadding(18, 12, 18, 12)
+                          background = GradientDrawable().apply {
+                              setColor(Color.rgb(25, 32, 45)); cornerRadius = 14f
+                              setStroke(2, Color.rgb(49, 61, 79))
+                          }
+                          setOnFocusChangeListener { v, f ->
+                              v.background = GradientDrawable().apply {
+                                  setColor(if (f) Color.rgb(68, 43, 20) else Color.rgb(25, 32, 45))
+                                  cornerRadius = 14f
+                                  setStroke(if (f) 4 else 2, if (f) Color.rgb(255, 145, 0) else Color.rgb(49, 61, 79))
+                              }
+                          }
+                          setOnClickListener {
+                              if (e.dir) showLibraryHub("All", DocumentsContract.getDocumentId(e.uri))
+                              else { selectMedia(e.uri); startPlayer() }
+                          }
+                      }
+                      card.addView(TextView(this).apply {
+                          text = if (e.dir) "▰" else if (e.mime.startsWith("audio/")) "♫" else "▶"
+                          textSize = 28f; setTextColor(Color.rgb(255, 145, 0))
+                      })
+                      card.addView(TextView(this).apply {
+                          text = e.name; textSize = 17f; maxLines = 2
+                          setTextColor(Color.WHITE); setTypeface(null, android.graphics.Typeface.BOLD)
+                      })
+                      card.addView(TextView(this).apply {
+                          text = if (e.dir) "FOLDER" else if (e.mime.startsWith("audio/")) "AUDIO" else "VIDEO"
+                          textSize = 11f; setTextColor(Color.LTGRAY); setPadding(0, 5, 0, 0)
+                      })
+                      row.addView(card, LinearLayout.LayoutParams(0, 116, 1f).apply { setMargins(0, 0, 12, 12) })
+                  }
+                  if (pair.size == 1) row.addView(View(this), LinearLayout.LayoutParams(0, 116, 1f))
+                  list.addView(row)
+              }
+              scroll.addView(list)
+              panel.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+              panel.addView(Button(this).apply {
+                  text = if (parentId == null) "Back to Home" else "Back to Library"
+                  isAllCaps = false
+                  setOnClickListener { if (parentId == null) showHome() else showLibraryHub(category) }
+              })
+              homePanel.visibility = View.GONE; playerView.visibility = View.GONE
+              if (::menuButtonRef.isInitialized) menuButtonRef.visibility = View.GONE
+              rootLayout.findViewWithTag<View>("gx1_library_panel")?.let { rootLayout.removeView(it) }
+              panel.tag = "gx1_library_panel"
+              rootLayout.addView(panel, FrameLayout.LayoutParams(-1, -1))
+              panel.post { tabs.getChildAt(0)?.requestFocus() }
+          }
+
+          """
+          if "private fun showLibraryHub(" not in s:
+              s = s.replace("    private fun showMenu() {", method + "    private fun showMenu() {", 1)
+          s = s.replace('addTile("Open video", "Browse files") {',
+                        'addTile("Library", "Movies  ·  Music  ·  Folders") { showLibraryHub() }\n              addTile("Open video", "Browse files") {', 1)
+          p.write_text(s)
+          if "private fun showLibraryHub(" not in s or 'addTile("Library"' not in s:
+              raise SystemExit("Library UI patch did not apply")
+          print("Full-screen VLC-style TV library inserted.")
+          PY
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
