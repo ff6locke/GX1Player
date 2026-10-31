@@ -35,6 +35,48 @@ jobs:
           unzip -oq "$ZIP_FILE" -d .
           test -f "$PROJECT_DIR/settings.gradle.kts"
 
+      - name: Install GX1 Player TV app icon
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          mkdir -p app/src/main/res/drawable app/src/main/res/mipmap-anydpi-v26
+          cat > app/src/main/res/drawable/ic_gx1_launcher_foreground.xml <<'XML'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="108dp" android:height="108dp"
+              android:viewportWidth="108" android:viewportHeight="108">
+              <path android:fillColor="#FFB300" android:pathData="M54,8 A46,46 0,1 0,54 100 A46,46 0,1 0,54 8 M54,17 A37,37 0,1 1,54 91 A37,37 0,1 1,54 17" android:fillType="evenOdd"/>
+              <path android:fillColor="#E8EDF5" android:pathData="M17,33 L25,27 L31,35 L23,41 Z M29,20 L39,16 L43,25 L33,29 Z M46,15 L57,14 L58,24 L47,25 Z M65,17 L75,21 L71,30 L61,26 Z M81,28 L89,36 L81,43 L74,35 Z M89,48 L94,58 L84,62 L80,52 Z M87,69 L83,79 L73,74 L77,64 Z"/>
+              <path android:fillColor="#FF6D00" android:pathData="M43,29 C39,27 35,30 35,35 L35,73 C35,78 40,81 44,78 L77,58 C82,55 82,49 77,46 Z"/>
+              <path android:fillColor="#FFD54F" android:pathData="M47,39 L68,52 L47,66 Z"/>
+              <path android:fillColor="#FFFFFF" android:pathData="M25,83 L31,83 L31,88 L36,88 L36,82 L42,82 L42,94 L30,94 C24,94 20,90 20,85 C20,80 24,76 30,76 L42,76 L42,81 L30,81 Z M47,76 L54,76 L60,83 L66,76 L73,76 L64,86 L74,94 L66,94 L60,89 L54,94 L46,94 L56,85 Z"/>
+              <path android:fillColor="#FF9100" android:pathData="M78,81 L88,76 L88,94 L81,94 L81,84 L77,86 Z"/>
+          </vector>
+          XML
+          cat > app/src/main/res/drawable/ic_gx1_launcher_background.xml <<'XML'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="108dp" android:height="108dp"
+              android:viewportWidth="108" android:viewportHeight="108">
+              <path android:fillColor="#080B12" android:pathData="M0,0h108v108h-108z"/>
+              <path android:fillColor="#171D2A" android:pathData="M0,0h108v12h-108z"/>
+          </vector>
+          XML
+          cat > app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml <<'XML'
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+              <background android:drawable="@drawable/ic_gx1_launcher_background"/>
+              <foreground android:drawable="@drawable/ic_gx1_launcher_foreground"/>
+          </adaptive-icon>
+          XML
+          cp app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/AndroidManifest.xml")
+          s = p.read_text()
+          if 'android:icon="@mipmap/ic_launcher"' not in s:
+              s = s.replace('<application\n', '<application\n        android:icon="@mipmap/ic_launcher"\n        android:roundIcon="@mipmap/ic_launcher_round"\n', 1)
+          p.write_text(s)
+          if 'android:icon="@mipmap/ic_launcher"' not in s:
+              raise SystemExit("Could not set launcher icon in manifest")
+          PY
+
       - name: Patch Media3 1.4.1 audio sink API
         run: |
           # Float output is already disabled on the renderers factory.
