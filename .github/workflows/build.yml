@@ -312,6 +312,93 @@ jobs:
           s = s.replace('        prefs.edit().putString(KEY_LAST_URI, uri.toString()).apply()\n        subtitleUri =',
                         '        prefs.edit().putString(KEY_LAST_URI, uri.toString()).putLong(KEY_HISTORY_PREFIX + uri.toString(), System.currentTimeMillis()).apply()\n        subtitleUri =')
 
+          # Add a persistent folder-based media library using Android's Storage Access Framework.
+          for imp in ["import android.provider.DocumentsContract", "import android.database.Cursor"]:
+              if imp not in s:
+                  s = s.replace("import android.net.Uri", "import android.net.Uri\n" + imp, 1)
+          if "private val pickLibraryFolder" not in s:
+              launcher = """
+          private val pickLibraryFolder = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+              if (uri != null) {
+                  val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+                  runCatching { contentResolver.takePersistableUriPermission(uri, flags) }
+                  prefs.edit().putString("library_tree_uri", uri.toString()).apply()
+                  showLibrary()
+              }
+          }
+          """
+              s = s.replace("    override fun onCreate(savedInstanceState: Bundle?) {", launcher + "\\n    override fun onCreate(savedInstanceState: Bundle?) {", 1)
+          library_methods = r'''
+          private fun showLibrary() {
+              val saved = prefs.getString("library_tree_uri", null)?.let { Uri.parse(it) }
+              if (saved == null) {
+                  AlertDialog.Builder(this)
+                      .setTitle("Set up your library")
+                      .setMessage("Choose a movies or music folder. GX1 Player will remember it for next time.")
+                      .setPositiveButton("Choose folder") { _, _ -> pickLibraryFolder.launch(null) }
+                      .setNegativeButton("Cancel", null)
+                      .show()
+                  return
+              }
+              val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(
+                  saved, DocumentsContract.getTreeDocumentId(saved)
+              )
+              val items = mutableListOf<Pair<String, Uri>>()
+              val names = mutableListOf<String>()
+              try {
+                  contentResolver.query(
+                      childrenUri,
+                      arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                              DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                              DocumentsContract.Document.COLUMN_MIME_TYPE),
+                      null, null, null
+                  )?.use { cursor ->
+                      val idCol = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
+                      val nameCol = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+                      val mimeCol = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_MIME_TYPE)
+                      while (cursor.moveToNext()) {
+                          val name = cursor.getString(nameCol) ?: continue
+                          val mime = cursor.getString(mimeCol) ?: ""
+                          if (mime.startsWith("video/") || mime.startsWith("audio/") ||
+                              name.endsWith(".mkv", true) || name.endsWith(".mp4", true) ||
+                              name.endsWith(".avi", true) || name.endsWith(".mov", true) ||
+                              name.endsWith(".mp3", true) || name.endsWith(".flac", true) ||
+                              name.endsWith(".m4a", true)) {
+                              val doc = DocumentsContract.buildDocumentUriUsingTree(saved, cursor.getString(idCol))
+                              items.add(name to doc)
+                              names.add("▶   " + name)
+                          }
+                      }
+                  }
+              } catch (e: Exception) {
+                  prefs.edit().remove("library_tree_uri").apply()
+                  Toast.makeText(this, "Library folder access expired. Please choose it again.", Toast.LENGTH_LONG).show()
+                  pickLibraryFolder.launch(null)
+                  return
+              }
+              val options = if (items.isEmpty()) arrayOf("No media files found", "Choose a different folder") else
+                  names.toTypedArray() + "Change library folder"
+              AlertDialog.Builder(this)
+                  .setTitle("LIBRARY  ·  " + items.size + " items")
+                  .setItems(options) { _, which ->
+                      if (which < items.size) {
+                          selectMedia(items[which].second)
+                          startPlayer()
+                      } else if (items.isEmpty() || which == items.size) {
+                          pickLibraryFolder.launch(null)
+                      }
+                  }
+                  .setNegativeButton("Close", null)
+                  .show()
+          }
+
+          '''
+          if "private fun showLibrary()" not in s:
+              s = s.replace("    private fun buildHomePanel(): LinearLayout {", library_methods + "    private fun buildHomePanel(): LinearLayout {", 1)
+          if 'addTile("Library"' not in s:
+              s = s.replace('              addTile("Open video", "Browse files") {',
+                            '              addTile("Library", "Browse your folders") { showLibrary() }\n              addTile("Open video", "Choose one file") {', 1)
+
           # Replace the player-only launch with a TV-first home dashboard.
           for imp in ["import android.graphics.drawable.GradientDrawable", "import android.view.View", "import android.widget.LinearLayout", "import android.widget.TextView"]:
               if imp not in s:
