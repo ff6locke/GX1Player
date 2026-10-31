@@ -736,7 +736,7 @@ jobs:
                   setBackgroundColor(Color.rgb(8, 11, 18)); isFocusableInTouchMode = true
               }
               val header = TextView(this).apply {
-                  text = "GX1  /  LIBRARY"; textSize = 27f; setTextColor(Color.WHITE)
+                  text = "GX1  /  LIBRARY"; textSize = 23f; setTextColor(Color.WHITE)
                   setTypeface(null, android.graphics.Typeface.BOLD)
               }
               panel.addView(header)
@@ -882,7 +882,7 @@ jobs:
                           orientation = android.widget.LinearLayout.HORIZONTAL
                           gravity = android.view.Gravity.CENTER_VERTICAL
                           setPadding(dp(12), 0, dp(10), 0)
-                          minimumHeight = dp(60)
+                          minimumHeight = dp(46)
                           isClickable = true
                           isFocusable = true
                           background = android.graphics.drawable.GradientDrawable().apply {
@@ -895,7 +895,7 @@ jobs:
                           setTextColor(android.graphics.Color.WHITE)
                           textSize = 27f
                           gravity = android.view.Gravity.CENTER
-                          layoutParams = android.widget.LinearLayout.LayoutParams(dp(54), -1)
+                          layoutParams = android.widget.LinearLayout.LayoutParams(dp(46), -1)
                       })
                       row.addView(android.widget.TextView(this).apply {
                           text = item.second
@@ -971,7 +971,7 @@ jobs:
                       panel.addView(row)
                   }
                   val popupContent = android.widget.FrameLayout(this)
-                  popupContent.addView(panel, android.widget.FrameLayout.LayoutParams(dp(340), -2,
+                  popupContent.addView(panel, android.widget.FrameLayout.LayoutParams(dp(316), -2,
                       android.view.Gravity.TOP or android.view.Gravity.CENTER_HORIZONTAL))
                   val pointer = object : android.view.View(this) {
                       private val paint = android.graphics.Paint(3).apply {
@@ -994,14 +994,14 @@ jobs:
                       marginEnd = dp(20)
                   }
                   popupContent.addView(pointer, pointerParams)
-                  val popup = android.widget.PopupWindow(popupContent, dp(360), dp(444), true).apply {
+                  val popup = android.widget.PopupWindow(popupContent, dp(336), dp(350), true).apply {
                       isOutsideTouchable = true
                       setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
                       elevation = dp(20).toFloat()
                   }
                   menuPopupRef = popup
                   if (::menuButtonRef.isInitialized && menuButtonRef.isAttachedToWindow) {
-                      popup.showAsDropDown(menuButtonRef, 0, -dp(444), android.view.Gravity.END)
+                      popup.showAsDropDown(menuButtonRef, 0, -dp(350), android.view.Gravity.END)
                   } else {
                       popup.showAtLocation(window.decorView, android.view.Gravity.BOTTOM or android.view.Gravity.END,
                           dp(30), dp(94))
