@@ -1038,6 +1038,115 @@ jobs:
           print("Custom duplicate gear is hidden; Media3 gear remains the only visible gear.")
           PY
 
+
+      - name: Render second subtitle as synchronized overlay
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          # The second file is rendered independently; Media3 continues to handle subtitle 1.
+          s = s.replace("listOfNotNull(subtitleUri, subtitleUri2).mapIndexed { index, sub ->",
+                        "listOfNotNull(subtitleUri).mapIndexed { index, sub ->", 1)
+          field_anchor = "    private var subtitleUri2: Uri? = null"
+          fields = """
+          private data class Gx1SubtitleCue(val startMs: Long, val endMs: Long, val text: String)
+          private var secondSubtitleCues: List<Gx1SubtitleCue> = emptyList()
+          private lateinit var secondSubtitleOverlay: android.widget.TextView
+          private val subtitleUiHandler = android.os.Handler(android.os.Looper.getMainLooper())
+          private val subtitleTicker = object : Runnable {
+              override fun run() {
+                  val pos = player?.currentPosition ?: 0L
+                  val active = secondSubtitleCues.filter { pos >= it.startMs && pos <= it.endMs }
+                  if (::secondSubtitleOverlay.isInitialized) {
+                      secondSubtitleOverlay.text = active.joinToString("\\n") { it.text }
+                      secondSubtitleOverlay.visibility =
+                          if (active.isEmpty() || player?.isPlaying != true) android.view.View.GONE
+                          else android.view.View.VISIBLE
+                  }
+                  subtitleUiHandler.postDelayed(this, 200L)
+              }
+          }
+          """
+          if "private data class Gx1SubtitleCue" not in s:
+              if field_anchor not in s: raise SystemExit("Second subtitle field anchor missing")
+              s = s.replace(field_anchor, field_anchor + "\n" + fields, 1)
+
+          parser = r'''
+          private fun loadSecondSubtitleOverlay(uri: Uri) {
+              try {
+                  val raw = contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+                  val timestamp = Regex("""(?:(\\d{1,2}):)?(\\d{2}):(\\d{2})[,.](\\d{3})""")
+                  fun millis(value: String): Long {
+                      val m = timestamp.find(value) ?: return 0L
+                      val h = m.groupValues[1].ifBlank { "0" }.toLong()
+                      return (((h * 60 + m.groupValues[2].toLong()) * 60 + m.groupValues[3].toLong()) * 1000) + m.groupValues[4].toLong()
+                  }
+                  val cues = mutableListOf<Gx1SubtitleCue>()
+                  val timeLine = Regex("""(?m)^\\s*((?:(?:\\d{1,2}:)?\\d{2}:\\d{2}[,.]\\d{3}))\\s*-->\\s*((?:(?:\\d{1,2}:)?\\d{2}:\\d{2}[,.]\\d{3})).*$""")
+                  val matches = timeLine.findAll(raw).toList()
+                  matches.forEachIndexed { index, match ->
+                      val bodyStart = match.range.last + 1
+                      val bodyEnd = if (index + 1 < matches.size) matches[index + 1].range.first else raw.length
+                      val body = raw.substring(bodyStart, bodyEnd).lines()
+                          .filter { it.isNotBlank() && !it.trim().matches(Regex("\\d+")) }
+                          .joinToString("\\n") { it.replace(Regex("<[^>]*>"), "").trim() }
+                      if (body.isNotBlank()) cues.add(Gx1SubtitleCue(millis(match.groupValues[1]), millis(match.groupValues[2]), body))
+                  }
+                  secondSubtitleCues = cues
+                  subtitleUiHandler.removeCallbacks(subtitleTicker)
+                  subtitleUiHandler.post(subtitleTicker)
+                  Toast.makeText(this, if (cues.isEmpty()) "No SRT/VTT cues found in second subtitle" else "Second subtitle loaded: ${cues.size} cues", Toast.LENGTH_LONG).show()
+              } catch (e: Exception) {
+                  secondSubtitleCues = emptyList()
+                  Toast.makeText(this, "Cannot read second subtitle: ${e.message}", Toast.LENGTH_LONG).show()
+              }
+          }
+
+          '''
+          if "private fun loadSecondSubtitleOverlay" not in s:
+              marker = "    private fun showMenu() {"
+              if marker not in s: raise SystemExit("showMenu insertion point missing")
+              s = s.replace(marker, parser + marker, 1)
+
+          # Replace second picker callback to load the overlay, not register a second Media3 track.
+          s = s.replace("              subtitleUri2 = uri\n              mediaUri?.let { prefs.edit().putString(subKey(it) + \"|2\", uri.toString()).apply() }\n              startPlayer()",
+                        "              subtitleUri2 = uri\n              mediaUri?.let { prefs.edit().putString(subKey(it) + \"|2\", uri.toString()).apply() }\n              loadSecondSubtitleOverlay(uri)", 1)
+
+          # Add the overlay above the video surface in the root FrameLayout.
+          anchor = """                  root.addView(playerView, FrameLayout.LayoutParams(
+                      FrameLayout.LayoutParams.MATCH_PARENT,
+                      FrameLayout.LayoutParams.MATCH_PARENT
+                  ))
+                  homePanel = buildHomePanel()"""
+          replacement = """                  root.addView(playerView, FrameLayout.LayoutParams(
+                      FrameLayout.LayoutParams.MATCH_PARENT,
+                      FrameLayout.LayoutParams.MATCH_PARENT
+                  ))
+                  secondSubtitleOverlay = android.widget.TextView(this).apply {
+                      setTextColor(Color.WHITE)
+                      textSize = 22f
+                      gravity = Gravity.CENTER
+                      setShadowLayer(5f, 2f, 2f, Color.BLACK)
+                      setPadding(24, 8, 24, 28)
+                      setBackgroundColor(Color.TRANSPARENT)
+                      visibility = View.GONE
+                  }
+                  root.addView(secondSubtitleOverlay, FrameLayout.LayoutParams(
+                      FrameLayout.LayoutParams.MATCH_PARENT,
+                      FrameLayout.LayoutParams.WRAP_CONTENT,
+                      Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+                  ))
+                  subtitleUiHandler.post(subtitleTicker)
+                  homePanel = buildHomePanel()"""
+          if anchor in s: s = s.replace(anchor, replacement, 1)
+          elif "secondSubtitleOverlay = android.widget.TextView(this)" not in s:
+              raise SystemExit("Could not attach second subtitle overlay above video")
+          p.write_text(s)
+          print("Second subtitle now uses an independent SRT/VTT overlay synchronized to player position.")
+          PY
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
