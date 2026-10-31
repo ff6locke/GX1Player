@@ -1115,22 +1115,13 @@ jobs:
                         "              subtitleUri2 = uri\n              mediaUri?.let { prefs.edit().putString(subKey(it) + \"|2\", uri.toString()).apply() }\n              loadSecondSubtitleOverlay(uri)", 1)
 
           # Add the overlay above the video surface in the root FrameLayout.
-          anchor = """                  root.addView(playerView, FrameLayout.LayoutParams(
-                      FrameLayout.LayoutParams.MATCH_PARENT,
-                      FrameLayout.LayoutParams.MATCH_PARENT
-                  ))
-                  homePanel = buildHomePanel()"""
-          replacement = """                  root.addView(playerView, FrameLayout.LayoutParams(
-                      FrameLayout.LayoutParams.MATCH_PARENT,
-                      FrameLayout.LayoutParams.MATCH_PARENT
-                  ))
-                  secondSubtitleOverlay = android.widget.TextView(this).apply {
+          attach = """                  homePanel = buildHomePanel()"""
+          overlay = """                  secondSubtitleOverlay = android.widget.TextView(this).apply {
                       setTextColor(Color.WHITE)
                       textSize = 22f
                       gravity = Gravity.CENTER
                       setShadowLayer(5f, 2f, 2f, Color.BLACK)
                       setPadding(24, 8, 24, 28)
-                      setBackgroundColor(Color.TRANSPARENT)
                       visibility = View.GONE
                   }
                   root.addView(secondSubtitleOverlay, FrameLayout.LayoutParams(
@@ -1140,9 +1131,9 @@ jobs:
                   ))
                   subtitleUiHandler.post(subtitleTicker)
                   homePanel = buildHomePanel()"""
-          if anchor in s: s = s.replace(anchor, replacement, 1)
-          elif "secondSubtitleOverlay = android.widget.TextView(this)" not in s:
-              raise SystemExit("Could not attach second subtitle overlay above video")
+          if "secondSubtitleOverlay = android.widget.TextView(this)" not in s:
+              if attach not in s: raise SystemExit("Could not find home panel insertion point")
+              s = s.replace(attach, overlay, 1)
           p.write_text(s)
           print("Second subtitle now uses an independent SRT/VTT overlay synchronized to player position.")
           PY
