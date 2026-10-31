@@ -1115,8 +1115,8 @@ jobs:
                         "              subtitleUri2 = uri\n              mediaUri?.let { prefs.edit().putString(subKey(it) + \"|2\", uri.toString()).apply() }\n              loadSecondSubtitleOverlay(uri)", 1)
 
           # Add the overlay above the video surface in the root FrameLayout.
-          attach = """                  homePanel = buildHomePanel()"""
-          overlay = """                  secondSubtitleOverlay = android.widget.TextView(this).apply {
+          anchor = "homePanel = buildHomePanel()"
+          overlay = """secondSubtitleOverlay = android.widget.TextView(this).apply {
                       setTextColor(Color.WHITE)
                       textSize = 22f
                       gravity = Gravity.CENTER
@@ -1132,8 +1132,8 @@ jobs:
                   subtitleUiHandler.post(subtitleTicker)
                   homePanel = buildHomePanel()"""
           if "secondSubtitleOverlay = android.widget.TextView(this)" not in s:
-              if attach not in s: raise SystemExit("Could not find home panel insertion point")
-              s = s.replace(attach, overlay, 1)
+              if anchor not in s: raise SystemExit("Could not find home panel insertion point")
+              s = s.replace(anchor, overlay, 1)
           p.write_text(s)
           print("Second subtitle now uses an independent SRT/VTT overlay synchronized to player position.")
           PY
