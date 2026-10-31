@@ -820,7 +820,10 @@ jobs:
           import re
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
-          pattern = r'        AlertDialog\\.Builder\\(this\\)\\s*\\.setTitle\\("GX1 Player"\\)\\s*\\.setItems\\(labels\\.toTypedArray\\(\\)\\) \\{ _, which -> actions\\[which\\]\\(\\) \\}\\s*\\.show\\(\\)'
+          old = """        AlertDialog.Builder(this)
+                      .setTitle("GX1 Player")
+                      .setItems(labels.toTypedArray()) { _, which -> actions[which]() }
+                      .show()"""
           replacement = r"""
                   val density = resources.displayMetrics.density
                   fun dp(value: Int) = (value * density).toInt()
@@ -905,9 +908,9 @@ jobs:
               if field not in s:
                   raise SystemExit("Player field insertion point missing")
               s = s.replace(field, field + "\\n    private var menuPopupRef: android.widget.PopupWindow? = null", 1)
-          s, n = re.subn(pattern, lambda m: replacement, s, count=1)
-          if n != 1:
-              raise SystemExit("Could not replace original GX1 Player menu dialog")
+          if old not in s:
+              raise SystemExit("Could not locate original GX1 Player menu dialog")
+          s = s.replace(old, replacement, 1)
           p.write_text(s)
           print("Installed touch-friendly VLC-style floating menu panel.")
           PY
