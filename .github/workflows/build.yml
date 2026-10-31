@@ -327,7 +327,7 @@ jobs:
               }
           }
           """
-              s = s.replace("    override fun onCreate(savedInstanceState: Bundle?) {", launcher + "\\n    override fun onCreate(savedInstanceState: Bundle?) {", 1)
+              s = s.replace("    override fun onCreate(savedInstanceState: Bundle?) {", launcher + "\n    override fun onCreate(savedInstanceState: Bundle?) {", 1)
           library_methods = r'''
           private fun showLibrary() {
               val saved = prefs.getString("library_tree_uri", null)?.let { Uri.parse(it) }
