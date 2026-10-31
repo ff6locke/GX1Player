@@ -233,18 +233,34 @@ jobs:
                   playerView.visibility = android.view.View.GONE
                   val menuButton = Button(this).apply {
                       text = "⚙"
-                      textSize = 25f
+                      textSize = 34f
                       isAllCaps = false
-                      contentDescription = "Settings and player menu"
-                      minWidth = 64
-                      minHeight = 56
+                      setTextColor(Color.WHITE)
+                      contentDescription = "Open player settings"
+                      minWidth = 0
+                      minHeight = 0
+                      setPadding(0, 0, 0, 3)
+                      background = GradientDrawable().apply {
+                          shape = GradientDrawable.OVAL
+                          setColor(Color.rgb(28, 34, 46))
+                          setStroke(2, Color.rgb(150, 177, 210))
+                      }
+                      elevation = 12f
+                      setOnFocusChangeListener { v, focused ->
+                          v.background = GradientDrawable().apply {
+                              shape = GradientDrawable.OVAL
+                              setColor(if (focused) Color.rgb(73, 48, 25) else Color.rgb(28, 34, 46))
+                              setStroke(if (focused) 4 else 2,
+                                  if (focused) Color.rgb(255, 152, 0) else Color.rgb(150, 177, 210))
+                          }
+                      }
                       setOnClickListener { showMenu() }
                   }
                   val menuParams = FrameLayout.LayoutParams(
-                      FrameLayout.LayoutParams.WRAP_CONTENT,
-                      FrameLayout.LayoutParams.WRAP_CONTENT,
-                      Gravity.TOP or Gravity.END
-                  ).apply { setMargins(0, 24, 24, 0) }
+                      72,
+                      72,
+                      Gravity.BOTTOM or Gravity.END
+                  ).apply { setMargins(0, 0, 30, 30) }
                   menuButtonRef = menuButton
                   root.addView(menuButton, menuParams)
                   menuButton.visibility = android.view.View.GONE
