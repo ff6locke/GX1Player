@@ -907,7 +907,7 @@ jobs:
               field = "    private var player: ExoPlayer? = null"
               if field not in s:
                   raise SystemExit("Player field insertion point missing")
-              s = s.replace(field, field + "\\n    private var menuPopupRef: android.widget.PopupWindow? = null", 1)
+              s = s.replace(field, field + "\n    private var menuPopupRef: android.widget.PopupWindow? = null", 1)
           if old not in s:
               raise SystemExit("Could not locate original GX1 Player menu dialog")
           s = s.replace(old, replacement, 1)
