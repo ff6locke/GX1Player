@@ -115,8 +115,13 @@ jobs:
               '''                if (!isPlaying) savePosition(exo)
               }
               override fun onPlayerError(error: PlaybackException) {
-                  val detail = error.message ?: error.errorCodeName
-                  Toast.makeText(this@MainActivity, "Cannot play this file: $detail", Toast.LENGTH_LONG).show()
+                  val causes = generateSequence<Throwable>(error) { it.cause }
+                      .take(6)
+                      .map { cause -> "${cause.javaClass.simpleName}: ${cause.message ?: "no message"}" }
+                      .joinToString(" <- ")
+                  val detail = "${error.errorCodeName} | $causes"
+                  android.util.Log.e("GX1Player", "Media3 playback failed: $detail", error)
+                  Toast.makeText(this@MainActivity, "Cannot play: $detail", Toast.LENGTH_LONG).show()
               }''', 1)
           back_marker = '        val initial = intent?.data ?: prefs.getString(KEY_LAST_URI, null)?.let { Uri.parse(it) }'
           back_callback = '''        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
