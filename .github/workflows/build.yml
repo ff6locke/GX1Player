@@ -316,7 +316,8 @@ jobs:
                   ).apply { setMargins(0, 0, 30, 30) }
                   menuButtonRef = menuButton
                   root.addView(menuButton, menuParams)
-                  menuButton.visibility = android.view.View.VISIBLE
+                  // Do not show the custom GX1 gear overlay; keep Media3's built-in gear only.
+                  menuButton.visibility = android.view.View.GONE
                   setContentView(root)""",
                   1
               )
@@ -1054,7 +1055,7 @@ jobs:
                       56,
                       56,''',1)
           p.write_text(s)
-          print("Gear remains a standalone white glyph with a transparent hit target.")
+          print("Custom duplicate gear is hidden; Media3 gear remains the only visible gear.")
           PY
 
       - name: Set up JDK 17
