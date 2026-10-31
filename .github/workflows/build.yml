@@ -268,10 +268,16 @@ jobs:
                       FrameLayout.LayoutParams.MATCH_PARENT
                   ))
                   playerView.visibility = android.view.View.GONE
-                  // Hide Media3's built-in settings gear (its popup only contains
-                  // Speed and Audio). The GX1 white gear below is the sole menu entry.
-                  playerView.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_settings)
-                      ?.visibility = android.view.View.GONE
+                  // Keep Media3's own settings gear, but route its click into
+                  // GX1's complete playback menu instead of Media3's limited Speed/Audio popup.
+                  val media3SettingsGear = playerView.findViewById<android.view.View>(
+                      androidx.media3.ui.R.id.exo_settings
+                  )
+                  media3SettingsGear?.apply {
+                      visibility = android.view.View.VISIBLE
+                      setOnClickListener { showMenu() }
+                      contentDescription = "Playback settings"
+                  }
                   val menuButton = Button(this).apply {
                       // Force text presentation so Android draws a crisp white gear glyph,
                       // not a gray emoji-style icon.
@@ -300,6 +306,8 @@ jobs:
                           }
                       }
                       setOnClickListener { showMenu() }
+                      // Use Media3's built-in gear as the sole visible entry point.
+                      visibility = android.view.View.GONE
                   }
                   val menuParams = FrameLayout.LayoutParams(
                       72,
