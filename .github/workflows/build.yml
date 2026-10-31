@@ -439,7 +439,7 @@ jobs:
           # No forced file picker on first launch; land on the dashboard.
           # Replace the first-launch file picker regardless of the MIME types above.
           s, home_launch_matches = re.subn(
-              r'\\}\\s*else\\s*\\{\\s*pickVideo\\.launch\\(arrayOf\\([^\\n]*\\)\\)\\s*\\}',
+              r'\}\s*else\s*\{\s*pickVideo\.launch\(arrayOf\([^\n]*\)\)\s*\}',
               '} else { showHome() }',
               s, count=1)
           if home_launch_matches != 1:
