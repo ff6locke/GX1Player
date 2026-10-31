@@ -1024,13 +1024,15 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
-          gear = s.index('text = "⚙"')
+          # The gear glyph may be a literal or an escaped Unicode text glyph.
+          gear = s.index('contentDescription = "Open playback menu"')
+          button_start = s.rfind('val menuButton = Button(this).apply {', 0, gear)
+          if button_start < 0:
+              raise SystemExit("Playback gear button declaration not found")
           bg = s.index('background = GradientDrawable().apply {', gear)
           click = s.index('setOnClickListener { showMenu() }', bg)
-          # Keep only a transparent hit target around the white gear glyph.
           s = s[:bg] + '''background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
                       elevation = 0f
                       ''' + s[click:]
@@ -1040,7 +1042,8 @@ jobs:
                       56,
                       56,''',1)
           p.write_text(s)
-          print("Gear is now a standalone white glyph, with no circular background.")
+          print("Gear remains a standalone white glyph with a transparent hit target.")
+          PY
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
