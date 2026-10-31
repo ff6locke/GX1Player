@@ -112,6 +112,32 @@ jobs:
           p.write_text(s)
           PY
 
+      - name: Disable Matroska cue seeking for MKV random-access errors
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          builder = r'ExoPlayer\\.Builder\\((?:this|this@MainActivity)\\)\\.build\\(\\)'
+          replacement = """ExoPlayer.Builder(
+                      this,
+                      androidx.media3.exoplayer.source.DefaultMediaSourceFactory(
+                          this,
+                          androidx.media3.extractor.DefaultExtractorsFactory()
+                              .setMatroskaExtractorFlags(
+                                  androidx.media3.extractor.mkv.MatroskaExtractor.FLAG_DISABLE_SEEK_FOR_CUES
+                              )
+                      )
+                  ).build()"""
+          s, count = re.subn(builder, lambda _: replacement, s, count=1)
+          if count != 1:
+              raise SystemExit("Could not locate ExoPlayer builder call for Matroska cue patch")
+          p.write_text(s)
+          print("Matroska cue seeking disabled in Media3 extractor.")
+          PY
+
       - name: Patch Media3 1.4.1 audio sink API
         run: |
           # Float output is already disabled on the renderers factory.
