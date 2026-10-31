@@ -114,11 +114,31 @@ jobs:
               private fun gx1PlaybackUri(source: Uri): Uri {
                   if (source.scheme != "content") return source
                   val name = displayName(source).replace(Regex("[^A-Za-z0-9._-]"), "_")
-                  val target = java.io.File(cacheDir, "media_${source.toString().hashCode()}_${name}")
-                  if (!target.exists() || target.length() == 0L) {
+                  val key = source.toString().hashCode()
+                  val target = java.io.File(cacheDir, "media_${key}_${name}")
+                  val temp = java.io.File(cacheDir, "media_${key}.part")
+                  val expectedSize = contentResolver.openAssetFileDescriptor(source, "r")?.use { it.length } ?: -1L
+                  if (!target.exists() || target.length() == 0L ||
+                      (expectedSize >= 0L && target.length() != expectedSize)) {
+                      target.delete()
+                      temp.delete()
                       val input = contentResolver.openInputStream(source)
                           ?: throw java.io.IOException("Unable to read selected media")
-                      input.use { stream -> target.outputStream().use { out -> stream.copyTo(out) } }
+                      try {
+                          input.use { stream -> temp.outputStream().use { out -> stream.copyTo(out) } }
+                          if (temp.length() == 0L ||
+                              (expectedSize >= 0L && temp.length() != expectedSize)) {
+                              throw java.io.IOException("Selected media copy is incomplete")
+                          }
+                          if (!temp.renameTo(target)) {
+                              temp.copyTo(target, overwrite = true)
+                              temp.delete()
+                          }
+                      } catch (error: Throwable) {
+                          temp.delete()
+                          target.delete()
+                          throw error
+                      }
                   }
                   return Uri.fromFile(target)
               }
