@@ -720,7 +720,7 @@ jobs:
                       .setMediaSourceFactory(
                           androidx.media3.exoplayer.source.DefaultMediaSourceFactory(
                               """ + context + """,
-                              androidx.media3.extractor.DefaultExtractorsFactory()
+                              (androidx.media3.extractor.ExtractorsFactory) androidx.media3.extractor.DefaultExtractorsFactory()
                                   .setMatroskaExtractorFlags(
                                       androidx.media3.extractor.mkv.MatroskaExtractor.FLAG_DISABLE_SEEK_FOR_CUES
                                   )
