@@ -437,7 +437,14 @@ jobs:
           if 'add("Home")' not in s:
               s = s.replace('        add("Open video file") {', '        add("Home") { showHome() }\n        add("Open video file") {', 1)
           # No forced file picker on first launch; land on the dashboard.
-          s = s.replace('pickVideo.launch(arrayOf("video/*", "audio/*"))\n        }', 'showHome()\\n        }', 1)
+          # Replace the first-launch file picker regardless of the MIME types above.
+          s, home_launch_matches = re.subn(
+              r'\\}\\s*else\\s*\\{\\s*pickVideo\\.launch\\(arrayOf\\([^\\n]*\\)\\)\\s*\\}',
+              '} else { showHome() }',
+              s, count=1)
+          if home_launch_matches != 1:
+              raise SystemExit("Could not replace first-launch picker with home screen")
+
 
           p.write_text(s)
           required = ['private fun buildHomePanel()', 'addTile("Open video"', 'addTile("Resume"', 'addTile("History"', 'homePanel.visibility = View.GONE']
