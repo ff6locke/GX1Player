@@ -35,6 +35,23 @@ jobs:
           unzip -oq "$ZIP_FILE" -d .
           test -f "$PROJECT_DIR/settings.gradle.kts"
 
+      - name: Inspect original menu implementation
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          lines = p.read_text().splitlines()
+          for i, line in enumerate(lines):
+              if "private fun showMenu" in line:
+                  print("=== ORIGINAL showMenu() ===")
+                  for j in range(i, min(i + 150, len(lines))):
+                      print(f"{j+1}: {lines[j]}")
+                  break
+          else:
+              raise SystemExit("showMenu() not found")
+          PY
+
       - name: Install GX1 Player TV app icon
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
