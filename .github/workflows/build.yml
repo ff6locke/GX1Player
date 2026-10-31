@@ -142,12 +142,12 @@ jobs:
               raise SystemExit("Could not find expected ExoPlayer builder after URI/extractor fix")
           replacement = """val gx1LoadControl = DefaultLoadControl.Builder()
                       .setBufferDurationsMs(
-                          30_000,  // Keep a larger reserve before playback.
-                          120_000, // Allow up to two minutes of compressed media to queue.
-                          1_500,   // Start promptly once a stable buffer is available.
-                          5_000    // Rebuffer more conservatively after a stall.
+                          15_000, // Avoid excessive queued media on memory-limited TV hardware.
+                          60_000, // Keep enough headroom without a very large reserve.
+                          1_000,
+                          3_000
                       )
-                      .setTargetBufferBytes(96 * 1024 * 1024)
+                      .setTargetBufferBytes(32 * 1024 * 1024)
                       .setPrioritizeTimeOverSizeThresholds(true)
                       .build()
                   val exo = ExoPlayer.Builder(this, renderers)
@@ -290,8 +290,7 @@ jobs:
                       Gravity.BOTTOM or Gravity.END
                   ).apply { setMargins(0, 0, 30, 30) }
                   menuButtonRef = menuButton
-                  root.addView(menuButton, menuParams)
-                  // Do not show the custom GX1 gear overlay; keep Media3's built-in gear only.
+                  // Do not attach the custom GX1 gear at all; Media3's gear is the only control.
                   menuButton.visibility = android.view.View.GONE
                   setContentView(root)""",
                   1
@@ -637,7 +636,7 @@ jobs:
               if (!::homePanel.isInitialized) return
               homePanel.visibility = View.VISIBLE
               playerView.visibility = View.GONE
-              if (::menuButtonRef.isInitialized) menuButtonRef.visibility = View.VISIBLE
+              if (::menuButtonRef.isInitialized) menuButtonRef.visibility = View.GONE
               homePanel.requestFocus()
           }
 
@@ -646,7 +645,7 @@ jobs:
               s = s.replace("    private fun showMenu() {", home_methods + "    private fun showMenu() {", 1)
           # When playback starts, reveal the player surface and its menu affordance.
           s = s.replace("        playerView.player = exo\n        player = exo",
-                        "        playerView.player = exo\n        playerView.visibility = View.VISIBLE\n        homePanel.visibility = View.GONE\n        if (::menuButtonRef.isInitialized) menuButtonRef.visibility = View.VISIBLE\n        player = exo", 1)
+                        "        playerView.player = exo\n        playerView.visibility = View.VISIBLE\n        homePanel.visibility = View.GONE\n        if (::menuButtonRef.isInitialized) menuButtonRef.visibility = View.GONE\n        player = exo", 1)
           # Let the user return to the TV home dashboard from the menu.
           if 'add("Home")' not in s:
               s = s.replace('        add("Open video file") {', '        add("Home") { showHome() }\n        add("Open video file") {', 1)
