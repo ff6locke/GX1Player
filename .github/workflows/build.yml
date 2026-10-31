@@ -849,95 +849,160 @@ jobs:
                   fun dp(value: Int) = (value * density).toInt()
                   val panel = android.widget.LinearLayout(this).apply {
                       orientation = android.widget.LinearLayout.VERTICAL
-                      setPadding(dp(12), dp(12), dp(12), dp(12))
+                      setPadding(dp(10), dp(8), dp(10), dp(8))
                       background = android.graphics.drawable.GradientDrawable().apply {
-                          setColor(android.graphics.Color.rgb(24, 27, 34))
-                          cornerRadius = dp(20).toFloat()
-                          setStroke(dp(1), android.graphics.Color.rgb(75, 82, 94))
+                          setColor(android.graphics.Color.rgb(35, 36, 39))
+                          cornerRadius = dp(18).toFloat()
+                          setStroke(dp(1), android.graphics.Color.rgb(100, 102, 106))
                       }
                       elevation = dp(18).toFloat()
                   }
-                  val heading = android.widget.TextView(this).apply {
-                      text = "GX1 PLAYER"
-                      setTextColor(android.graphics.Color.rgb(255, 152, 0))
-                      textSize = 12f
-                      letterSpacing = 0.14f
-                      setPadding(dp(12), dp(8), dp(12), dp(12))
-                  }
-                  panel.addView(heading)
-                  val icons = listOf("▣", "↻", "CC", "◉", "♫", "↺", "ⓘ")
-                  labels.forEachIndexed { index, label ->
+                  val rows = listOf(
+                      Triple("◉", "Playback Speed", "speed"),
+                      Triple("♫", "Audio Track", "audio"),
+                      Triple("▣", "Subtitle Track", "subtitle"),
+                      Triple("▤", "Aspect Ratio", "aspect"),
+                      Triple("⇄", "Repeat", "repeat"),
+                      Triple("◷", "Sleep Timer", "sleep"),
+                      Triple("☷", "Settings", "settings")
+                  )
+                  rows.forEachIndexed { index, item ->
+                      if (index == 3) {
+                          panel.addView(android.view.View(this).apply {
+                              setBackgroundColor(android.graphics.Color.rgb(82, 84, 88))
+                          }, android.widget.LinearLayout.LayoutParams(-1, dp(1)).apply {
+                              setMargins(dp(8), dp(5), dp(8), dp(5))
+                          })
+                      }
                       val row = android.widget.LinearLayout(this).apply {
                           orientation = android.widget.LinearLayout.HORIZONTAL
                           gravity = android.view.Gravity.CENTER_VERTICAL
-                          setPadding(dp(12), 0, dp(12), 0)
-                          minimumHeight = dp(52)
+                          setPadding(dp(12), 0, dp(10), 0)
+                          minimumHeight = dp(60)
                           isClickable = true
                           isFocusable = true
                           background = android.graphics.drawable.GradientDrawable().apply {
                               setColor(android.graphics.Color.TRANSPARENT)
-                              cornerRadius = dp(12).toFloat()
+                              cornerRadius = dp(10).toFloat()
                           }
                       }
-                      val glyph = android.widget.TextView(this).apply {
-                          text = icons.getOrElse(index) { "•" }
-                          setTextColor(android.graphics.Color.rgb(255, 167, 38))
-                          textSize = 18f
+                      row.addView(android.widget.TextView(this).apply {
+                          text = item.first
+                          setTextColor(android.graphics.Color.WHITE)
+                          textSize = 27f
                           gravity = android.view.Gravity.CENTER
-                          layoutParams = android.widget.LinearLayout.LayoutParams(dp(36), dp(44))
-                      }
-                      val title = android.widget.TextView(this).apply {
-                          text = label
-                          setTextColor(android.graphics.Color.rgb(245, 246, 248))
-                          textSize = 15f
-                          maxLines = 2
+                          layoutParams = android.widget.LinearLayout.LayoutParams(dp(54), -1)
+                      })
+                      row.addView(android.widget.TextView(this).apply {
+                          text = item.second
+                          setTextColor(android.graphics.Color.WHITE)
+                          textSize = 16f
                           gravity = android.view.Gravity.CENTER_VERTICAL
-                          setPadding(dp(10), 0, 0, 0)
-                          layoutParams = android.widget.LinearLayout.LayoutParams(0, -2, 1f)
-                      }
-                      row.addView(glyph)
-                      row.addView(title)
-                      row.setOnClickListener {
-                          menuPopupRef?.dismiss()
-                          actions[index].invoke()
+                          layoutParams = android.widget.LinearLayout.LayoutParams(0, -1, 1f)
+                      })
+                      if (item.third == "repeat") {
+                          row.addView(android.widget.Switch(this).apply {
+                              isChecked = player?.repeatMode == Player.REPEAT_MODE_ONE ||
+                                  player?.repeatMode == Player.REPEAT_MODE_ALL
+                              setOnCheckedChangeListener { _, checked ->
+                                  player?.repeatMode = if (checked) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
+                              }
+                          })
+                      } else if (item.third != "settings") {
+                          row.addView(android.widget.TextView(this).apply {
+                              text = "›"
+                              setTextColor(android.graphics.Color.WHITE)
+                              textSize = 30f
+                              gravity = android.view.Gravity.CENTER
+                              layoutParams = android.widget.LinearLayout.LayoutParams(dp(30), -1)
+                          })
                       }
                       row.setOnFocusChangeListener { view, focused ->
                           view.background = android.graphics.drawable.GradientDrawable().apply {
-                              setColor(if (focused) android.graphics.Color.rgb(65, 48, 30) else android.graphics.Color.TRANSPARENT)
-                              cornerRadius = dp(12).toFloat()
-                              if (focused) setStroke(dp(1), android.graphics.Color.rgb(255, 152, 0))
+                              setColor(if (focused) android.graphics.Color.rgb(65, 67, 72) else android.graphics.Color.TRANSPARENT)
+                              cornerRadius = dp(10).toFloat()
+                          }
+                      }
+                      row.setOnClickListener {
+                          menuPopupRef?.dismiss()
+                          when (item.third) {
+                              "speed" -> {
+                                  val speeds = arrayOf("0.25×", "0.5×", "0.75×", "1.0×", "1.25×", "1.5×", "2.0×")
+                                  val values = floatArrayOf(.25f, .5f, .75f, 1f, 1.25f, 1.5f, 2f)
+                                  AlertDialog.Builder(this).setTitle("Playback Speed")
+                                      .setItems(speeds) { _, which -> player?.setPlaybackSpeed(values[which]) }.show()
+                              }
+                              "audio" -> Toast.makeText(this, "Choose an audio track from the available player tracks.", Toast.LENGTH_SHORT).show()
+                              "subtitle" -> pickSubtitle.launch(arrayOf("application/x-subrip", "text/vtt", "text/plain", "application/octet-stream"))
+                              "aspect" -> {
+                                  val modes = intArrayOf(
+                                      androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT,
+                                      androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL,
+                                      androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                                  )
+                                  val names = arrayOf("Fit", "Fill", "Zoom")
+                                  val next = (modes.indexOf(playerView.resizeMode) + 1).let { if (it < 0) 0 else (it + 1) % modes.size }
+                                  playerView.resizeMode = modes[next]
+                                  Toast.makeText(this, "Aspect ratio: " + names[next], Toast.LENGTH_SHORT).show()
+                              }
+                              "sleep" -> {
+                                  val choices = arrayOf("15 minutes", "30 minutes", "45 minutes", "60 minutes", "90 minutes")
+                                  AlertDialog.Builder(this).setTitle("Sleep Timer")
+                                      .setItems(choices) { _, which ->
+                                          val mins = intArrayOf(15, 30, 45, 60, 90)[which]
+                                          android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                              player?.pause()
+                                              Toast.makeText(this, "Sleep timer ended", Toast.LENGTH_SHORT).show()
+                                          }, mins * 60_000L)
+                                          Toast.makeText(this, "Sleep timer set: $mins minutes", Toast.LENGTH_SHORT).show()
+                                      }.show()
+                              }
+                              "settings" -> {
+                                  val settings = labels.toTypedArray()
+                                  AlertDialog.Builder(this).setTitle("Settings")
+                                      .setItems(settings) { _, which -> actions[which].invoke() }.show()
+                              }
                           }
                       }
                       panel.addView(row)
                   }
-                  val scroll = android.widget.ScrollView(this).apply {
-                      isFillViewport = true
-                      addView(panel)
+                  val popupContent = android.widget.FrameLayout(this)
+                  popupContent.addView(panel, android.widget.FrameLayout.LayoutParams(dp(340), -2,
+                      android.view.Gravity.TOP or android.view.Gravity.CENTER_HORIZONTAL))
+                  val pointer = object : android.view.View(this) {
+                      private val paint = android.graphics.Paint(3).apply {
+                          color = android.graphics.Color.rgb(35, 36, 39)
+                          style = android.graphics.Paint.Style.FILL
+                      }
+                      override fun onDraw(canvas: android.graphics.Canvas) {
+                          super.onDraw(canvas)
+                          val path = android.graphics.Path().apply {
+                              moveTo(width / 2f - dp(12), 0f)
+                              lineTo(width / 2f + dp(12), 0f)
+                              lineTo(width / 2f, dp(13).toFloat())
+                              close()
+                          }
+                          canvas.drawPath(path, paint)
+                      }
                   }
-                  val popup = android.widget.PopupWindow(scroll, dp(300), dp(460), true).apply {
+                  val pointerParams = android.widget.FrameLayout.LayoutParams(dp(28), dp(14),
+                      android.view.Gravity.BOTTOM or android.view.Gravity.END).apply {
+                      marginEnd = dp(20)
+                  }
+                  popupContent.addView(pointer, pointerParams)
+                  val popup = android.widget.PopupWindow(popupContent, dp(360), dp(444), true).apply {
                       isOutsideTouchable = true
                       setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
                       elevation = dp(20).toFloat()
                   }
                   menuPopupRef = popup
-                  // Anchor the complete menu to the white gear itself. Keep the panel's
-                  // right edge aligned with the gear and place it directly above it.
                   if (::menuButtonRef.isInitialized && menuButtonRef.isAttachedToWindow) {
-                      popup.showAsDropDown(
-                          menuButtonRef,
-                          0,
-                          -dp(468),
-                          android.view.Gravity.END
-                      )
+                      popup.showAsDropDown(menuButtonRef, 0, -dp(444), android.view.Gravity.END)
                   } else {
-                      popup.showAtLocation(
-                          window.decorView,
-                          android.view.Gravity.BOTTOM or android.view.Gravity.END,
-                          dp(30),
-                          dp(94)
-                      )
+                      popup.showAtLocation(window.decorView, android.view.Gravity.BOTTOM or android.view.Gravity.END,
+                          dp(30), dp(94))
                   }
-              """
+          """""
           if "menuPopupRef" not in s:
               field = "    private var player: ExoPlayer? = null"
               if field not in s:
