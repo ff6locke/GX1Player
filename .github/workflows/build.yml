@@ -269,11 +269,15 @@ jobs:
                   ))
                   playerView.visibility = android.view.View.GONE
                   val menuButton = Button(this).apply {
-                      text = "⚙"
-                      textSize = 34f
+                      // Force text presentation so Android draws a crisp white gear glyph,
+                      // not a gray emoji-style icon.
+                      text = "\u2699\uFE0E"
+                      textSize = 36f
+                      typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
                       isAllCaps = false
                       setTextColor(Color.WHITE)
-                      contentDescription = "Open player settings"
+                      alpha = 1f
+                      contentDescription = "Open playback menu"
                       minWidth = 0
                       minHeight = 0
                       setPadding(0, 0, 0, 3)
