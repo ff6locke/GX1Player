@@ -717,11 +717,14 @@ jobs:
           if "FLAG_DISABLE_SEEK_FOR_CUES" not in s:
               context = match.group(1)
               factory = """run {
-                      val gx1Extractors: androidx.media3.extractor.ExtractorsFactory =
-                          androidx.media3.extractor.DefaultExtractorsFactory()
+                      val gx1Extractors = object : androidx.media3.extractor.ExtractorsFactory {
+                          private val delegate = androidx.media3.extractor.DefaultExtractorsFactory()
                               .setMatroskaExtractorFlags(
                                   androidx.media3.extractor.mkv.MatroskaExtractor.FLAG_DISABLE_SEEK_FOR_CUES
                               )
+                          override fun createExtractors(): Array<androidx.media3.extractor.Extractor> =
+                              delegate.createExtractors()
+                      }
                       ExoPlayer.Builder(""" + context + """)
                           .setMediaSourceFactory(
                               androidx.media3.exoplayer.source.DefaultMediaSourceFactory(
