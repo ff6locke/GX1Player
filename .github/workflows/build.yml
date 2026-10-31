@@ -1058,6 +1058,111 @@ jobs:
           print("Custom duplicate gear is hidden; Media3 gear remains the only visible gear.")
           PY
 
+      - name: Add simultaneous second subtitle overlay
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          fields = """    private var gx1SecondSubtitleCues: List<Triple<Long, Long, String>> = emptyList()
+              private lateinit var gx1SecondSubtitleView: android.widget.TextView
+              private val gx1SubtitleHandler = android.os.Handler(android.os.Looper.getMainLooper())
+              private val gx1SubtitleTicker = object : Runnable {
+                  override fun run() {
+                      val exo = player
+                      if (::gx1SecondSubtitleView.isInitialized && exo != null && subtitleUri2 != null) {
+                          val now = exo.currentPosition
+                          val cue = gx1SecondSubtitleCues.firstOrNull { now >= it.first && now < it.second }
+                          gx1SecondSubtitleView.text = cue?.third.orEmpty()
+                          gx1SecondSubtitleView.visibility =
+                              if (cue == null || !prefs.getBoolean(KEY_SUBS_ON, true)) android.view.View.GONE
+                              else android.view.View.VISIBLE
+                      }
+                      gx1SubtitleHandler.postDelayed(this, 100L)
+                  }
+              }
+              private fun gx1ParseSubtitleTime(value: String): Long? {
+                  val parts = value.trim().replace(',', '.').split(':')
+                  if (parts.size !in 2..3) return null
+                  return runCatching {
+                      val seconds = parts.last().toDouble()
+                      val minutes = parts[parts.size - 2].toLong()
+                      val hours = if (parts.size == 3) parts[0].toLong() else 0L
+                      ((hours * 3600 + minutes * 60) * 1000L) + (seconds * 1000.0).toLong()
+                  }.getOrNull()
+              }
+              private fun gx1LoadSecondSubtitle(uri: Uri?) {
+                  gx1SecondSubtitleCues = emptyList()
+                  if (uri == null) return
+                  runCatching {
+                      val raw = contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
+                          ?: return@runCatching
+                      val blocks = raw.replace("\\r", "").split(Regex("\\n\\s*\\n"))
+                      gx1SecondSubtitleCues = blocks.mapNotNull { block ->
+                          val lines = block.lines().map { it.trim() }.filter { it.isNotEmpty() }
+                          val timeLine = lines.firstOrNull { it.contains("-->") } ?: return@mapNotNull null
+                          val times = timeLine.split("-->")
+                          if (times.size != 2) return@mapNotNull null
+                          val start = gx1ParseSubtitleTime(times[0].trim().substringBefore(' '))
+                              ?: return@mapNotNull null
+                          val end = gx1ParseSubtitleTime(times[1].trim().substringBefore(' '))
+                              ?: return@mapNotNull null
+                          val bodyIndex = lines.indexOf(timeLine) + 1
+                          if (bodyIndex >= lines.size) return@mapNotNull null
+                          Triple(start, end, lines.drop(bodyIndex).joinToString("\\n")
+                              .replace(Regex("<[^>]+>"), "").replace("&amp;", "&")
+                              .replace("&lt;", "<").replace("&gt;", ">"))
+                      }.sortedBy { it.first }
+                  }.onFailure {
+                      android.util.Log.e("GX1Player", "Could not read second subtitle", it)
+                      gx1SecondSubtitleCues = emptyList()
+                  }
+              }
+
+          """
+          if "private fun gx1LoadSecondSubtitle(" not in s:
+              anchor = "    private fun togglePassthrough() {"
+              if anchor not in s: raise SystemExit("Subtitle helper insertion point not found")
+              s = s.replace(anchor, fields + anchor, 1)
+          root_anchor = """                  root.addView(playerView, FrameLayout.LayoutParams(
+                      FrameLayout.LayoutParams.MATCH_PARENT,
+                      FrameLayout.LayoutParams.MATCH_PARENT
+                  ))"""
+          overlay = root_anchor + """
+                  gx1SecondSubtitleView = android.widget.TextView(this).apply {
+                      setTextColor(Color.WHITE)
+                      textSize = 21f
+                      gravity = Gravity.CENTER
+                      setShadowLayer(4f, 2f, 2f, Color.BLACK)
+                      setPadding(18, 8, 18, 8)
+                      background = android.graphics.drawable.GradientDrawable().apply {
+                          setColor(0x66000000)
+                          cornerRadius = 8f
+                      }
+                      visibility = android.view.View.GONE
+                      isClickable = false
+                      isFocusable = false
+                  }
+                  root.addView(gx1SecondSubtitleView, FrameLayout.LayoutParams(
+                      FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT,
+                      Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+                  ).apply { setMargins(28, 0, 28, 150) })
+                  gx1SubtitleHandler.removeCallbacks(gx1SubtitleTicker)
+                  gx1SubtitleHandler.post(gx1SubtitleTicker)"""
+          if "gx1SecondSubtitleView = android.widget.TextView(this)" not in s:
+              if root_anchor not in s: raise SystemExit("Player root insertion point for second subtitle overlay not found")
+              s = s.replace(root_anchor, overlay, 1)
+          marker = '        subtitleUri2 = prefs.getString(subKey(uri) + "|2", null)?.let { Uri.parse(it) }'
+          if marker in s and "gx1LoadSecondSubtitle(subtitleUri2)" not in s:
+              s = s.replace(marker, marker + '\\n        gx1LoadSecondSubtitle(subtitleUri2)', 1)
+          marker = '              subtitleUri2 = uri'
+          if marker in s and 'gx1LoadSecondSubtitle(uri)' not in s:
+              s = s.replace(marker, marker + '\\n              gx1LoadSecondSubtitle(uri)', 1)
+          p.write_text(s)
+          print("Installed synchronized second subtitle overlay (SRT/VTT).")
+          PY
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
