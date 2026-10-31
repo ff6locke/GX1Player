@@ -920,8 +920,23 @@ jobs:
                       elevation = dp(20).toFloat()
                   }
                   menuPopupRef = popup
-                  popup.showAtLocation(window.decorView, android.view.Gravity.BOTTOM or android.view.Gravity.END,
-                      dp(24), dp(112))
+                  // Anchor the complete menu to the white gear itself. Keep the panel's
+                  // right edge aligned with the gear and place it directly above it.
+                  if (::menuButtonRef.isInitialized && menuButtonRef.isAttachedToWindow) {
+                      popup.showAsDropDown(
+                          menuButtonRef,
+                          0,
+                          -dp(468),
+                          android.view.Gravity.END
+                      )
+                  } else {
+                      popup.showAtLocation(
+                          window.decorView,
+                          android.view.Gravity.BOTTOM or android.view.Gravity.END,
+                          dp(30),
+                          dp(94)
+                      )
+                  }
               """
           if "menuPopupRef" not in s:
               field = "    private var player: ExoPlayer? = null"
