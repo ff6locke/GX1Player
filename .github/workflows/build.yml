@@ -1002,7 +1002,7 @@ jobs:
                       popup.showAtLocation(window.decorView, android.view.Gravity.BOTTOM or android.view.Gravity.END,
                           dp(30), dp(94))
                   }
-          """""
+          """
           if "menuPopupRef" not in s:
               field = "    private var player: ExoPlayer? = null"
               if field not in s:
