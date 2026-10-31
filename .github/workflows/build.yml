@@ -232,9 +232,12 @@ jobs:
                   ))
                   playerView.visibility = android.view.View.GONE
                   val menuButton = Button(this).apply {
-                      text = "Menu"
+                      text = "⚙"
+                      textSize = 25f
                       isAllCaps = false
-                      contentDescription = "Open player menu"
+                      contentDescription = "Settings and player menu"
+                      minWidth = 64
+                      minHeight = 56
                       setOnClickListener { showMenu() }
                   }
                   val menuParams = FrameLayout.LayoutParams(
