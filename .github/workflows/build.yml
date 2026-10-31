@@ -120,6 +120,31 @@ jobs:
           p.write_text(s)
           PY
 
+      - name: Configure Matroska extractor at actual player builder
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          old = "val exo = ExoPlayer.Builder(this, renderers)"
+          new = """val gx1Extractors = androidx.media3.extractor.DefaultExtractorsFactory()
+                      .setMatroskaExtractorFlags(
+                          androidx.media3.extractor.mkv.MatroskaExtractor.FLAG_DISABLE_SEEK_FOR_CUES
+                      )
+                  val gx1MediaSourceFactory =
+                      androidx.media3.exoplayer.source.DefaultMediaSourceFactory(this, gx1Extractors)
+                  val exo = ExoPlayer.Builder(this, renderers, gx1MediaSourceFactory)"""
+          if old not in s:
+              raise SystemExit("Actual ExoPlayer builder line not found")
+          if "gx1MediaSourceFactory" not in s:
+              s = s.replace(old, new, 1)
+          if "@file:androidx.media3.common.util.UnstableApi" not in s and "@file:OptIn" not in s:
+              s = s.replace("package ", "@file:androidx.media3.common.util.UnstableApi\n\npackage ", 1)
+          p.write_text(s)
+          print("Configured Media3 Matroska cue handling on the actual player builder.")
+          PY
+
       - name: Patch Media3 1.4.1 audio sink API
         run: |
           # Float output is already disabled on the renderers factory.
