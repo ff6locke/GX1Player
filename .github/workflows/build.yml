@@ -124,6 +124,39 @@ jobs:
           print("Using Media3 default extractors and normal content-URI data source.")
           PY
 
+      - name: Increase buffering headroom for high-bitrate 4K files
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          if "import androidx.media3.exoplayer.DefaultLoadControl" not in s:
+              match = re.search(r"^import androidx\\.media3\\.exoplayer\\.[^\\n]*\\n", s, re.M)
+              if not match:
+                  raise SystemExit("Could not locate Media3 ExoPlayer imports")
+              s = s[:match.start()] + "import androidx.media3.exoplayer.DefaultLoadControl\\n" + s[match.start():]
+          old = "val exo = ExoPlayer.Builder(this, renderers)"
+          if old not in s:
+              raise SystemExit("Could not find expected ExoPlayer builder after URI/extractor fix")
+          replacement = """val gx1LoadControl = DefaultLoadControl.Builder()
+                      .setBufferDurationsMs(
+                          30_000,  // Keep a larger reserve before playback.
+                          120_000, // Allow up to two minutes of compressed media to queue.
+                          1_500,   // Start promptly once a stable buffer is available.
+                          5_000    // Rebuffer more conservatively after a stall.
+                      )
+                      .setTargetBufferBytes(96 * 1024 * 1024)
+                      .setPrioritizeTimeOverSizeThresholds(true)
+                      .build()
+                  val exo = ExoPlayer.Builder(this, renderers)
+                      .setLoadControl(gx1LoadControl)"""
+          s = s.replace(old, replacement, 1)
+          p.write_text(s)
+          print("Configured larger time- and memory-bounded buffers for high-bitrate 4K playback.")
+          PY
+
       - name: Patch Media3 1.4.1 audio sink API
         run: |
           # Float output is already disabled on the renderers factory.
