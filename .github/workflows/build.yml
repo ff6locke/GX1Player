@@ -1043,6 +1043,25 @@ jobs:
           print("Installed lower-right white gear and anchored VLC-style menu.")
           PY
 
+      - name: Fix gear menu state and use bare white gear
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          if "private var gearPopup:" not in s:
+              s = s.replace("    private fun showGearMenu()", "    private var gearPopup: android.widget.PopupWindow? = null\n\n    private fun showGearMenu()", 1)
+          # Remove the dark circular button treatment: only the white gear glyph remains.
+          pattern = r'background = GradientDrawable\(\)\.apply \{\s*shape = GradientDrawable\.OVAL.*?\n\s*\}\n\s*elevation = 12f\n\s*setOnFocusChangeListener \{.*?\n\s*\}\n'
+          s, n = re.subn(pattern, 'background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)\n                      elevation = 0f\n', s, count=1, flags=re.S)
+          if n != 1:
+              raise SystemExit("Could not remove gear button circle styling")
+          p.write_text(s)
+          print("Fixed gear popup state and removed the dark circular gear background.")
+          PY
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
