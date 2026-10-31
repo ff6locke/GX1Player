@@ -812,6 +812,106 @@ jobs:
           print("Full-screen VLC-style TV library inserted.")
           PY
 
+      - name: Replace menu with VLC-style floating panel
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          pattern = r'        AlertDialog\\.Builder\\(this\\)\\s*\\.setTitle\\("GX1 Player"\\)\\s*\\.setItems\\(labels\\.toTypedArray\\(\\)\\) \\{ _, which -> actions\\[which\\]\\(\\) \\}\\s*\\.show\\(\\)'
+          replacement = r"""
+                  val density = resources.displayMetrics.density
+                  fun dp(value: Int) = (value * density).toInt()
+                  val panel = android.widget.LinearLayout(this).apply {
+                      orientation = android.widget.LinearLayout.VERTICAL
+                      setPadding(dp(12), dp(12), dp(12), dp(12))
+                      background = android.graphics.drawable.GradientDrawable().apply {
+                          setColor(android.graphics.Color.rgb(24, 27, 34))
+                          cornerRadius = dp(20).toFloat()
+                          setStroke(dp(1), android.graphics.Color.rgb(75, 82, 94))
+                      }
+                      elevation = dp(18).toFloat()
+                  }
+                  val heading = android.widget.TextView(this).apply {
+                      text = "GX1 PLAYER"
+                      setTextColor(android.graphics.Color.rgb(255, 152, 0))
+                      textSize = 12f
+                      letterSpacing = 0.14f
+                      setPadding(dp(12), dp(8), dp(12), dp(12))
+                  }
+                  panel.addView(heading)
+                  val icons = listOf("▣", "↻", "CC", "◉", "♫", "↺", "ⓘ")
+                  labels.forEachIndexed { index, label ->
+                      val row = android.widget.LinearLayout(this).apply {
+                          orientation = android.widget.LinearLayout.HORIZONTAL
+                          gravity = android.view.Gravity.CENTER_VERTICAL
+                          setPadding(dp(12), 0, dp(12), 0)
+                          minimumHeight = dp(52)
+                          isClickable = true
+                          isFocusable = true
+                          background = android.graphics.drawable.GradientDrawable().apply {
+                              setColor(android.graphics.Color.TRANSPARENT)
+                              cornerRadius = dp(12).toFloat()
+                          }
+                      }
+                      val glyph = android.widget.TextView(this).apply {
+                          text = icons.getOrElse(index) { "•" }
+                          setTextColor(android.graphics.Color.rgb(255, 167, 38))
+                          textSize = 18f
+                          gravity = android.view.Gravity.CENTER
+                          layoutParams = android.widget.LinearLayout.LayoutParams(dp(36), dp(44))
+                      }
+                      val title = android.widget.TextView(this).apply {
+                          text = label
+                          setTextColor(android.graphics.Color.rgb(245, 246, 248))
+                          textSize = 15f
+                          maxLines = 2
+                          gravity = android.view.Gravity.CENTER_VERTICAL
+                          setPadding(dp(10), 0, 0, 0)
+                          layoutParams = android.widget.LinearLayout.LayoutParams(0, -2, 1f)
+                      }
+                      row.addView(glyph)
+                      row.addView(title)
+                      row.setOnClickListener {
+                          menuPopupRef?.dismiss()
+                          actions[index].invoke()
+                      }
+                      row.setOnFocusChangeListener { view, focused ->
+                          view.background = android.graphics.drawable.GradientDrawable().apply {
+                              setColor(if (focused) android.graphics.Color.rgb(65, 48, 30) else android.graphics.Color.TRANSPARENT)
+                              cornerRadius = dp(12).toFloat()
+                              if (focused) setStroke(dp(1), android.graphics.Color.rgb(255, 152, 0))
+                          }
+                      }
+                      panel.addView(row)
+                  }
+                  val scroll = android.widget.ScrollView(this).apply {
+                      isFillViewport = true
+                      addView(panel)
+                  }
+                  val popup = android.widget.PopupWindow(scroll, dp(300), dp(460), true).apply {
+                      isOutsideTouchable = true
+                      setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+                      elevation = dp(20).toFloat()
+                  }
+                  menuPopupRef = popup
+                  popup.showAtLocation(window.decorView, android.view.Gravity.BOTTOM or android.view.Gravity.END,
+                      dp(24), dp(112))
+              """
+          if "menuPopupRef" not in s:
+              field = "    private var player: ExoPlayer? = null"
+              if field not in s:
+                  raise SystemExit("Player field insertion point missing")
+              s = s.replace(field, field + "\\n    private var menuPopupRef: android.widget.PopupWindow? = null", 1)
+          s, n = re.subn(pattern, lambda m: replacement, s, count=1)
+          if n != 1:
+              raise SystemExit("Could not replace original GX1 Player menu dialog")
+          p.write_text(s)
+          print("Installed touch-friendly VLC-style floating menu panel.")
+          PY
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
