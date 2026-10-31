@@ -1,4 +1,5 @@
 name: Build GX1 Player APK
+# Re-run after correcting the MKV URI and extractor configuration
 
 on:
   push:
