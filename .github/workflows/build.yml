@@ -133,10 +133,10 @@ jobs:
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
           if "import androidx.media3.exoplayer.DefaultLoadControl" not in s:
-              match = re.search(r"^import androidx\\.media3\\.exoplayer\\.[^\\n]*\\n", s, re.M)
-              if not match:
-                  raise SystemExit("Could not locate Media3 ExoPlayer imports")
-              s = s[:match.start()] + "import androidx.media3.exoplayer.DefaultLoadControl\\n" + s[match.start():]
+              marker = "import androidx.media3.exoplayer.ExoPlayer"
+              if marker not in s:
+                  raise SystemExit("Could not locate ExoPlayer import")
+              s = s.replace(marker, "import androidx.media3.exoplayer.DefaultLoadControl\\n" + marker, 1)
           old = "val exo = ExoPlayer.Builder(this, renderers)"
           if old not in s:
               raise SystemExit("Could not find expected ExoPlayer builder after URI/extractor fix")
