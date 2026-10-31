@@ -943,17 +943,20 @@ jobs:
           import re
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
-          # The existing player overlay button is already anchored bottom-right.
-          # Keep its gear glyph, but remove the circular dark button treatment.
-          pattern = r'background = GradientDrawable\\(\\)\\.apply \\{\\s*shape = GradientDrawable\\.OVAL.*?\\n\\s*\\}\\n\\s*elevation = 12f\\n\\s*setOnFocusChangeListener \\{.*?\\n\\s*\\}\\n'
-          s, n = re.subn(pattern,
-              'background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)\\n                      elevation = 0f\\n',
-              s, count=1, flags=re.S)
-          if n != 1 and 'text = "⚙"' not in s:
-              raise SystemExit("Existing lower-right gear button not found")
+          gear = s.index('text = "⚙"')
+          bg = s.index('background = GradientDrawable().apply {', gear)
+          click = s.index('setOnClickListener { showMenu() }', bg)
+          # Keep only a transparent hit target around the white gear glyph.
+          s = s[:bg] + '''background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
+                      elevation = 0f
+                      ''' + s[click:]
+          s = s.replace('''val menuParams = FrameLayout.LayoutParams(
+                      72,
+                      72,''','''val menuParams = FrameLayout.LayoutParams(
+                      56,
+                      56,''',1)
           p.write_text(s)
-          print("Kept the lower-right gear as a bare white icon; menu remains the floating panel.")
-          PY
+          print("Gear is now a standalone white glyph, with no circular background.")
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
