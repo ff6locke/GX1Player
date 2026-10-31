@@ -263,7 +263,7 @@ jobs:
                   ).apply { setMargins(0, 0, 30, 30) }
                   menuButtonRef = menuButton
                   root.addView(menuButton, menuParams)
-                  menuButton.visibility = android.view.View.GONE
+                  menuButton.visibility = android.view.View.VISIBLE
                   setContentView(root)""",
                   1
               )
@@ -608,7 +608,7 @@ jobs:
               if (!::homePanel.isInitialized) return
               homePanel.visibility = View.VISIBLE
               playerView.visibility = View.GONE
-              if (::menuButtonRef.isInitialized) menuButtonRef.visibility = View.GONE
+              if (::menuButtonRef.isInitialized) menuButtonRef.visibility = View.VISIBLE
               homePanel.requestFocus()
           }
 
