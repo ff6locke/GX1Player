@@ -136,7 +136,7 @@ jobs:
               marker = "import androidx.media3.exoplayer.ExoPlayer"
               if marker not in s:
                   raise SystemExit("Could not locate ExoPlayer import")
-              s = s.replace(marker, "import androidx.media3.exoplayer.DefaultLoadControl\\n" + marker, 1)
+              s = s.replace(marker, "import androidx.media3.exoplayer.DefaultLoadControl\n" + marker, 1)
           old = "val exo = ExoPlayer.Builder(this, renderers)"
           if old not in s:
               raise SystemExit("Could not find expected ExoPlayer builder after URI/extractor fix")
