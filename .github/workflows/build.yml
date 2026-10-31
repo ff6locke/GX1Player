@@ -141,10 +141,17 @@ jobs:
               s = s.replace(
                   "        setContentView(playerView)",
                   """        val root = FrameLayout(this)
+                  rootLayout = root
                   root.addView(playerView, FrameLayout.LayoutParams(
                       FrameLayout.LayoutParams.MATCH_PARENT,
                       FrameLayout.LayoutParams.MATCH_PARENT
                   ))
+                  homePanel = buildHomePanel()
+                  root.addView(homePanel, FrameLayout.LayoutParams(
+                      FrameLayout.LayoutParams.MATCH_PARENT,
+                      FrameLayout.LayoutParams.MATCH_PARENT
+                  ))
+                  playerView.visibility = android.view.View.GONE
                   val menuButton = Button(this).apply {
                       text = "Menu"
                       isAllCaps = false
@@ -156,7 +163,9 @@ jobs:
                       FrameLayout.LayoutParams.WRAP_CONTENT,
                       Gravity.TOP or Gravity.END
                   ).apply { setMargins(0, 24, 24, 0) }
+                  menuButtonRef = menuButton
                   root.addView(menuButton, menuParams)
+                  menuButton.visibility = android.view.View.GONE
                   setContentView(root)""",
                   1
               )
@@ -303,7 +312,142 @@ jobs:
           s = s.replace('        prefs.edit().putString(KEY_LAST_URI, uri.toString()).apply()\n        subtitleUri =',
                         '        prefs.edit().putString(KEY_LAST_URI, uri.toString()).putLong(KEY_HISTORY_PREFIX + uri.toString(), System.currentTimeMillis()).apply()\n        subtitleUri =')
 
+          # Replace the player-only launch with a TV-first home dashboard.
+          for imp in ["import android.graphics.drawable.GradientDrawable", "import android.view.View", "import android.widget.LinearLayout", "import android.widget.TextView"]:
+              if imp not in s:
+                  s = s.replace("import android.view.KeyEvent", "import android.view.KeyEvent\\n" + imp, 1)
+          fields = """    private lateinit var rootLayout: FrameLayout
+          private lateinit var homePanel: LinearLayout
+          private lateinit var menuButtonRef: Button
+
+          """
+          if "private lateinit var rootLayout: FrameLayout" not in s:
+              s = s.replace("    private lateinit var playerView: PlayerView", fields + "    private lateinit var playerView: PlayerView", 1)
+          home_methods = r'''
+          private fun buildHomePanel(): LinearLayout {
+              val panel = LinearLayout(this).apply {
+                  orientation = LinearLayout.VERTICAL
+                  setPadding(56, 36, 56, 32)
+                  setBackgroundColor(Color.rgb(10, 14, 22))
+                  gravity = android.view.Gravity.CENTER_VERTICAL
+              }
+              val brand = TextView(this).apply {
+                  text = "GX1 PLAYER"
+                  textSize = 30f
+                  setTextColor(Color.WHITE)
+                  letterSpacing = 0.12f
+                  setTypeface(null, android.graphics.Typeface.BOLD)
+              }
+              panel.addView(brand)
+              val subtitle = TextView(this).apply {
+                  text = "Your movies. Your screen."
+                  textSize = 16f
+                  setTextColor(Color.LTGRAY)
+                  setPadding(0, 6, 0, 28)
+              }
+              panel.addView(subtitle)
+              val section = TextView(this).apply {
+                  text = "LIBRARY"
+                  textSize = 13f
+                  letterSpacing = 0.18f
+                  setTextColor(Color.rgb(255, 152, 0))
+                  setPadding(0, 0, 0, 12)
+              }
+              panel.addView(section)
+              val row = LinearLayout(this).apply {
+                  orientation = LinearLayout.HORIZONTAL
+                  gravity = android.view.Gravity.CENTER_VERTICAL
+              }
+              fun addTile(label: String, detail: String, action: () -> Unit) {
+                  val tile = LinearLayout(this).apply {
+                      orientation = LinearLayout.VERTICAL
+                      gravity = android.view.Gravity.CENTER
+                      isFocusable = true
+                      isFocusableInTouchMode = true
+                      setPadding(22, 20, 22, 20)
+                      background = GradientDrawable().apply {
+                          setColor(Color.rgb(27, 34, 47))
+                          cornerRadius = 18f
+                          setStroke(2, Color.rgb(58, 68, 84))
+                      }
+                      setOnClickListener { action() }
+                      setOnFocusChangeListener { v, focused ->
+                          v.background = GradientDrawable().apply {
+                              setColor(if (focused) Color.rgb(65, 42, 20) else Color.rgb(27, 34, 47))
+                              cornerRadius = 18f
+                              setStroke(if (focused) 4 else 2, if (focused) Color.rgb(255, 145, 0) else Color.rgb(58, 68, 84))
+                          }
+                      }
+                  }
+                  val title = TextView(this).apply {
+                      text = label
+                      textSize = 20f
+                      setTextColor(Color.WHITE)
+                      setTypeface(null, android.graphics.Typeface.BOLD)
+                  }
+                  val hint = TextView(this).apply {
+                      text = detail
+                      textSize = 13f
+                      setTextColor(Color.LTGRAY)
+                      setPadding(0, 8, 0, 0)
+                  }
+                  tile.addView(title)
+                  tile.addView(hint)
+                  row.addView(tile, LinearLayout.LayoutParams(0, 132, 1f).apply {
+                      setMargins(0, 0, 16, 0)
+                  })
+              }
+              addTile("Open video", "Browse files") {
+                  pickVideo.launch(arrayOf("video/*", "audio/*", "application/octet-stream", "application/x-matroska"))
+              }
+              addTile("Resume", "Continue watching") {
+                  val last = prefs.getString(KEY_LAST_URI, null)?.let { Uri.parse(it) }
+                  if (last != null) { selectMedia(last); startPlayer() }
+                  else Toast.makeText(this, "No previous video", Toast.LENGTH_SHORT).show()
+              }
+              addTile("History", "Recently played") { showHistory() }
+              panel.addView(row)
+              val footer = TextView(this).apply {
+                  text = "MENU  ·  Playback options     •     BACK  ·  Player menu"
+                  textSize = 13f
+                  setTextColor(Color.rgb(135, 148, 166))
+                  setPadding(0, 30, 0, 0)
+              }
+              panel.addView(footer)
+              panel.isFocusableInTouchMode = true
+              panel.post { row.getChildAt(0)?.requestFocus() }
+              return panel
+          }
+
+          private fun showHome() {
+              if (!::homePanel.isInitialized) return
+              homePanel.visibility = View.VISIBLE
+              playerView.visibility = View.GONE
+              if (::menuButtonRef.isInitialized) menuButtonRef.visibility = View.GONE
+              homePanel.requestFocus()
+          }
+
+          '''
+          if "private fun buildHomePanel()" not in s:
+              s = s.replace("    private fun showMenu() {", home_methods + "    private fun showMenu() {", 1)
+          # When playback starts, reveal the player surface and its menu affordance.
+          s = s.replace("        playerView.player = exo\n        player = exo",
+                        "        playerView.player = exo\n        playerView.visibility = View.VISIBLE\n        homePanel.visibility = View.GONE\n        if (::menuButtonRef.isInitialized) menuButtonRef.visibility = View.VISIBLE\n        player = exo", 1)
+          # Let the user return to the TV home dashboard from the menu.
+          if 'add("Home")' not in s:
+              s = s.replace('        add("Open video file") {', '        add("Home") { showHome() }\n        add("Open video file") {', 1)
+          # No forced file picker on first launch; land on the dashboard.
+          s = s.replace('''          } else {
+              pickVideo.launch(arrayOf("video/*", "audio/*"))
+          }''', '''          } else {
+              showHome()
+          }''', 1)
+
           p.write_text(s)
+          required = ['private fun buildHomePanel()', 'addTile("Open video"', 'addTile("Resume"', 'addTile("History"', 'homePanel.visibility = View.GONE']
+          missing_ui = [item for item in required if item not in s]
+          if missing_ui:
+              raise SystemExit("Missing TV UI elements: " + ", ".join(missing_ui))
           required = ['add("Resume last video")', 'add("Restart current video")',
                       'add("Load subtitle 1")', 'add("Load subtitle 2")',
                       'add("History")', 'private fun showHistory()', 'subtitleUri2',
