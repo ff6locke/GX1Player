@@ -1125,10 +1125,10 @@ jobs:
               anchor = "    private fun togglePassthrough() {"
               if anchor not in s: raise SystemExit("Subtitle helper insertion point not found")
               s = s.replace(anchor, fields + anchor, 1)
-          root_anchor = """                  root.addView(playerView, FrameLayout.LayoutParams(
-                      FrameLayout.LayoutParams.MATCH_PARENT,
-                      FrameLayout.LayoutParams.MATCH_PARENT
-                  ))"""
+          root_anchor = """        root.addView(playerView, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        ))"""
           overlay = root_anchor + """
                   gx1SecondSubtitleView = android.widget.TextView(this).apply {
                       setTextColor(Color.WHITE)
