@@ -702,6 +702,32 @@ jobs:
           print("Full-screen VLC-style TV library inserted.")
           PY
 
+      - name: Configure tolerant Matroska extraction
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          old = "ExoPlayer.Builder(this).build()"
+          new = """ExoPlayer.Builder(this)
+                      .setMediaSourceFactory(
+                          androidx.media3.exoplayer.source.DefaultMediaSourceFactory(
+                              this,
+                              androidx.media3.exoplayer.DefaultExtractorsFactory()
+                                  .setMatroskaExtractorFlags(
+                                      androidx.media3.extractor.mkv.MatroskaExtractor.FLAG_DISABLE_SEEK_FOR_CUES
+                                  )
+                          )
+                      )
+                      .build()"""
+          if old not in s:
+              raise SystemExit("Could not find the standard ExoPlayer builder; refusing an unsafe patch")
+          s = s.replace(old, new, 1)
+          if "@file:OptIn(androidx.media3.common.util.UnstableApi::class)" not in s:
+              s = s.replace("package com.example.gx1player", "@file:OptIn(androidx.media3.common.util.UnstableApi::class)\npackage com.example.gx1player", 1)
+          p.write_text(s)
+          PY
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -773,6 +799,7 @@ jobs:
               implementation("androidx.media3:media3-exoplayer:$media3")
               implementation("androidx.media3:media3-ui:$media3")
               implementation("androidx.media3:media3-common:$media3")
+              implementation("androidx.media3:media3-extractor:$media3")
               implementation("androidx.core:core-ktx:1.13.1")
               implementation("androidx.appcompat:appcompat:1.7.0")
           }
