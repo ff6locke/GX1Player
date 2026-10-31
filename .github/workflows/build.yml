@@ -710,7 +710,7 @@ jobs:
           import re
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
-          pattern = r"ExoPlayer\\.Builder\\(([^()]*)\\)"
+          pattern = r"ExoPlayer\.Builder\(([^()]*)\)"
           match = re.search(pattern, s)
           if not match:
               raise SystemExit("Could not locate ExoPlayer.Builder(...) in extracted source")
@@ -728,7 +728,7 @@ jobs:
                       )"""
               s = s[:match.start()] + factory + s[match.end():]
           if "@file:OptIn(androidx.media3.common.util.UnstableApi::class)" not in s:
-              s = s.replace("package com.example.gx1player", "@file:OptIn(androidx.media3.common.util.UnstableApi::class)\\npackage com.example.gx1player", 1)
+              s = s.replace("package com.example.gx1player", "@file:OptIn(androidx.media3.common.util.UnstableApi::class)\npackage com.example.gx1player", 1)
           p.write_text(s)
           print("Configured Matroska extractor flags.")
           PY
