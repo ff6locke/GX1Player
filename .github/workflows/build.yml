@@ -1540,12 +1540,16 @@ jobs:
                       for (index in 0 until group.length) {
                           if (!group.isTrackSupported(index)) continue
                           val format = group.getTrackFormat(index)
+                          val language = format.language
+                              ?.takeIf { it.isNotBlank() && it != "und" }
+                              ?.let { java.util.Locale.forLanguageTag(it).getDisplayLanguage(java.util.Locale.getDefault()) }
+                              ?.takeIf { it.isNotBlank() }
                           val details = listOfNotNull(
                               format.label?.takeIf { it.isNotBlank() },
-                              format.language?.takeIf { it.isNotBlank() && it != "und" },
-                              format.sampleMimeType?.substringAfter("/")?.uppercase()
+                              language
                           ).distinct().joinToString(" · ")
-                          labels.add(if (details.isBlank()) "Subtitle ${choices.size + 1}" else details)
+                          // Never expose internal MIME names such as x-media3-cues in the subtitle list.
+                          labels.add(if (details.isBlank()) "Embedded subtitle ${choices.size + 1}" else details)
                           choices.add(group.mediaTrackGroup to index)
                       }
                   }
