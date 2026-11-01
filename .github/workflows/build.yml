@@ -170,6 +170,14 @@ jobs:
             exit 1
           fi
 
+      - name: Inspect passthrough renderer and audio configuration
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          echo "=== PassthroughRenderersFactory.kt ==="
+          nl -ba app/src/main/java/com/example/gx1player/PassthroughRenderersFactory.kt | sed -n '1,260p'
+          echo "=== Audio-related MainActivity configuration ==="
+          grep -n -i -E 'audio|passthrough|tunnel|offload|buffer|renderer' app/src/main/java/com/example/gx1player/MainActivity.kt | head -160
+
       - name: Add requested menu and reliable resume behavior
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
