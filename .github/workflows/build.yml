@@ -253,7 +253,7 @@ jobs:
                       setOnClickListener { showMenu() }
                       contentDescription = "Playback settings"
                   }
-                  // Add a document-shaped Open video icon immediately to the left of Media3's gear.
+                  // Add a folder with a blue video-file symbol immediately left of Media3's gear.
                   media3SettingsGear?.let { gear ->
                       val gearParent = gear.parent as? android.view.ViewGroup
                       if (gearParent != null && gearParent.findViewWithTag<android.view.View>("gx1_open_video") == null) {
@@ -261,33 +261,49 @@ jobs:
                           val openVideoButton = android.widget.ImageButton(this).apply {
                               tag = "gx1_open_video"
                               setImageDrawable(object : android.graphics.drawable.Drawable() {
-                                  private val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                                  private val folderPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
                                       color = Color.WHITE
-                                      style = android.graphics.Paint.Style.STROKE
-                                      strokeWidth = 2.0f
-                                      strokeJoin = android.graphics.Paint.Join.ROUND
-                                      strokeCap = android.graphics.Paint.Cap.ROUND
+                                      style = android.graphics.Paint.Style.FILL
+                                  }
+                                  private val videoPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                                      color = Color.rgb(20, 91, 245)
+                                      style = android.graphics.Paint.Style.FILL
+                                  }
+                                  private val detailPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                                      color = Color.WHITE
+                                      style = android.graphics.Paint.Style.FILL
                                   }
                                   override fun draw(canvas: android.graphics.Canvas) {
                                       val b = bounds
-                                      val sx = b.width() / 24f
-                                      val sy = b.height() / 24f
                                       canvas.save()
                                       canvas.translate(b.left.toFloat(), b.top.toFloat())
-                                      canvas.scale(sx, sy)
-                                      val page = android.graphics.Path().apply {
-                                          moveTo(5f, 2.5f); lineTo(14f, 2.5f)
-                                          lineTo(19f, 7.5f); lineTo(19f, 21.5f)
-                                          lineTo(5f, 21.5f); close()
-                                          moveTo(14f, 2.5f); lineTo(14f, 7.5f); lineTo(19f, 7.5f)
-                                          moveTo(8f, 12f); lineTo(16f, 12f)
-                                          moveTo(8f, 16f); lineTo(16f, 16f)
+                                      canvas.scale(b.width() / 24f, b.height() / 24f)
+                                      val folder = android.graphics.Path().apply {
+                                          moveTo(2f, 6f); quadTo(2f, 4f, 4f, 4f)
+                                          lineTo(9f, 4f); lineTo(11f, 6.5f); lineTo(20f, 6.5f)
+                                          quadTo(22f, 6.5f, 22f, 8.5f); lineTo(22f, 18.5f)
+                                          quadTo(22f, 21f, 19.5f, 21f); lineTo(4.5f, 21f)
+                                          quadTo(2f, 21f, 2f, 18.5f); close()
                                       }
-                                      canvas.drawPath(page, paint)
+                                      canvas.drawPath(folder, folderPaint)
+                                      val film = android.graphics.RectF(6f, 8f, 18.5f, 18.5f)
+                                      canvas.drawRoundRect(film, 1.5f, 1.5f, videoPaint)
+                                      for (y in listOf(9.5f, 12f, 14.5f, 17f)) {
+                                          canvas.drawRoundRect(7f, y, 8.2f, y + 1.1f, 0.3f, 0.3f, detailPaint)
+                                          canvas.drawRoundRect(16.3f, y, 17.5f, y + 1.1f, 0.3f, 0.3f, detailPaint)
+                                      }
+                                      val play = android.graphics.Path().apply {
+                                          moveTo(10f, 10.5f); lineTo(15f, 13.25f); lineTo(10f, 16f); close()
+                                      }
+                                      canvas.drawPath(play, detailPaint)
                                       canvas.restore()
                                   }
-                                  override fun setAlpha(alpha: Int) { paint.alpha = alpha }
-                                  override fun setColorFilter(filter: android.graphics.ColorFilter?) { paint.colorFilter = filter }
+                                  override fun setAlpha(alpha: Int) {
+                                      folderPaint.alpha = alpha; videoPaint.alpha = alpha; detailPaint.alpha = alpha
+                                  }
+                                  override fun setColorFilter(filter: android.graphics.ColorFilter?) {
+                                      folderPaint.colorFilter = filter; videoPaint.colorFilter = filter; detailPaint.colorFilter = filter
+                                  }
                                   @Deprecated("Deprecated in Java")
                                   override fun getOpacity(): Int = android.graphics.PixelFormat.TRANSLUCENT
                                   override fun getIntrinsicWidth(): Int = 24
