@@ -1309,7 +1309,7 @@ jobs:
                           media3SettingsGear!!.layoutParams)
                   }"""
               s = s.replace(marker, open_video, 1)
-                    p.write_text(s)
+          p.write_text(s)
           print("Back now returns to home; Open video shortcut added beside Media3 gear.")
           PY
 
