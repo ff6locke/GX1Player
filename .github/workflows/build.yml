@@ -347,8 +347,7 @@ jobs:
                   }
           """
               if marker not in s:
-                  raise SystemExit("Could not find Open video menu item")
-              s = s.replace(marker, marker + "\n" + resume, 1)
+                  raise SystemExit("Could not find Open video menu item")              s = s.replace(marker, marker + "\n" + resume, 1)
 
           if 'add("Restart current video")' not in s:
               marker = '        add(if (passthrough) "Audio pass-through: On (select to turn off)" else "Audio pass-through: Off (select to turn on)") {'
@@ -697,8 +696,7 @@ jobs:
               val id = parentId ?: DocumentsContract.getTreeDocumentId(tree)
               val children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, id)
               data class Entry(val name: String, val uri: Uri, val mime: String, val dir: Boolean)
-              val entries = mutableListOf<Entry>()
-              contentResolver.query(children, arrayOf(
+              val entries = mutableListOf<Entry>()              contentResolver.query(children, arrayOf(
                   DocumentsContract.Document.COLUMN_DOCUMENT_ID,
                   DocumentsContract.Document.COLUMN_DISPLAY_NAME,
                   DocumentsContract.Document.COLUMN_MIME_TYPE
@@ -1047,8 +1045,7 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
-          s = p.read_text()
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")          s = p.read_text()
           # Keep Media3 native rendering for subtitle 1; the custom overlay is only subtitle 2.
           field_anchor = "private var subtitleUri2: Uri? = null"
           player_anchor = "private var player: ExoPlayer? = null"
@@ -1124,7 +1121,7 @@ jobs:
                           val finish = assMs(fields[endIndex])
                           val caption = fields[textIndex]
                               .replace(Regex("""\\\\[Nn]"""), "\n")
-                              .replace(Regex("""\\{[^}]*}"""), "")
+                              .replace(Regex("""\{[^}]*}"""), "")
                               .replace(Regex("<[^>]*>"), "")
                               .trim()
                           if (caption.isNotBlank() && finish > begin) {
