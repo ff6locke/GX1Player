@@ -903,8 +903,17 @@ jobs:
               rootLayout.addView(panel, FrameLayout.LayoutParams(-1, -1))
               panel.post { tabs.getChildAt(0)?.requestFocus() }
               } catch (e: Exception) {
-                  android.util.Log.e("GX1Player", "Library failed to open", e)
-                  Toast.makeText(this, "Cannot open library: ${e.message ?: e.javaClass.simpleName}", Toast.LENGTH_LONG).show()
+                  android.util.Log.e("GX1Player", "Library failed to open; clearing stale SAF tree grant", e)
+                  // A saved tree URI can outlive its Android provider grant. Do not keep retrying
+                  // the inaccessible URI: clear it and ask the user to grant the folder again.
+                  prefs.edit().remove("library_tree_uri").apply()
+                  AlertDialog.Builder(this)
+                      .setTitle("Library permission expired")
+                      .setMessage("Android denied access to this folder. Please choose the library folder again.\\n\\n" +
+                          (e.message ?: e.javaClass.simpleName))
+                      .setPositiveButton("Choose folder") { _, _ -> pickLibraryFolder.launch(null) }
+                      .setNegativeButton("Cancel", null)
+                      .show()
               }
           }
 
