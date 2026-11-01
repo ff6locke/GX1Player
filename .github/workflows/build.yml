@@ -1431,31 +1431,29 @@ jobs:
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
-          old = """                  menuPopupRef = popup
-                  if (::menuButtonRef.isInitialized && menuButtonRef.isAttachedToWindow) {"""
-          new = """                  menuPopupRef = popup
-                  // Let the TV remote OK/Enter button dismiss the playback menu.
-                  for (index in 0 until popupContent.childCount) {
-                      popupContent.getChildAt(index).setOnKeyListener { _, keyCode, event ->
-                          val confirm = keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER ||
-                              keyCode == android.view.KeyEvent.KEYCODE_ENTER ||
-                              keyCode == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER ||
-                              keyCode == android.view.KeyEvent.KEYCODE_SPACE
-                          if (confirm && event.action == android.view.KeyEvent.ACTION_UP) {
-                              popup.dismiss()
-                              true
-                          } else {
-                              confirm
-                          }
+          anchor = "menuPopupRef = popup"
+          addition = """menuPopupRef = popup
+                  // Close the floating playback menu when the TV remote OK/Enter key is pressed.
+                  popupContent.isFocusableInTouchMode = True
+                  popupContent.setOnKeyListener { _, keyCode, event ->
+                      val confirm = keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER ||
+                          keyCode == android.view.KeyEvent.KEYCODE_ENTER ||
+                          keyCode == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER ||
+                          keyCode == android.view.KeyEvent.KEYCODE_SPACE
+                      if (confirm && event.action == android.view.KeyEvent.ACTION_UP) {
+                          popup.dismiss()
+                          true
+                      } else {
+                          false
                       }
                   }
-                  if (::menuButtonRef.isInitialized && menuButtonRef.isAttachedToWindow) {"""
-          if "Let the TV remote OK/Enter button dismiss the playback menu." not in s:
-              if old not in s:
-                  raise SystemExit("Could not find playback popup insertion point")
-              s = s.replace(old, new, 1)
+          """
+          if "Close the floating playback menu when the TV remote OK/Enter key is pressed." not in s:
+              if anchor not in s:
+                  raise SystemExit("Could not find menuPopupRef assignment")
+              s = s.replace(anchor, addition.rstrip(), 1)
           p.write_text(s)
-          print("Playback menu now dismisses on OK/Enter.")
+          print("Added OK/Enter dismissal to the playback popup.")
           PY
 
       - name: Set up JDK 17
