@@ -1411,14 +1411,14 @@ jobs:
               "        playerView.visibility = View.VISIBLE\n        setPlaybackFullscreen(true)",
               1
           )
-          # Back-to-home path is separate from showHome() on some builds.
-          s = s.replace(
-              "                          player?.let { savePosition(it); it.pause() }\n                          if (::playerView.isInitialized)",
-              "                          player?.let { savePosition(it); it.pause() }\n                          setPlaybackFullscreen(false)\n                          if (::playerView.isInitialized)",
-              1
-          )
+          # Restore the status bar when Back returns to the home panel.
+s = s.replace(
+    "if (::playerView.isInitialized) playerView.visibility = View.GONE",
+    "setPlaybackFullscreen(false)\n                if (::playerView.isInitialized) playerView.visibility = View.GONE",
+    1
+)
 
-          p.write_text(s)
+p.write_text(s)
           if "setPlaybackFullscreen(true)" not in s or "setPlaybackFullscreen(false)" not in s:
               raise SystemExit("Fullscreen status-bar handling was not inserted at both transitions")
           print("Phone status bar now hides during playback and returns on the home screen.")
