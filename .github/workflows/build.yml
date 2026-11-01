@@ -170,7 +170,7 @@ jobs:
             exit 1
           fi
 
-      - name: Use standard Media3 audio sink for HDMI passthrough
+      - name: Increase Media3 HDMI passthrough AudioTrack buffer
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -180,22 +180,67 @@ jobs:
           package = next((line for line in original.splitlines() if line.startswith("package ")), None)
           if not package:
               raise SystemExit("Could not determine passthrough renderer package")
-          # Let Media3 1.4.1 construct and size its own AudioSink. The previous
-          # custom sink bypassed the standard renderer audio-sink configuration.
-          # Keep extension decoders disabled; platform passthrough remains enabled
-          # whenever the HDMI receiver advertises the encoded format.
+          # Keep Media3's normal capability detection and encoded passthrough path,
+          # but give HDMI compressed audio a larger AudioTrack queue to tolerate
+          # short scheduling/driver delays on Android TV boxes.
           p.write_text(package + """
 
           import android.content.Context
+          import androidx.media3.common.audio.AudioProcessor
+          import androidx.media3.common.util.UnstableApi
           import androidx.media3.exoplayer.DefaultRenderersFactory
+          import androidx.media3.exoplayer.audio.AudioSink
+          import androidx.media3.exoplayer.audio.DefaultAudioSink
 
+          @UnstableApi
           class PassthroughRenderersFactory(context: Context) : DefaultRenderersFactory(context) {
               init {
                   setExtensionRendererMode(EXTENSION_RENDERER_MODE_OFF)
               }
+
+              override fun buildAudioSink(
+                  context: Context,
+                  enableFloatOutput: Boolean,
+                  enableAudioTrackPlaybackParams: Boolean
+              ): AudioSink {
+                  val bufferProvider = object : DefaultAudioSink.AudioTrackBufferSizeProvider {
+                      override fun getBufferSizeInBytes(
+                          minBufferSizeInBytes: Int,
+                          encoding: Int,
+                          outputMode: Int,
+                          pcmFrameSize: Int,
+                          sampleRate: Int,
+                          bitrate: Int,
+                          maxAudioTrackPlaybackSpeed: Double
+                      ): Int {
+                          val standard = DefaultAudioSink.AudioTrackBufferSizeProvider.DEFAULT
+                              .getBufferSizeInBytes(
+                                  minBufferSizeInBytes,
+                                  encoding,
+                                  outputMode,
+                                  pcmFrameSize,
+                                  sampleRate,
+                                  bitrate,
+                                  maxAudioTrackPlaybackSpeed
+                              )
+                          if (outputMode != DefaultAudioSink.OUTPUT_MODE_PASSTHROUGH) {
+                              return standard
+                          }
+                          return (standard.toLong() * 3L)
+                              .coerceAtMost(1_048_576L)
+                              .coerceAtLeast(minBufferSizeInBytes.toLong())
+                              .toInt()
+                      }
+                  }
+                  return DefaultAudioSink.Builder(context)
+                      .setAudioTrackBufferSizeProvider(bufferProvider)
+                      .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                      .setAudioProcessors(emptyArray<AudioProcessor>())
+                      .build()
+              }
           }
           """)
-          print("Replaced custom AudioSink override with Media3's standard sink; extension decoders remain off.")
+          print("Configured a 3x Media3 AudioTrack buffer for encoded HDMI passthrough; PCM/offload sizing and bitstream format remain unchanged.")
           PY
 
       - name: Inspect passthrough renderer and audio configuration
