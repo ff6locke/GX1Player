@@ -367,7 +367,7 @@ jobs:
           s = s.replace('        private const val KEY_SUBS_ON = "subs_on"',
                         '        private const val KEY_SUBS_ON = "subs_on"\n        private const val KEY_HISTORY_PREFIX = "history|"')
           s = s.replace('    private var subtitleUri: Uri? = null     // external subtitle file for mediaUri',
-                        '    private var subtitleUri: Uri? = null     // first external subtitle\n    private var subtitleUri2: Uri? = null    // second external subtitle')
+                        '    private var subtitleUri: Uri? = null     // first external subtitle\n    private var subtitleUri2: Uri? = null    // second external subtitle\n    private fun subKey(uri: Uri) = KEY_SUBTITLE_1 + uri.toString()')
           second_picker = """
           private val pickSubtitle2 = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
               if (uri == null) return@registerForActivityResult
@@ -1078,7 +1078,7 @@ jobs:
               if "private var subtitleUri2:" not in s:
                   if player_anchor not in s:
                       raise SystemExit("Could not find player field insertion point")
-                  s = s.replace(player_anchor, player_anchor + "\\n    private var subtitleUri2: Uri? = null", 1)
+                  s = s.replace(player_anchor, player_anchor + "\n    private var subtitleUri2: Uri? = null", 1)
               s = s.replace(field_anchor, field_anchor + "\\n" + fields, 1)
 
           parser = r'''
@@ -1209,7 +1209,7 @@ jobs:
           if second_picker_start < 0 or second_picker_start - second_picker_at > 1600:
               raise SystemExit("Second subtitle picker startPlayer callback not found")
           if "loadSecondSubtitleOverlay(uri)" not in s[second_picker_at:second_picker_start]:
-              s = s[:second_picker_start] + "loadSecondSubtitleOverlay(uri)\\n              " + s[second_picker_start:]
+              s = s[:second_picker_start] + "loadSecondSubtitleOverlay(uri)\n              " + s[second_picker_start:]
           # Add the overlay above the video surface in the root FrameLayout.
           anchor = "homePanel = buildHomePanel()"
           overlay = """secondSubtitleOverlay = android.widget.TextView(this).apply {
