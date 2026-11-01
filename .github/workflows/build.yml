@@ -1046,19 +1046,20 @@ jobs:
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
-          # The second file is rendered independently; Media3 continues to handle subtitle 1.
-          s = s.replace("listOfNotNull(subtitleUri, subtitleUri2).mapIndexed { index, sub ->",
-                        "listOfNotNull(subtitleUri).mapIndexed { index, sub ->", 1)
+          # Both external tracks are parsed and painted by one overlay; disable Media3 subtitle rendering.
+          s = s.replace("listOfNotNull(subtitleUri).mapIndexed { index, sub ->",
+                        "listOfNotNull<Uri>().mapIndexed { index, sub ->", 1)
           field_anchor = "    private var subtitleUri2: Uri? = null"
           fields = """
           private data class Gx1SubtitleCue(val startMs: Long, val endMs: Long, val text: String)
+          private var firstSubtitleCues: List<Gx1SubtitleCue> = emptyList()
           private var secondSubtitleCues: List<Gx1SubtitleCue> = emptyList()
           private lateinit var secondSubtitleOverlay: android.widget.TextView
           private val subtitleUiHandler = android.os.Handler(android.os.Looper.getMainLooper())
           private val subtitleTicker = object : Runnable {
               override fun run() {
                   val pos = player?.currentPosition ?: 0L
-                  val active = secondSubtitleCues.filter { pos >= it.startMs && pos <= it.endMs }
+                  val active = (firstSubtitleCues + secondSubtitleCues).filter { pos >= it.startMs && pos <= it.endMs }
                   if (::secondSubtitleOverlay.isInitialized) {
                       secondSubtitleOverlay.text = active.joinToString("\\n") { it.text }
                       secondSubtitleOverlay.visibility =
@@ -1074,33 +1075,39 @@ jobs:
               s = s.replace(field_anchor, field_anchor + "\n" + fields, 1)
 
           parser = r'''
+          private fun parseExternalSubtitle(uri: Uri): List<Gx1SubtitleCue> {
+              val raw = contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+              val timestamp = Regex("""(?:(\\d{1,2}):)?(\\d{2}):(\\d{2})[,.](\\d{3})""")
+              fun millis(value: String): Long {
+                  val m = timestamp.find(value) ?: return 0L
+                  val h = m.groupValues[1].ifBlank { "0" }.toLong()
+                  return (((h * 60 + m.groupValues[2].toLong()) * 60 + m.groupValues[3].toLong()) * 1000) + m.groupValues[4].toLong()
+              }
+              val cues = mutableListOf<Gx1SubtitleCue>()
+              val timeLine = Regex("""(?m)^\\s*((?:(?:\\d{1,2}:)?\\d{2}:\\d{2}[,.]\\d{3}))\\s*-->\\s*((?:(?:\\d{1,2}:)?\\d{2}:\\d{2}[,.]\\d{3})).*$""")
+              val matches = timeLine.findAll(raw).toList()
+              matches.forEachIndexed { index, match ->
+                  val bodyStart = match.range.last + 1
+                  val bodyEnd = if (index + 1 < matches.size) matches[index + 1].range.first else raw.length
+                  val body = raw.substring(bodyStart, bodyEnd).lines()
+                      .filter { it.isNotBlank() && !it.trim().matches(Regex("""\\d+""")) }
+                      .joinToString("\\n") { it.replace(Regex("<[^>]*>"), "").trim() }
+                  if (body.isNotBlank()) cues.add(Gx1SubtitleCue(millis(match.groupValues[1]), millis(match.groupValues[2]), body))
+              }
+              return cues
+          }
+
           private fun loadSecondSubtitleOverlay(uri: Uri) {
               try {
-                  val raw = contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
-                  val timestamp = Regex("""(?:(\d{1,2}):)?(\d{2}):(\d{2})[,.](\d{3})""")
-                  fun millis(value: String): Long {
-                      val m = timestamp.find(value) ?: return 0L
-                      val h = m.groupValues[1].ifBlank { "0" }.toLong()
-                      return (((h * 60 + m.groupValues[2].toLong()) * 60 + m.groupValues[3].toLong()) * 1000) + m.groupValues[4].toLong()
-                  }
-                  val cues = mutableListOf<Gx1SubtitleCue>()
-                  val timeLine = Regex("""(?m)^\s*((?:(?:\d{1,2}:)?\d{2}:\d{2}[,.]\d{3}))\s*-->\s*((?:(?:\d{1,2}:)?\d{2}:\d{2}[,.]\d{3})).*$""")
-                  val matches = timeLine.findAll(raw).toList()
-                  matches.forEachIndexed { index, match ->
-                      val bodyStart = match.range.last + 1
-                      val bodyEnd = if (index + 1 < matches.size) matches[index + 1].range.first else raw.length
-                      val body = raw.substring(bodyStart, bodyEnd).lines()
-                          .filter { it.isNotBlank() && !it.trim().matches(Regex("""\d+""")) }
-                          .joinToString("\n") { it.replace(Regex("<[^>]*>"), "").trim() }
-                      if (body.isNotBlank()) cues.add(Gx1SubtitleCue(millis(match.groupValues[1]), millis(match.groupValues[2]), body))
-                  }
-                  secondSubtitleCues = cues
+                  firstSubtitleCues = subtitleUri?.let { parseExternalSubtitle(it) }.orEmpty()
+                  secondSubtitleCues = subtitleUri2?.let { parseExternalSubtitle(it) }.orEmpty()
                   subtitleUiHandler.removeCallbacks(subtitleTicker)
                   subtitleUiHandler.post(subtitleTicker)
-                  Toast.makeText(this, if (cues.isEmpty()) "No SRT/VTT cues found in second subtitle" else "Second subtitle loaded: ${cues.size} cues", Toast.LENGTH_LONG).show()
+                  Toast.makeText(this, "External subtitles loaded: ${firstSubtitleCues.size} + ${secondSubtitleCues.size} cues", Toast.LENGTH_LONG).show()
               } catch (e: Exception) {
+                  firstSubtitleCues = emptyList()
                   secondSubtitleCues = emptyList()
-                  Toast.makeText(this, "Cannot read second subtitle: ${e.message}", Toast.LENGTH_LONG).show()
+                  Toast.makeText(this, "Cannot read external subtitles: ${e.message}", Toast.LENGTH_LONG).show()
               }
           }
 
@@ -1110,6 +1117,9 @@ jobs:
               if marker not in s: raise SystemExit("showMenu insertion point missing")
               s = s.replace(marker, parser + marker, 1)
 
+          # First picker also refreshes the shared-clock overlay.
+          s = s.replace("              subtitleUri = uri\n              mediaUri?.let { prefs.edit().putString(subKey(it), uri.toString()).apply() }\n              startPlayer()",
+                        "              subtitleUri = uri\n              mediaUri?.let { prefs.edit().putString(subKey(it), uri.toString()).apply() }\n              loadSecondSubtitleOverlay(uri)", 1)
           # Replace second picker callback to load the overlay, not register a second Media3 track.
           s = s.replace("              subtitleUri2 = uri\n              mediaUri?.let { prefs.edit().putString(subKey(it) + \"|2\", uri.toString()).apply() }\n              startPlayer()",
                         "              subtitleUri2 = uri\n              mediaUri?.let { prefs.edit().putString(subKey(it) + \"|2\", uri.toString()).apply() }\n              loadSecondSubtitleOverlay(uri)", 1)
