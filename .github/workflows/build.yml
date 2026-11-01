@@ -253,6 +253,33 @@ jobs:
                       setOnClickListener { showMenu() }
                       contentDescription = "Playback settings"
                   }
+                  // Add Open video directly after the gear in Media3's controller row.
+                  media3SettingsGear?.let { gear ->
+                      val gearParent = gear.parent as? android.view.ViewGroup
+                      if (gearParent != null && gearParent.findViewWithTag<android.view.View>("gx1_open_video") == null) {
+                          val gearIndex = gearParent.indexOfChild(gear)
+                          val openVideoButton = android.widget.ImageButton(this).apply {
+                              tag = "gx1_open_video"
+                              setImageResource(android.R.drawable.ic_media_play)
+                              imageTintList = android.content.res.ColorStateList.valueOf(Color.WHITE)
+                              background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
+                              contentDescription = "Open video"
+                              isFocusable = true
+                              isClickable = true
+                              setPadding(8, 8, 8, 8)
+                              setOnClickListener {
+                                  pickVideo.launch(arrayOf("video/*", "audio/*"))
+                              }
+                          }
+                          val oldParams = gear.layoutParams
+                          val buttonParams: android.view.ViewGroup.LayoutParams = when (oldParams) {
+                              is android.widget.LinearLayout.LayoutParams -> android.widget.LinearLayout.LayoutParams(oldParams)
+                              is android.widget.FrameLayout.LayoutParams -> android.widget.FrameLayout.LayoutParams(oldParams)
+                              else -> android.view.ViewGroup.LayoutParams(oldParams)
+                          }
+                          gearParent.addView(openVideoButton, gearIndex + 1, buttonParams)
+                      }
+                  }
                   val menuButton = Button(this).apply {
                       // Force text presentation so Android draws a crisp white gear glyph,
                       // not a gray emoji-style icon.
@@ -1279,9 +1306,9 @@ jobs:
           else:
               raise SystemExit("Back callback not found; refusing unsafe patch")
 
-          # Defer the controller shortcut until the actual Media3 layout is identified.
+          # The Open video controller icon is inserted beside the Media3 gear above.
           p.write_text(s)
-          print("Back now returns to home; Open video shortcut added beside Media3 gear.")
+          print("Back returns home; Open video icon is attached beside Media3 gear.")
           PY
 
       - name: Set up JDK 17
