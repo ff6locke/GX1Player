@@ -762,6 +762,7 @@ jobs:
           s = p.read_text()
           method = r"""
           private fun showLibraryHub(category: String = "All", parentId: String? = null) {
+              try {
               val tree = prefs.getString("library_tree_uri", null)?.let { Uri.parse(it) }
               if (tree == null) {
                   AlertDialog.Builder(this).setTitle("Set up your library")
@@ -889,6 +890,10 @@ jobs:
               panel.tag = "gx1_library_panel"
               rootLayout.addView(panel, FrameLayout.LayoutParams(-1, -1))
               panel.post { tabs.getChildAt(0)?.requestFocus() }
+              } catch (e: Exception) {
+                  android.util.Log.e("GX1Player", "Library failed to open", e)
+                  Toast.makeText(this, "Cannot open library: ${e.message ?: e.javaClass.simpleName}", Toast.LENGTH_LONG).show()
+              }
           }
 
           """
