@@ -1077,23 +1077,53 @@ jobs:
 
           parser = r'''
           private fun parseExternalSubtitle(uri: Uri): List<Gx1SubtitleCue> {
-              val raw = contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
-              val timestamp = Regex("""(?:(\d{1,2}):)?(\d{2}):(\d{2})[,.](\d{3})""")
-              fun millis(value: String): Long {
-                  val m = timestamp.find(value) ?: return 0L
-                  val h = m.groupValues[1].ifBlank { "0" }.toLong()
-                  return (((h * 60 + m.groupValues[2].toLong()) * 60 + m.groupValues[3].toLong()) * 1000) + m.groupValues[4].toLong()
+              val raw = contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
+                  ?.removePrefix("\uFEFF")?.replace("\r\n", "\n")?.replace('\r', '\n')
+                  ?: throw IllegalArgumentException("Subtitle file is empty or unreadable")
+              val time = Regex("""(?i)(?:(\d{1,2}):)?(\d{1,2}):(\d{2})[,.](\d{1,3})""")
+              fun toMs(value: String): Long {
+                  val m = time.find(value) ?: return 0L
+                  val hours = m.groupValues[1].ifBlank { "0" }.toLong()
+                  val minutes = m.groupValues[2].toLong()
+                  val seconds = m.groupValues[3].toLong()
+                  val fraction = m.groupValues[4].padEnd(3, '0').take(3).toLong()
+                  return (((hours * 60 + minutes) * 60 + seconds) * 1000) + fraction
               }
+              val lines = raw.lines()
               val cues = mutableListOf<Gx1SubtitleCue>()
-              val timeLine = Regex("""(?m)^\s*((?:(?:\d{1,2}:)?\d{2}:\d{2}[,.]\d{3}))\s*-->\s*((?:(?:\d{1,2}:)?\d{2}:\d{2}[,.]\d{3})).*$""")
-              val matches = timeLine.findAll(raw).toList()
-              matches.forEachIndexed { index, match ->
-                  val bodyStart = match.range.last + 1
-                  val bodyEnd = if (index + 1 < matches.size) matches[index + 1].range.first else raw.length
-                  val body = raw.substring(bodyStart, bodyEnd).lines()
-                      .filter { it.isNotBlank() && !it.trim().matches(Regex("""\d+""")) }
-                      .joinToString("\n") { it.replace(Regex("<[^>]*>"), "").trim() }
-                  if (body.isNotBlank()) cues.add(Gx1SubtitleCue(millis(match.groupValues[1]), millis(match.groupValues[2]), body))
+              var i = 0
+              while (i < lines.size) {
+                  val line = lines[i].trim().removePrefix("\uFEFF")
+                  val arrow = line.indexOf("-->")
+                  if (arrow >= 0) {
+                      val left = line.substring(0, arrow).trim()
+                      val right = line.substring(arrow + 3).trim().substringBefore(' ')
+                      val begin = time.find(left)
+                      val finish = time.find(right)
+                      if (begin != null && finish != null) {
+                          val startMs = toMs(begin.value)
+                          val endMs = toMs(finish.value)
+                          val body = mutableListOf<String>()
+                          i++
+                          while (i < lines.size && !lines[i].contains("-->")) {
+                              val text = lines[i].trim()
+                              if (text.isNotBlank() && !text.matches(Regex("""\d+"""))) {
+                                  body.add(text.replace(Regex("<[^>]*>"), "").trim())
+                              }
+                              i++
+                          }
+                          val caption = body.joinToString("\n").trim()
+                          if (caption.isNotBlank() && endMs > startMs) {
+                              cues.add(Gx1SubtitleCue(startMs, endMs, caption))
+                          }
+                          continue
+                      }
+                  }
+                  i++
+              }
+              if (cues.isEmpty()) {
+                  val sample = lines.firstOrNull { it.contains("-->") }?.take(100) ?: "No timestamp line found"
+                  throw IllegalArgumentException("No SRT cues found. Example: $sample")
               }
               return cues
           }
@@ -1103,10 +1133,10 @@ jobs:
                   secondSubtitleCues = parseExternalSubtitle(uri)
                   subtitleUiHandler.removeCallbacks(subtitleTicker)
                   subtitleUiHandler.post(subtitleTicker)
-                  Toast.makeText(this, "Subtitle 2 loaded: ${secondSubtitleCues.size} cues", Toast.LENGTH_LONG).show()
+                  Toast.makeText(this, "Subtitle 2 loaded: \${secondSubtitleCues.size} cues", Toast.LENGTH_LONG).show()
               } catch (e: Exception) {
                   secondSubtitleCues = emptyList()
-                  Toast.makeText(this, "Cannot read external subtitles: ${e.message}", Toast.LENGTH_LONG).show()
+                  Toast.makeText(this, "Subtitle 2 error: \${e.message}", Toast.LENGTH_LONG).show()
               }
           }
 
