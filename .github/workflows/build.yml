@@ -1424,6 +1424,40 @@ jobs:
           print("Phone status bar hide/show handling inserted.")
           PY
 
+      - name: Dismiss playback menu with OK button
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          old = """                  menuPopupRef = popup
+                  if (::menuButtonRef.isInitialized && menuButtonRef.isAttachedToWindow) {"""
+          new = """                  menuPopupRef = popup
+                  // Let the TV remote OK/Enter button dismiss the playback menu.
+                  for (index in 0 until popupContent.childCount) {
+                      popupContent.getChildAt(index).setOnKeyListener { _, keyCode, event ->
+                          val confirm = keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER ||
+                              keyCode == android.view.KeyEvent.KEYCODE_ENTER ||
+                              keyCode == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER ||
+                              keyCode == android.view.KeyEvent.KEYCODE_SPACE
+                          if (confirm && event.action == android.view.KeyEvent.ACTION_UP) {
+                              popup.dismiss()
+                              true
+                          } else {
+                              confirm
+                          }
+                      }
+                  }
+                  if (::menuButtonRef.isInitialized && menuButtonRef.isAttachedToWindow) {"""
+          if "Let the TV remote OK/Enter button dismiss the playback menu." not in s:
+              if old not in s:
+                  raise SystemExit("Could not find playback popup insertion point")
+              s = s.replace(old, new, 1)
+          p.write_text(s)
+          print("Playback menu now dismisses on OK/Enter.")
+          PY
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
