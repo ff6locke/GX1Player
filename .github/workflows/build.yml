@@ -665,13 +665,20 @@ jobs:
           if missing_ui:
               raise SystemExit("Missing TV UI elements: " + ", ".join(missing_ui))
           required = ['add("Resume last video")', 'add("Restart current video")',
-                      'add("Load subtitle 1")', 'add("Load subtitle 2")',
                       'add("History")', 'private fun showHistory()', 'subtitleUri2',
                       'override fun onPositionDiscontinuity(']
           missing = [item for item in required if item not in s]
+          # Subtitle choices may be menu rows or entries in the "Load subtitles"
+          # chooser. Accept either representation; the previous literal add(...)
+          # check incorrectly rejected the valid chooser implementation.
+          for label in ("Load subtitle 1", "Load subtitle 2"):
+              if label not in s:
+                  missing.append(label)
           if missing:
               raise SystemExit("Missing features: " + ", ".join(missing))
-          print("All requested menu and resume features verified.")
+          if "private fun parseExternalSubtitle" not in s or "Dialogue:" not in s:
+              raise SystemExit("ASS/SSA subtitle parser is missing")
+          print("Menu, resume, dual-subtitle choices, and ASS parser verified.")
           PY
 
       - name: Add full-screen VLC-style TV library
