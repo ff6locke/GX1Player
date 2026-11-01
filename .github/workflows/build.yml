@@ -1051,6 +1051,7 @@ jobs:
           s = p.read_text()
           # Keep Media3 native rendering for subtitle 1; the custom overlay is only subtitle 2.
           field_anchor = "private var subtitleUri2: Uri? = null"
+          player_anchor = "private var player: ExoPlayer? = null"
           fields = """
           private data class Gx1SubtitleCue(val startMs: Long, val endMs: Long, val text: String)
           private var firstSubtitleCues: List<Gx1SubtitleCue> = emptyList()
@@ -1068,20 +1069,16 @@ jobs:
                           else android.view.View.VISIBLE
                   }
                   subtitleUiHandler.postDelayed(this, 200L)
-                  // Keep subtitles above the video surface and other dashboard layers.
                   secondSubtitleOverlay.bringToFront()
                   secondSubtitleOverlay.elevation = 1000f
               }
           }
           """
           if "private data class Gx1SubtitleCue" not in s:
-              if field_anchor not in s:
-                  # Source revisions may have only the original first-track field.
-                  import re
-                  match = re.search(r'(?m)^\\s*private var subtitleUri: Uri\\? = null.*$', s)
-                  if not match:
-                      raise SystemExit("Could not find subtitleUri/second-track field")
-                  s = s[:match.end()] + "\\n    private var subtitleUri2: Uri? = null" + s[match.end():]
+              if "private var subtitleUri2:" not in s:
+                  if player_anchor not in s:
+                      raise SystemExit("Could not find player field insertion point")
+                  s = s.replace(player_anchor, player_anchor + "\\n    private var subtitleUri2: Uri? = null", 1)
               s = s.replace(field_anchor, field_anchor + "\\n" + fields, 1)
 
           parser = r'''
