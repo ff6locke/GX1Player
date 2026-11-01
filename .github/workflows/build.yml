@@ -1448,7 +1448,10 @@ jobs:
                       for (index in 0 until group.length) {
                           if (!group.isTrackSupported(index)) continue
                           val format = group.getTrackFormat(index)
-                          val language = format.language?.takeIf { it.isNotBlank() && it != "und" }
+                          val language = format.language
+                              ?.takeIf { it.isNotBlank() && it != "und" }
+                              ?.let { java.util.Locale.forLanguageTag(it).getDisplayLanguage(java.util.Locale.getDefault()) }
+                              ?.takeIf { it.isNotBlank() }
                           val name = format.label?.takeIf { it.isNotBlank() }
                           val details = listOfNotNull(
                               name,
