@@ -1187,7 +1187,7 @@ jobs:
                   secondSubtitleCues = parseExternalSubtitle(uri)
                   subtitleUiHandler.removeCallbacks(subtitleTicker)
                   subtitleUiHandler.post(subtitleTicker)
-                  Toast.makeText(this, "Subtitle 2 loaded: \${secondSubtitleCues.size} cues", Toast.LENGTH_LONG).show()
+                  Toast.makeText(this, "Subtitle 2 loaded: ${secondSubtitleCues.size} cues", Toast.LENGTH_LONG).show()
               } catch (e: Exception) {
                   secondSubtitleCues = emptyList()
                   Toast.makeText(this, "Subtitle 2 error: ${e.message}", Toast.LENGTH_LONG).show()
@@ -1200,15 +1200,16 @@ jobs:
               if marker not in s: raise SystemExit("showMenu insertion point missing")
               s = s.replace(marker, parser + marker, 1)
 
-          # Explicitly wire the first subtitle picker to the same overlay.
-          first_picker_at = s.find("subtitleUri = uri")
-          if first_picker_at < 0:
-              raise SystemExit("First subtitle picker callback not found")
-          first_picker_start = s.find("startPlayer()", first_picker_at)
-          if first_picker_start < 0 or first_picker_start - first_picker_at > 1200:
-              raise SystemExit("First subtitle picker startPlayer callback not found")
-          if "loadSecondSubtitleOverlay(uri)" not in s[first_picker_at:first_picker_start]:
-              s = s[:first_picker_start] + "loadSecondSubtitleOverlay(uri)\n              " + s[first_picker_start:]
+          # The current project selects the destination slot before launching
+          # the shared picker. Attach the overlay only when slot 2 is selected.
+          second_picker_at = s.find("subtitle2Uri = uri")
+          if second_picker_at < 0:
+              raise SystemExit("Second subtitle picker assignment not found")
+          second_picker_start = s.find("startPlayer()", second_picker_at)
+          if second_picker_start < 0 or second_picker_start - second_picker_at > 1600:
+              raise SystemExit("Second subtitle picker startPlayer callback not found")
+          if "loadSecondSubtitleOverlay(uri)" not in s[second_picker_at:second_picker_start]:
+              s = s[:second_picker_start] + "loadSecondSubtitleOverlay(uri)\\n              " + s[second_picker_start:]
           # Add the overlay above the video surface in the root FrameLayout.
           anchor = "homePanel = buildHomePanel()"
           overlay = """secondSubtitleOverlay = android.widget.TextView(this).apply {
