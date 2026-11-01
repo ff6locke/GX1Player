@@ -1424,38 +1424,93 @@ jobs:
           print("Phone status bar hide/show handling inserted.")
           PY
 
-      - name: Dismiss playback menu with OK button
+      - name: Add real audio track selection
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
-          anchor = "menuPopupRef = popup"
-          addition = """menuPopupRef = popup
-                  // Close the floating playback menu when the TV remote OK/Enter key is pressed.
-                  popupContent.isFocusable = true
-                  popupContent.isFocusableInTouchMode = true
-                  popupContent.requestFocus()
-                  popupContent.setOnKeyListener { _, keyCode, event ->
-                      val confirm = keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER ||
-                          keyCode == android.view.KeyEvent.KEYCODE_ENTER ||
-                          keyCode == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER ||
-                          keyCode == android.view.KeyEvent.KEYCODE_SPACE
-                      if (confirm && event.action == android.view.KeyEvent.ACTION_UP) {
-                          popup.dismiss()
-                          true
-                      } else {
-                          false
+          marker = "    private fun showMenu() {"
+          method = r'''    private fun showAudioTrackSelection() {
+                  val exo = player
+                  if (exo == null) {
+                      Toast.makeText(this, "No player is active.", Toast.LENGTH_SHORT).show()
+                      return
+                  }
+                  val audioGroups = exo.currentTracks.groups.filter {
+                      it.type == androidx.media3.common.C.TRACK_TYPE_AUDIO
+                  }
+                  val choices = mutableListOf<Pair<androidx.media3.common.TrackGroup, Int>>()
+                  val labels = mutableListOf<String>()
+                  labels.add("Auto (default)")
+                  for (group in audioGroups) {
+                      for (index in 0 until group.length) {
+                          if (!group.isTrackSupported(index)) continue
+                          val format = group.getTrackFormat(index)
+                          val language = format.language?.takeIf { it.isNotBlank() && it != "und" }
+                          val name = format.label?.takeIf { it.isNotBlank() }
+                          val details = listOfNotNull(
+                              name,
+                              language,
+                              format.channelCount.takeIf { it > 0 }?.let { "${it}ch" }
+                          ).distinct().joinToString(" · ")
+                          val fallback = "Audio ${choices.size + 1}"
+                          labels.add(if (details.isBlank()) fallback else details)
+                          choices.add(group.mediaTrackGroup to index)
                       }
                   }
-          """
-          if "Close the floating playback menu when the TV remote OK/Enter key is pressed." not in s:
-              if anchor not in s:
-                  raise SystemExit("Could not find menuPopupRef assignment")
-              s = s.replace(anchor, addition.rstrip(), 1)
+                  if (choices.isEmpty()) {
+                      Toast.makeText(this, "No selectable audio tracks found in this video.", Toast.LENGTH_LONG).show()
+                      return
+                  }
+                  var flat = 0
+                  var selectedChoice = 0
+                  loop@ for (group in audioGroups) {
+                      for (index in 0 until group.length) {
+                          if (!group.isTrackSupported(index)) continue
+                          if (group.isTrackSelected(index)) {
+                              selectedChoice = flat + 1
+                              break@loop
+                          }
+                          flat++
+                      }
+                  }
+                  AlertDialog.Builder(this)
+                      .setTitle("Audio track")
+                      .setSingleChoiceItems(labels.toTypedArray(), selectedChoice) { dialog, which ->
+                          val builder = exo.trackSelectionParameters.buildUpon()
+                              .clearOverridesOfType(androidx.media3.common.C.TRACK_TYPE_AUDIO)
+                              .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_AUDIO, false)
+                          if (which > 0) {
+                              val (trackGroup, trackIndex) = choices[which - 1]
+                              builder.addOverride(
+                                  androidx.media3.common.TrackSelectionOverride(trackGroup, listOf(trackIndex))
+                              )
+                          }
+                          exo.trackSelectionParameters = builder.build()
+                          dialog.dismiss()
+                      }
+                      .setNegativeButton("Cancel", null)
+                      .show()
+              }
+
+          '''
+          if "private fun showAudioTrackSelection()" not in s:
+              if marker not in s:
+                  raise SystemExit("Could not find showMenu() insertion point for audio selector")
+              s = s.replace(marker, method + marker, 1)
+          old = '''"audio" -> Toast.makeText(this, "Choose an audio track from the available player tracks.", Toast.LENGTH_SHORT).show()'''
+          new = '''"audio" -> {
+                                  menuPopupRef?.dismiss()
+                                  showAudioTrackSelection()
+                              }'''
+          if old in s:
+              s = s.replace(old, new, 1)
+          elif '"audio" -> {' not in s or "showAudioTrackSelection()" not in s:
+              raise SystemExit("Could not find audio placeholder to replace")
           p.write_text(s)
-          print("Added OK/Enter dismissal to the playback popup.")
+          print("Added Media3 audio track listing and selection.")
           PY
 
       - name: Set up JDK 17
