@@ -1046,7 +1046,8 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")          s = p.read_text()
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
           # Keep Media3 native rendering for subtitle 1; the custom overlay is only subtitle 2.
           field_anchor = "private var subtitleUri2: Uri? = null"
           player_anchor = "private var player: ExoPlayer? = null"
