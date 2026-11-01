@@ -1236,6 +1236,84 @@ jobs:
           print("Second subtitle now uses an independent ASS/SRT overlay synchronized to player position.")
           PY
 
+      - name: Make Back return home and add an Open video controller shortcut
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+
+          # Back should never open the playback menu. Dismiss an open popup first;
+          # otherwise leave playback and return to the home panel.
+          old = """          override fun handleOnBackPressed() {
+                          showMenu()
+                      }"""
+          new = """          override fun handleOnBackPressed() {
+                          if (menuPopupRef?.isShowing == true) {
+                              menuPopupRef?.dismiss()
+                              return
+                          }
+                          if (::homePanel.isInitialized && homePanel.visibility == View.VISIBLE) {
+                              finish()
+                              return
+                          }
+                          player?.let { savePosition(it); it.pause() }
+                          if (::playerView.isInitialized) playerView.visibility = View.GONE
+                          if (::homePanel.isInitialized) homePanel.visibility = View.VISIBLE
+                      }"""
+          if old in s:
+              s = s.replace(old, new, 1)
+          elif "override fun handleOnBackPressed()" in s:
+              start = s.index("override fun handleOnBackPressed()")
+              body_start = s.index("{", start)
+              depth = 0
+              end = body_start
+              for end in range(body_start, len(s)):
+                  if s[end] == "{": depth += 1
+                  elif s[end] == "}":
+                      depth -= 1
+                      if depth == 0:
+                          break
+              s = s[:body_start] + new[new.index("{"):new.rindex("}")+1] + s[end+1:]
+          else:
+              raise SystemExit("Back callback not found; refusing unsafe patch")
+
+          # Add a second native controller button beside Media3's white settings gear.
+          # It shares the controller's visibility/auto-hide behavior.
+          anchor = """                  media3SettingsGear?.apply {
+                      visibility = android.view.View.VISIBLE
+                      setOnClickListener { showMenu() }
+                      contentDescription = "Playback settings"
+                  }"""
+          addition = anchor + """
+                  if (media3SettingsGear != null && media3SettingsGear.parent is android.view.ViewGroup &&
+                      playerView.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_open_video) == null) {
+                      val controls = media3SettingsGear.parent as android.view.ViewGroup
+                      val openVideo = android.widget.ImageButton(this).apply {
+                          setImageResource(android.R.drawable.ic_menu_slideshow)
+                          imageTintList = android.content.res.ColorStateList.valueOf(Color.WHITE)
+                          contentDescription = "Open video"
+                          importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
+                          background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
+                          scaleType = android.widget.ImageView.ScaleType.CENTER_INSIDE
+                          setPadding(8, 8, 8, 8)
+                          setOnClickListener { pickVideo.launch(arrayOf("video/*", "audio/*", "application/octet-stream", "application/x-matroska")) }
+                      }
+                      openVideo.id = androidx.media3.ui.R.id.exo_open_video
+                      val gearIndex = controls.indexOfChild(media3SettingsGear)
+                      val lp = media3SettingsGear.layoutParams
+                      controls.addView(openVideo, gearIndex.coerceAtLeast(0), lp)
+                  }"""
+          if "R.id.exo_open_video" not in s:
+              if anchor not in s:
+                  raise SystemExit("Media3 settings gear insertion point not found")
+              s = s.replace(anchor, addition, 1)
+
+          p.write_text(s)
+          print("Back now returns to home; Open video shortcut added beside Media3 gear.")
+          PY
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
