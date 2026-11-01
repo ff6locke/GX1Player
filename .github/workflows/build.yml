@@ -170,6 +170,34 @@ jobs:
             exit 1
           fi
 
+      - name: Use standard Media3 audio sink for HDMI passthrough
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/PassthroughRenderersFactory.kt")
+          original = p.read_text()
+          package = next((line for line in original.splitlines() if line.startswith("package ")), None)
+          if not package:
+              raise SystemExit("Could not determine passthrough renderer package")
+          # Let Media3 1.4.1 construct and size its own AudioSink. The previous
+          # custom sink bypassed the standard renderer audio-sink configuration.
+          # Keep extension decoders disabled; platform passthrough remains enabled
+          # whenever the HDMI receiver advertises the encoded format.
+          p.write_text(package + """
+
+          import android.content.Context
+          import androidx.media3.exoplayer.DefaultRenderersFactory
+
+          class PassthroughRenderersFactory(context: Context) : DefaultRenderersFactory(context) {
+              init {
+                  setExtensionRendererMode(EXTENSION_RENDERER_MODE_OFF)
+              }
+          }
+          """)
+          print("Replaced custom AudioSink override with Media3's standard sink; extension decoders remain off.")
+          PY
+
       - name: Inspect passthrough renderer and audio configuration
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
