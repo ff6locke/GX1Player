@@ -1574,7 +1574,6 @@ jobs:
                                       .clearOverridesOfType(androidx.media3.common.C.TRACK_TYPE_TEXT)
                                       .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, true)
                                   exo.trackSelectionParameters = params.build()
-                                  secondSubtitleView?.visibility = View.GONE
                                   dialog.dismiss()
                               }
                               which <= choices.size -> {
@@ -1584,7 +1583,6 @@ jobs:
                                       .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, false)
                                       .addOverride(androidx.media3.common.TrackSelectionOverride(trackGroup, listOf(trackIndex)))
                                   exo.trackSelectionParameters = params.build()
-                                  secondSubtitleView?.visibility = View.GONE
                                   dialog.dismiss()
                               }
                               which == choices.size + 1 -> {
@@ -1607,7 +1605,7 @@ jobs:
                   raise SystemExit("Could not find showMenu() insertion point for subtitle selector")
               s = s.replace(marker, method + marker, 1)
           menu_anchor = '        add("Load Subtitle 1 (.srt / .ass)") {'
-          menu_entry = '        add("Built-in subtitle tracks") { showSubtitleTrackSelection() }\\n'
+          menu_entry = '        add("Built-in subtitle tracks") { showSubtitleTrackSelection() }\n'
           if 'add("Built-in subtitle tracks")' not in s:
               if menu_anchor not in s:
                   raise SystemExit("Could not find custom subtitle menu entries")
