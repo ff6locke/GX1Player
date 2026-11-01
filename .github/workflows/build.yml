@@ -522,10 +522,22 @@ jobs:
               launcher = """
           private val pickLibraryFolder = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
               if (uri != null) {
-                  val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
-                  runCatching { contentResolver.takePersistableUriPermission(uri, flags) }
-                  prefs.edit().putString("library_tree_uri", uri.toString()).apply()
-                  showLibrary()
+                  // takePersistableUriPermission accepts READ/WRITE mode bits only;
+                  // PERSISTABLE is an intent grant flag, not a permission mode.
+                  val readWrite = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                  val readOnly = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                  val savedGrant = runCatching {
+                      contentResolver.takePersistableUriPermission(uri, readWrite)
+                  }.recoverCatching {
+                      contentResolver.takePersistableUriPermission(uri, readOnly)
+                  }.isSuccess
+                  if (savedGrant) {
+                      prefs.edit().putString("library_tree_uri", uri.toString()).apply()
+                      showLibraryHub()
+                  } else {
+                      prefs.edit().remove("library_tree_uri").apply()
+                      Toast.makeText(this, "Android did not grant folder read access. Please choose the folder again.", Toast.LENGTH_LONG).show()
+                  }
               }
           }
           """
