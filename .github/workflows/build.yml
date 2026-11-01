@@ -1434,7 +1434,9 @@ jobs:
           anchor = "menuPopupRef = popup"
           addition = """menuPopupRef = popup
                   // Close the floating playback menu when the TV remote OK/Enter key is pressed.
-                  popupContent.isFocusableInTouchMode = True
+                  popupContent.isFocusable = true
+                  popupContent.isFocusableInTouchMode = true
+                  popupContent.requestFocus()
                   popupContent.setOnKeyListener { _, keyCode, event ->
                       val confirm = keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER ||
                           keyCode == android.view.KeyEvent.KEYCODE_ENTER ||
