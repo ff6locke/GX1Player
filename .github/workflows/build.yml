@@ -1079,7 +1079,6 @@ jobs:
           private fun parseExternalSubtitle(uri: Uri): List<Gx1SubtitleCue> {
               val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
                   ?: throw IllegalArgumentException("Subtitle file is empty or unreadable")
-              // SRT files are commonly saved as UTF-8, UTF-8 BOM, or UTF-16 LE/BE.
               val charset = when {
                   bytes.size >= 2 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xFE.toByte() -> Charsets.UTF_16LE
                   bytes.size >= 2 && bytes[0] == 0xFE.toByte() && bytes[1] == 0xFF.toByte() -> Charsets.UTF_16BE
@@ -1089,50 +1088,90 @@ jobs:
               }
               val raw = String(bytes, charset).removePrefix("\uFEFF")
                   .replace("\u0000", "").replace("\r\n", "\n").replace('\r', '\n')
-              val time = Regex("""(?i)(?:(\d{1,2}):)?(\d{1,2}):(\d{2})[,.](\d{1,3})""")
-              fun toMs(value: String): Long {
-                  val m = time.find(value) ?: return 0L
-                  val hours = m.groupValues[1].ifBlank { "0" }.toLong()
-                  val minutes = m.groupValues[2].toLong()
-                  val seconds = m.groupValues[3].toLong()
-                  val fraction = m.groupValues[4].padEnd(3, '0').take(3).toLong()
-                  return (((hours * 60 + minutes) * 60 + seconds) * 1000) + fraction
-              }
-              val lines = raw.lines()
               val cues = mutableListOf<Gx1SubtitleCue>()
-              var i = 0
-              while (i < lines.size) {
-                  val line = lines[i].trim().removePrefix("\uFEFF")
-                  val arrow = line.indexOf("-->")
-                  if (arrow >= 0) {
-                      val left = line.substring(0, arrow).trim()
-                      val right = line.substring(arrow + 3).trim().substringBefore(' ')
-                      val begin = time.find(left)
-                      val finish = time.find(right)
-                      if (begin != null && finish != null) {
-                          val startMs = toMs(begin.value)
-                          val endMs = toMs(finish.value)
-                          val body = mutableListOf<String>()
-                          i++
-                          while (i < lines.size && !lines[i].contains("-->")) {
-                              val text = lines[i].trim()
-                              if (text.isNotBlank() && !text.matches(Regex("""\d+"""))) {
-                                  body.add(text.replace(Regex("<[^>]*>"), "").trim())
-                              }
-                              i++
+
+              // SubStation Alpha / Advanced SubStation Alpha (.ssa/.ass)
+              if (raw.contains("[Events]", ignoreCase = true)) {
+                  val lines = raw.lines()
+                  var format = listOf("Layer", "Start", "End", "Style", "Name", "MarginL",
+                      "MarginR", "MarginV", "Effect", "Text")
+                  val timePattern = Regex("""^(\\d+):(\\d{2}):(\\d{2})[.](\\d{1,2})$""")
+                  fun assMs(value: String): Long {
+                      val m = timePattern.matchEntire(value.trim())
+                          ?: throw IllegalArgumentException("Invalid ASS timestamp: $value")
+                      val fraction = m.groupValues[4].padEnd(2, '0').toLong() * 10L
+                      return ((m.groupValues[1].toLong() * 3600 +
+                          m.groupValues[2].toLong() * 60 + m.groupValues[3].toLong()) * 1000) + fraction
+                  }
+                  for (line in lines) {
+                      val t = line.trim()
+                      if (t.startsWith("Format:", true)) {
+                          format = t.substringAfter(':').split(',').map { it.trim() }
+                      } else if (t.startsWith("Dialogue:", true)) {
+                          val fields = t.substringAfter(':').split(',', limit = format.size)
+                          val startIndex = format.indexOfFirst { it.equals("Start", true) }
+                          val endIndex = format.indexOfFirst { it.equals("End", true) }
+                          val textIndex = format.indexOfFirst { it.equals("Text", true) }
+                          if (startIndex < 0 || endIndex < 0 || textIndex < 0 ||
+                              fields.size <= maxOf(startIndex, endIndex, textIndex)) continue
+                          val begin = assMs(fields[startIndex])
+                          val finish = assMs(fields[endIndex])
+                          val caption = fields[textIndex]
+                              .replace(Regex("""\\\\[Nn]"""), "\n")
+                              .replace(Regex("""\\{[^}]*}"""), "")
+                              .replace(Regex("<[^>]*>"), "")
+                              .trim()
+                          if (caption.isNotBlank() && finish > begin) {
+                              cues.add(Gx1SubtitleCue(begin, finish, caption))
                           }
-                          val caption = body.joinToString("\n").trim()
-                          if (caption.isNotBlank() && endMs > startMs) {
-                              cues.add(Gx1SubtitleCue(startMs, endMs, caption))
-                          }
-                          continue
                       }
                   }
-                  i++
+              } else {
+                  // SubRip (.srt)
+                  val time = Regex("""(?i)(?:(\\d{1,2}):)?(\\d{1,2}):(\\d{2})[,.](\\d{1,3})""")
+                  fun toMs(value: String): Long {
+                      val m = time.find(value) ?: return 0L
+                      val hours = m.groupValues[1].ifBlank { "0" }.toLong()
+                      val minutes = m.groupValues[2].toLong()
+                      val seconds = m.groupValues[3].toLong()
+                      val fraction = m.groupValues[4].padEnd(3, '0').take(3).toLong()
+                      return (((hours * 60 + minutes) * 60 + seconds) * 1000) + fraction
+                  }
+                  val lines = raw.lines()
+                  var i = 0
+                  while (i < lines.size) {
+                      val line = lines[i].trim().removePrefix("\uFEFF")
+                      val arrow = line.indexOf("-->")
+                      if (arrow >= 0) {
+                          val left = line.substring(0, arrow).trim()
+                          val right = line.substring(arrow + 3).trim().substringBefore(' ')
+                          val begin = time.find(left)
+                          val finish = time.find(right)
+                          if (begin != null && finish != null) {
+                              val startMs = toMs(begin.value)
+                              val endMs = toMs(finish.value)
+                              val body = mutableListOf<String>()
+                              i++
+                              while (i < lines.size && !lines[i].contains("-->")) {
+                                  val captionLine = lines[i].trim()
+                                  if (captionLine.isNotBlank() && !captionLine.matches(Regex("""\\d+"""))) {
+                                      body.add(captionLine.replace(Regex("<[^>]*>"), "").trim())
+                                  }
+                                  i++
+                              }
+                              val caption = body.joinToString("\n").trim()
+                              if (caption.isNotBlank() && endMs > startMs) {
+                                  cues.add(Gx1SubtitleCue(startMs, endMs, caption))
+                              }
+                              continue
+                          }
+                      }
+                      i++
+                  }
               }
               if (cues.isEmpty()) {
-                  val sample = lines.firstOrNull { it.contains("-->") }?.take(100) ?: "No timestamp line found"
-                  throw IllegalArgumentException("No SRT cues found. Example: $sample")
+                  val format = if (raw.contains("[Events]", true)) "ASS/SSA" else "SRT"
+                  throw IllegalArgumentException("No valid $format subtitle cues found. Check the file format and Events/Dialogue timestamps.")
               }
               return cues
           }
