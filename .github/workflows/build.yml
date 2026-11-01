@@ -1067,6 +1067,9 @@ jobs:
                           else android.view.View.VISIBLE
                   }
                   subtitleUiHandler.postDelayed(this, 200L)
+                  // Keep subtitles above the video surface and other dashboard layers.
+                  secondSubtitleOverlay.bringToFront()
+                  secondSubtitleOverlay.elevation = 1000f
               }
           }
           """
