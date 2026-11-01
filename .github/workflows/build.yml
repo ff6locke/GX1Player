@@ -253,15 +253,46 @@ jobs:
                       setOnClickListener { showMenu() }
                       contentDescription = "Playback settings"
                   }
-                  // Add Open video directly after the gear in Media3's controller row.
+                  // Add a document-shaped Open video icon immediately to the left of Media3's gear.
                   media3SettingsGear?.let { gear ->
                       val gearParent = gear.parent as? android.view.ViewGroup
                       if (gearParent != null && gearParent.findViewWithTag<android.view.View>("gx1_open_video") == null) {
                           val gearIndex = gearParent.indexOfChild(gear)
                           val openVideoButton = android.widget.ImageButton(this).apply {
                               tag = "gx1_open_video"
-                              setImageResource(android.R.drawable.ic_media_play)
-                              imageTintList = android.content.res.ColorStateList.valueOf(Color.WHITE)
+                              setImageDrawable(object : android.graphics.drawable.Drawable() {
+                                  private val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                                      color = Color.WHITE
+                                      style = android.graphics.Paint.Style.STROKE
+                                      strokeWidth = 2.0f
+                                      strokeJoin = android.graphics.Paint.Join.ROUND
+                                      strokeCap = android.graphics.Paint.Cap.ROUND
+                                  }
+                                  override fun draw(canvas: android.graphics.Canvas) {
+                                      val b = bounds
+                                      val sx = b.width() / 24f
+                                      val sy = b.height() / 24f
+                                      canvas.save()
+                                      canvas.translate(b.left.toFloat(), b.top.toFloat())
+                                      canvas.scale(sx, sy)
+                                      val page = android.graphics.Path().apply {
+                                          moveTo(5f, 2.5f); lineTo(14f, 2.5f)
+                                          lineTo(19f, 7.5f); lineTo(19f, 21.5f)
+                                          lineTo(5f, 21.5f); close()
+                                          moveTo(14f, 2.5f); lineTo(14f, 7.5f); lineTo(19f, 7.5f)
+                                          moveTo(8f, 12f); lineTo(16f, 12f)
+                                          moveTo(8f, 16f); lineTo(16f, 16f)
+                                      }
+                                      canvas.drawPath(page, paint)
+                                      canvas.restore()
+                                  }
+                                  override fun setAlpha(alpha: Int) { paint.alpha = alpha }
+                                  override fun setColorFilter(filter: android.graphics.ColorFilter?) { paint.colorFilter = filter }
+                                  @Deprecated("Deprecated in Java")
+                                  override fun getOpacity(): Int = android.graphics.PixelFormat.TRANSLUCENT
+                                  override fun getIntrinsicWidth(): Int = 24
+                                  override fun getIntrinsicHeight(): Int = 24
+                              })
                               background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
                               contentDescription = "Open video"
                               isFocusable = true
@@ -277,7 +308,7 @@ jobs:
                               is android.widget.FrameLayout.LayoutParams -> android.widget.FrameLayout.LayoutParams(oldParams)
                               else -> android.view.ViewGroup.LayoutParams(oldParams)
                           }
-                          gearParent.addView(openVideoButton, gearIndex + 1, buttonParams)
+                          gearParent.addView(openVideoButton, gearIndex, buttonParams)
                       }
                   }
                   val menuButton = Button(this).apply {
