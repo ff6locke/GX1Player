@@ -1386,17 +1386,16 @@ jobs:
           s = p.read_text()
 
           helper = """    private fun setPlaybackFullscreen(enabled: Boolean) {
-                  // Hide the top status/notification bar (clock, signal, battery) only.
-                  // Keep the navigation bar available on phones.
-                  window.decorView.systemUiVisibility = if (enabled) {
-                      View.SYSTEM_UI_FLAG_FULLSCREEN or
-                          View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
-                          View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
-                          View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                  } else {
-                      View.SYSTEM_UI_FLAG_VISIBLE
-                  }
+              // Hide only the top status bar; keep phone navigation controls visible.
+              window.decorView.systemUiVisibility = if (enabled) {
+                  View.SYSTEM_UI_FLAG_FULLSCREEN or
+                      View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                      View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                      View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+              } else {
+                  View.SYSTEM_UI_FLAG_VISIBLE
               }
+          }
 
           """
           if "private fun setPlaybackFullscreen(enabled: Boolean)" not in s:
@@ -1405,23 +1404,24 @@ jobs:
                   raise SystemExit("Could not find showMenu() insertion point")
               s = s.replace(anchor, helper + anchor, 1)
 
-          # Full-screen applies only while video is visible; restore the status bar on home.
-          s = s.replace(
-              "        playerView.visibility = View.VISIBLE",
-              "        playerView.visibility = View.VISIBLE\n        setPlaybackFullscreen(true)",
-              1
-          )
-          # Restore the status bar when Back returns to the home panel.
-s = s.replace(
-    "if (::playerView.isInitialized) playerView.visibility = View.GONE",
-    "setPlaybackFullscreen(false)\n                if (::playerView.isInitialized) playerView.visibility = View.GONE",
-    1
-)
+          # Apply fullscreen when the player view is made visible.
+          visible = "        playerView.visibility = View.VISIBLE"
+          if "setPlaybackFullscreen(true)" not in s:
+              if visible not in s:
+                  raise SystemExit("Could not find player visibility transition")
+              s = s.replace(visible, visible + "\n        setPlaybackFullscreen(true)", 1)
 
-p.write_text(s)
+          # Restore the status bar in the existing Back-to-home callback.
+          gone = "if (::playerView.isInitialized) playerView.visibility = View.GONE"
+          if "setPlaybackFullscreen(false)" not in s:
+              if gone not in s:
+                  raise SystemExit("Could not find Back-to-home player hide transition")
+              s = s.replace(gone, "setPlaybackFullscreen(false)\n                " + gone, 1)
+
+          p.write_text(s)
           if "setPlaybackFullscreen(true)" not in s or "setPlaybackFullscreen(false)" not in s:
               raise SystemExit("Fullscreen status-bar handling was not inserted at both transitions")
-          print("Phone status bar now hides during playback and returns on the home screen.")
+          print("Phone status bar hide/show handling inserted.")
           PY
 
       - name: Set up JDK 17
