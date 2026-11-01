@@ -1079,7 +1079,7 @@ jobs:
                   if player_anchor not in s:
                       raise SystemExit("Could not find player field insertion point")
                   s = s.replace(player_anchor, player_anchor + "\n    private var subtitleUri2: Uri? = null", 1)
-              s = s.replace(field_anchor, field_anchor + "\\n" + fields, 1)
+              s = s.replace(field_anchor, field_anchor + "\n    private fun subKey(uri: Uri) = KEY_SUBTITLE_1 + uri.toString()\n" + fields, 1)
 
           parser = r'''
           private fun parseExternalSubtitle(uri: Uri): List<Gx1SubtitleCue> {
