@@ -1077,9 +1077,18 @@ jobs:
 
           parser = r'''
           private fun parseExternalSubtitle(uri: Uri): List<Gx1SubtitleCue> {
-              val raw = contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
-                  ?.removePrefix("\uFEFF")?.replace("\r\n", "\n")?.replace('\r', '\n')
+              val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
                   ?: throw IllegalArgumentException("Subtitle file is empty or unreadable")
+              // SRT files are commonly saved as UTF-8, UTF-8 BOM, or UTF-16 LE/BE.
+              val charset = when {
+                  bytes.size >= 2 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xFE.toByte() -> Charsets.UTF_16LE
+                  bytes.size >= 2 && bytes[0] == 0xFE.toByte() && bytes[1] == 0xFF.toByte() -> Charsets.UTF_16BE
+                  bytes.size >= 3 && bytes[0] == 0xEF.toByte() && bytes[1] == 0xBB.toByte() && bytes[2] == 0xBF.toByte() -> Charsets.UTF_8
+                  bytes.size > 4 && bytes.take(40).count { it == 0.toByte() } > 5 -> Charsets.UTF_16LE
+                  else -> Charsets.UTF_8
+              }
+              val raw = String(bytes, charset).removePrefix("\uFEFF")
+                  .replace("\u0000", "").replace("\r\n", "\n").replace('\r', '\n')
               val time = Regex("""(?i)(?:(\d{1,2}):)?(\d{1,2}):(\d{2})[,.](\d{1,3})""")
               fun toMs(value: String): Long {
                   val m = time.find(value) ?: return 0L
