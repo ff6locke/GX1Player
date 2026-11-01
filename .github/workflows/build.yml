@@ -1606,18 +1606,12 @@ jobs:
               if marker not in s:
                   raise SystemExit("Could not find showMenu() insertion point for subtitle selector")
               s = s.replace(marker, method + marker, 1)
-          old = '''"subtitle" -> AlertDialog.Builder(this)
-                                      .setTitle("Load subtitles")
-                                      .setItems(arrayOf("Load subtitle 1", "Load subtitle 2")) { _, which ->
-                                          val types = arrayOf("application/x-subrip", "text/vtt", "text/plain", "application/octet-stream")
-                                          if (which == 0) pickSubtitle.launch(types) else pickSubtitle2.launch(types)
-                                      }
-                                      .show()'''
-          new = '''"subtitle" -> showSubtitleTrackSelection()'''
-          if old in s:
-              s = s.replace(old, new, 1)
-          elif '"subtitle" -> showSubtitleTrackSelection()' not in s:
-              raise SystemExit("Could not find existing subtitle menu action to replace")
+          menu_anchor = '        add("Load Subtitle 1 (.srt / .ass)") {'
+          menu_entry = '        add("Built-in subtitle tracks") { showSubtitleTrackSelection() }\\n'
+          if 'add("Built-in subtitle tracks")' not in s:
+              if menu_anchor not in s:
+                  raise SystemExit("Could not find custom subtitle menu entries")
+              s = s.replace(menu_anchor, menu_entry + menu_anchor, 1)
           p.write_text(s)
           print("Added embedded subtitle tracks plus separate custom subtitle 1 and 2 entries.")
           PY
