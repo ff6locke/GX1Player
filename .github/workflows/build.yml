@@ -1050,7 +1050,7 @@ jobs:
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
           # Keep Media3 native rendering for subtitle 1; the custom overlay is only subtitle 2.
-          field_anchor = "private var subtitleUri2: Uri? = null"  # tolerate trailing source comments
+          field_anchor = "private var subtitleUri2: Uri? = null"
           fields = """
           private data class Gx1SubtitleCue(val startMs: Long, val endMs: Long, val text: String)
           private var firstSubtitleCues: List<Gx1SubtitleCue> = emptyList()
@@ -1075,8 +1075,14 @@ jobs:
           }
           """
           if "private data class Gx1SubtitleCue" not in s:
-              if field_anchor not in s: raise SystemExit("Second subtitle field anchor missing")
-              s = s.replace(field_anchor, field_anchor + "\n" + fields, 1)
+              if field_anchor not in s:
+                  # Source revisions may have only the original first-track field.
+                  import re
+                  match = re.search(r'(?m)^\\s*private var subtitleUri: Uri\\? = null.*$', s)
+                  if not match:
+                      raise SystemExit("Could not find subtitleUri/second-track field")
+                  s = s[:match.end()] + "\\n    private var subtitleUri2: Uri? = null" + s[match.end():]
+              s = s.replace(field_anchor, field_anchor + "\\n" + fields, 1)
 
           parser = r'''
           private fun parseExternalSubtitle(uri: Uri): List<Gx1SubtitleCue> {
