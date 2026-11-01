@@ -1400,20 +1400,15 @@ jobs:
 
           """
           if "private fun setPlaybackFullscreen(enabled: Boolean)" not in s:
-              anchor = "    private fun showHome() {"
+              anchor = "    private fun showMenu() {"
               if anchor not in s:
-                  raise SystemExit("Could not find showHome() insertion point")
+                  raise SystemExit("Could not find showMenu() insertion point")
               s = s.replace(anchor, helper + anchor, 1)
 
           # Full-screen applies only while video is visible; restore the status bar on home.
           s = s.replace(
-              "        playerView.visibility = View.VISIBLE\n        homePanel.visibility = View.GONE",
-              "        playerView.visibility = View.VISIBLE\n        setPlaybackFullscreen(true)\n        homePanel.visibility = View.GONE",
-              1
-          )
-          s = s.replace(
-              "              homePanel.visibility = View.VISIBLE\n              playerView.visibility = View.GONE",
-              "              setPlaybackFullscreen(false)\n              homePanel.visibility = View.VISIBLE\n              playerView.visibility = View.GONE",
+              "        playerView.visibility = View.VISIBLE",
+              "        playerView.visibility = View.VISIBLE\n        setPlaybackFullscreen(true)",
               1
           )
           # Back-to-home path is separate from showHome() on some builds.
