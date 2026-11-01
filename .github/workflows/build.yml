@@ -1077,21 +1077,21 @@ jobs:
           parser = r'''
           private fun parseExternalSubtitle(uri: Uri): List<Gx1SubtitleCue> {
               val raw = contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
-              val timestamp = Regex("""(?:(\\d{1,2}):)?(\\d{2}):(\\d{2})[,.](\\d{3})""")
+              val timestamp = Regex("""(?:(\d{1,2}):)?(\d{2}):(\d{2})[,.](\d{3})""")
               fun millis(value: String): Long {
                   val m = timestamp.find(value) ?: return 0L
                   val h = m.groupValues[1].ifBlank { "0" }.toLong()
                   return (((h * 60 + m.groupValues[2].toLong()) * 60 + m.groupValues[3].toLong()) * 1000) + m.groupValues[4].toLong()
               }
               val cues = mutableListOf<Gx1SubtitleCue>()
-              val timeLine = Regex("""(?m)^\\s*((?:(?:\\d{1,2}:)?\\d{2}:\\d{2}[,.]\\d{3}))\\s*-->\\s*((?:(?:\\d{1,2}:)?\\d{2}:\\d{2}[,.]\\d{3})).*$""")
+              val timeLine = Regex("""(?m)^\s*((?:(?:\d{1,2}:)?\d{2}:\d{2}[,.]\d{3}))\s*-->\s*((?:(?:\d{1,2}:)?\d{2}:\d{2}[,.]\d{3})).*$""")
               val matches = timeLine.findAll(raw).toList()
               matches.forEachIndexed { index, match ->
                   val bodyStart = match.range.last + 1
                   val bodyEnd = if (index + 1 < matches.size) matches[index + 1].range.first else raw.length
                   val body = raw.substring(bodyStart, bodyEnd).lines()
-                      .filter { it.isNotBlank() && !it.trim().matches(Regex("""\\d+""")) }
-                      .joinToString("\\n") { it.replace(Regex("<[^>]*>"), "").trim() }
+                      .filter { it.isNotBlank() && !it.trim().matches(Regex("""\d+""")) }
+                      .joinToString("\n") { it.replace(Regex("<[^>]*>"), "").trim() }
                   if (body.isNotBlank()) cues.add(Gx1SubtitleCue(millis(match.groupValues[1]), millis(match.groupValues[2]), body))
               }
               return cues
