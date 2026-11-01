@@ -1324,6 +1324,11 @@ jobs:
         working-directory: ${{ env.PROJECT_DIR }}
         run: gradle wrapper --gradle-version "$GRADLE_VERSION" --no-daemon
 
+      - name: Inspect generated Kotlin subtitle declarations
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          nl -ba app/src/main/java/com/example/gx1player/MainActivity.kt | sed -n '45,150p'
+
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
         env:
