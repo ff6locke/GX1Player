@@ -520,6 +520,36 @@ jobs:
                   s = s.replace("import android.net.Uri", "import android.net.Uri\n" + imp, 1)
           if "private val pickLibraryFolder" not in s:
               launcher = """
+          private fun chooseLibraryLocation() {
+              val storageManager = getSystemService(android.content.Context.STORAGE_SERVICE) as android.os.storage.StorageManager
+              val choices = mutableListOf<Pair<String, Uri>>()
+              val authority = "com.android.externalstorage.documents"
+
+              // Primary shared storage is the phone's internal storage.
+              choices.add("Internal storage" to
+                  DocumentsContract.buildTreeDocumentUri(authority, "primary:"))
+
+              // Add each mounted removable volume (normally the SD card).
+              storageManager.storageVolumes
+                  .filter { it.isRemovable && it.state == android.os.Environment.MEDIA_MOUNTED }
+                  .forEach { volume ->
+                      val volumeId = volume.uuid
+                      if (!volumeId.isNullOrBlank()) {
+                          choices.add("External storage / SD card" to
+                              DocumentsContract.buildTreeDocumentUri(authority, "$volumeId:"))
+                      }
+                  }
+
+              val labels = choices.map { it.first }.toTypedArray()
+              AlertDialog.Builder(this)
+                  .setTitle("Choose storage")
+                  .setItems(labels) { _, which ->
+                      pickLibraryFolder.launch(choices[which].second)
+                  }
+                  .setNegativeButton("Cancel", null)
+                  .show()
+          }
+
           private val pickLibraryFolder = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
               if (uri != null) {
                   // takePersistableUriPermission accepts READ/WRITE mode bits only;
@@ -549,7 +579,7 @@ jobs:
                   AlertDialog.Builder(this)
                       .setTitle("Set up your library")
                       .setMessage("Choose a movies or music folder. GX1 Player will remember it for next time.")
-                      .setPositiveButton("Choose folder") { _, _ -> pickLibraryFolder.launch(null) }
+                      .setPositiveButton("Choose folder") { _, _ -> chooseLibraryLocation() }
                       .setNegativeButton("Cancel", null)
                       .show()
                   return
