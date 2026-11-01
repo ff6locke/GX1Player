@@ -1282,10 +1282,10 @@ jobs:
           # Add Open video beside Media3's settings control using its actual declaration.
           import re
           gear_match = re.search(
-              r'(?m)^[ \\t]*media3SettingsGear\\?\\.apply\\s*\\{[^}]*contentDescription\\s*=\\s*"Playback settings"[^}]*\\}',
+              r'(?m)^[ \t]*media3SettingsGear\?\.apply\s*\{[^}]*contentDescription\s*=\s*"Playback settings"[^}]*\}',
               s
           )
-          if "contentDescription = \\"Open video\\"" not in s:
+          if 'contentDescription = "Open video"' not in s:
               if not gear_match:
                   raise SystemExit("Media3 settings control block not found")
               marker = gear_match.group(0)
