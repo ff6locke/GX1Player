@@ -347,7 +347,8 @@ jobs:
                   }
           """
               if marker not in s:
-                  raise SystemExit("Could not find Open video menu item")              s = s.replace(marker, marker + "\n" + resume, 1)
+                  raise SystemExit("Could not find Open video menu item")
+              s = s.replace(marker, marker + "\n" + resume, 1)
 
           if 'add("Restart current video")' not in s:
               marker = '        add(if (passthrough) "Audio pass-through: On (select to turn off)" else "Audio pass-through: Off (select to turn on)") {'
