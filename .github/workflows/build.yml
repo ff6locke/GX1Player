@@ -1279,37 +1279,7 @@ jobs:
           else:
               raise SystemExit("Back callback not found; refusing unsafe patch")
 
-          # Add Open video beside Media3's settings control using its actual declaration.
-          import re
-          gear_match = re.search(
-              r'(?m)^[ \t]*media3SettingsGear\?\.apply\s*\{[^}]*contentDescription\s*=\s*"Playback settings"[^}]*\}',
-              s
-          )
-          if 'contentDescription = "Open video"' not in s:
-              if not gear_match:
-                  raise SystemExit("Media3 settings control block not found")
-              marker = gear_match.group(0)
-              open_video = marker + """
-                  if (media3SettingsGear?.parent is android.view.ViewGroup) {
-                      val controls = media3SettingsGear!!.parent as android.view.ViewGroup
-                      val openVideo = android.widget.TextView(this).apply {
-                          text = "▣"
-                          textSize = 25f
-                          gravity = android.view.Gravity.CENTER
-                          setTextColor(Color.WHITE)
-                          contentDescription = "Open video"
-                          isFocusable = true
-                          isClickable = true
-                          setPadding(12, 0, 12, 0)
-                          setOnClickListener {
-                              pickVideo.launch(arrayOf("video/*", "audio/*", "application/octet-stream", "application/x-matroska"))
-                          }
-                      }
-                      val gearIndex = controls.indexOfChild(media3SettingsGear)
-                      controls.addView(openVideo, (gearIndex + 1).coerceAtMost(controls.childCount),
-                          media3SettingsGear!!.layoutParams)
-                  }"""
-              s = s.replace(marker, open_video, 1)
+          # Defer the controller shortcut until the actual Media3 layout is identified.
           p.write_text(s)
           print("Back now returns to home; Open video shortcut added beside Media3 gear.")
           PY
