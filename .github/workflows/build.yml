@@ -1101,7 +1101,7 @@ jobs:
                   val lines = raw.lines()
                   var format = listOf("Layer", "Start", "End", "Style", "Name", "MarginL",
                       "MarginR", "MarginV", "Effect", "Text")
-                  val timePattern = Regex("""^(\\d+):(\\d{2}):(\\d{2})[.](\\d{1,2})$""")
+                  val timePattern = Regex("""^(\d+):(\d{2}):(\d{2})[.](\d{1,2})$""")
                   fun assMs(value: String): Long {
                       val m = timePattern.matchEntire(value.trim())
                           ?: throw IllegalArgumentException("Invalid ASS timestamp: $value")
