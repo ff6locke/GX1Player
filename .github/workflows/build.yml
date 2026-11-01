@@ -1136,7 +1136,7 @@ jobs:
                   Toast.makeText(this, "Subtitle 2 loaded: \${secondSubtitleCues.size} cues", Toast.LENGTH_LONG).show()
               } catch (e: Exception) {
                   secondSubtitleCues = emptyList()
-                  Toast.makeText(this, "Subtitle 2 error: \${e.message}", Toast.LENGTH_LONG).show()
+                  Toast.makeText(this, "Subtitle 2 error: ${e.message}", Toast.LENGTH_LONG).show()
               }
           }
 
