@@ -313,7 +313,9 @@ jobs:
                               contentDescription = "Open video"
                               isFocusable = true
                               isClickable = true
-                              setPadding(8, 8, 8, 8)
+                              // Match Media3 gear's full icon footprint; remove ImageButton inset padding.
+                              setPadding(0, 0, 0, 0)
+                              scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
                               setOnClickListener {
                                   pickVideo.launch(arrayOf("video/*", "audio/*"))
                               }
