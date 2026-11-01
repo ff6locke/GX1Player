@@ -1513,6 +1513,115 @@ jobs:
           print("Added Media3 audio track listing and selection.")
           PY
 
+      - name: Add VLC-style built-in subtitle track list
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          marker = "    private fun showMenu() {"
+          method = r'''    private fun showSubtitleTrackSelection() {
+                  val exo = player
+                  if (exo == null) {
+                      Toast.makeText(this, "No player is active.", Toast.LENGTH_SHORT).show()
+                      return
+                  }
+                  val textGroups = exo.currentTracks.groups.filter {
+                      it.type == androidx.media3.common.C.TRACK_TYPE_TEXT
+                  }
+                  val choices = mutableListOf<Pair<androidx.media3.common.TrackGroup, Int>>()
+                  val labels = mutableListOf<String>()
+                  labels.add("Off")
+                  for (group in textGroups) {
+                      for (index in 0 until group.length) {
+                          if (!group.isTrackSupported(index)) continue
+                          val format = group.getTrackFormat(index)
+                          val details = listOfNotNull(
+                              format.label?.takeIf { it.isNotBlank() },
+                              format.language?.takeIf { it.isNotBlank() && it != "und" },
+                              format.sampleMimeType?.substringAfter("/")?.uppercase()
+                          ).distinct().joinToString(" · ")
+                          labels.add(if (details.isBlank()) "Subtitle ${choices.size + 1}" else details)
+                          choices.add(group.mediaTrackGroup to index)
+                      }
+                  }
+                  val selected = run {
+                      var flat = 0
+                      var found = 0
+                      loop@ for (group in textGroups) {
+                          for (index in 0 until group.length) {
+                              if (!group.isTrackSupported(index)) continue
+                              if (group.isTrackSelected(index)) {
+                                  found = flat + 1
+                                  break@loop
+                              }
+                              flat++
+                          }
+                      }
+                      found
+                  }
+                  val items = labels.toMutableList().apply {
+                      add("Load custom subtitle 1…")
+                      add("Load custom subtitle 2…")
+                  }
+                  AlertDialog.Builder(this)
+                      .setTitle("Subtitle")
+                      .setSingleChoiceItems(items.toTypedArray(), selected) { dialog, which ->
+                          when {
+                              which == 0 -> {
+                                  val params = exo.trackSelectionParameters.buildUpon()
+                                      .clearOverridesOfType(androidx.media3.common.C.TRACK_TYPE_TEXT)
+                                      .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, true)
+                                  exo.trackSelectionParameters = params.build()
+                                  secondSubtitleView?.visibility = View.GONE
+                                  dialog.dismiss()
+                              }
+                              which <= choices.size -> {
+                                  val (trackGroup, trackIndex) = choices[which - 1]
+                                  val params = exo.trackSelectionParameters.buildUpon()
+                                      .clearOverridesOfType(androidx.media3.common.C.TRACK_TYPE_TEXT)
+                                      .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, false)
+                                      .addOverride(androidx.media3.common.TrackSelectionOverride(trackGroup, listOf(trackIndex)))
+                                  exo.trackSelectionParameters = params.build()
+                                  secondSubtitleView?.visibility = View.GONE
+                                  dialog.dismiss()
+                              }
+                              which == choices.size + 1 -> {
+                                  dialog.dismiss()
+                                  pickSubtitle.launch(arrayOf("application/x-subrip", "text/vtt", "text/plain", "application/octet-stream"))
+                              }
+                              else -> {
+                                  dialog.dismiss()
+                                  pickSubtitle2.launch(arrayOf("application/x-subrip", "text/vtt", "text/plain", "application/octet-stream"))
+                              }
+                          }
+                      }
+                      .setNegativeButton("Close", null)
+                      .show()
+              }
+
+          '''
+          if "private fun showSubtitleTrackSelection()" not in s:
+              if marker not in s:
+                  raise SystemExit("Could not find showMenu() insertion point for subtitle selector")
+              s = s.replace(marker, method + marker, 1)
+          old = '''"subtitle" -> AlertDialog.Builder(this)
+                                      .setTitle("Load subtitles")
+                                      .setItems(arrayOf("Load subtitle 1", "Load subtitle 2")) { _, which ->
+                                          val types = arrayOf("application/x-subrip", "text/vtt", "text/plain", "application/octet-stream")
+                                          if (which == 0) pickSubtitle.launch(types) else pickSubtitle2.launch(types)
+                                      }
+                                      .show()'''
+          new = '''"subtitle" -> showSubtitleTrackSelection()'''
+          if old in s:
+              s = s.replace(old, new, 1)
+          elif '"subtitle" -> showSubtitleTrackSelection()' not in s:
+              raise SystemExit("Could not find existing subtitle menu action to replace")
+          p.write_text(s)
+          print("Added embedded subtitle tracks plus separate custom subtitle 1 and 2 entries.")
+          PY
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
