@@ -1962,6 +1962,107 @@ jobs:
           p.write_text(s)
           print("History recording is now wired directly into selectMedia().")
           PY
+      - name: Add GX1 in-app subtitle file browser
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          method = r'''
+              private fun currentVideoFile(): java.io.File? {
+                  val uri = mediaUri ?: return null
+                  if (uri.scheme == "file") return uri.path?.let { java.io.File(it) }
+                  return try {
+                      contentResolver.query(uri, arrayOf(android.provider.MediaStore.MediaColumns.DATA), null, null, null)?.use { c ->
+                          if (c.moveToFirst()) c.getString(0)?.takeIf { it.isNotBlank() }?.let { java.io.File(it) } else null
+                      }
+                  } catch (_: Exception) { null }
+              }
+
+              private fun showSubtitleFilePicker(slot: Int, folder: java.io.File? = null) {
+                  val video = currentVideoFile()
+                  val startFolder = folder ?: video?.parentFile
+                  if (startFolder == null || !startFolder.isDirectory) {
+                      AlertDialog.Builder(this).setTitle("Subtitle folder unavailable")
+                          .setMessage("GX1 Player cannot resolve the video's folder. Please check storage access.")
+                          .setPositiveButton("OK", null).show()
+                      return
+                  }
+                  val videoBase = video?.nameWithoutExtensionCompat()?.lowercase(java.util.Locale.ROOT)
+                  val dirs = startFolder.listFiles()?.filter { it.isDirectory && !it.name.startsWith(".") }
+                      ?.sortedBy { it.name.lowercase(java.util.Locale.ROOT) } ?: emptyList()
+                  val subtitleFiles = startFolder.listFiles()?.filter {
+                      it.isFile && it.extension.lowercase(java.util.Locale.ROOT) in setOf("srt", "ass", "ssa", "vtt", "sub")
+                  } ?: emptyList()
+                  val sortedSubs = subtitleFiles.sortedWith(compareBy<java.io.File>(
+                      { if (videoBase != null && it.nameWithoutExtensionCompat().equals(videoBase, true)) 0 else 1 },
+                      { it.name.lowercase(java.util.Locale.ROOT) }
+                  ))
+                  val entries = mutableListOf<Pair<String, java.io.File?>>()
+                  if (startFolder.parentFile != null) entries.add("..  (Parent folder)" to null)
+                  dirs.forEach { entries.add("📁  ${it.name}" to it) }
+                  sortedSubs.forEach {
+                      val isMatch = videoBase != null && it.nameWithoutExtensionCompat().equals(videoBase, true)
+                      entries.add((if (isMatch) "★  " else "      ") + it.name + (if (isMatch) "  (video name match)" else "") to it)
+                  }
+                  if (entries.isEmpty()) {
+                      AlertDialog.Builder(this).setTitle("Choose subtitle")
+                          .setMessage("No subtitle files found in:\\n${startFolder.absolutePath}")
+                          .setPositiveButton("OK", null).show()
+                      return
+                  }
+                  val title = "Subtitle ${slot} — ${video?.nameWithoutExtensionCompat() ?: "Choose file"}"
+                  AlertDialog.Builder(this)
+                      .setTitle(title)
+                      .setItems(entries.map { it.first }.toTypedArray()) { dialog, which ->
+                          val chosen = entries[which].second
+                          if (chosen == null) {
+                              dialog.dismiss()
+                              showSubtitleFilePicker(slot, startFolder.parentFile)
+                          } else if (chosen.isDirectory) {
+                              dialog.dismiss()
+                              showSubtitleFilePicker(slot, chosen)
+                          } else {
+                              val uri = Uri.fromFile(chosen)
+                              val videoUri = mediaUri
+                              if (slot == 1) {
+                                  subtitleUri = uri
+                                  videoUri?.let { prefs.edit().putString(subKey(it), uri.toString()).apply() }
+                                  startPlayer()
+                              } else {
+                                  subtitleUri2 = uri
+                                  videoUri?.let { prefs.edit().putString(subKey(it) + "|2", uri.toString()).apply() }
+                                  loadSecondSubtitleOverlay(uri)
+                              }
+                              Toast.makeText(this, "Subtitle ${slot}: ${chosen.name}", Toast.LENGTH_SHORT).show()
+                          }
+                      }
+                      .setNegativeButton("Cancel", null)
+                      .show()
+              }
+
+              private fun java.io.File.nameWithoutExtensionCompat(): String {
+                  val n = name
+                  val dot = n.lastIndexOf('.')
+                  return if (dot > 0) n.substring(0, dot) else n
+              }
+
+          '''
+          if "private fun showSubtitleFilePicker(slot: Int" not in s:
+              marker = "    private fun showMenu() {"
+              if marker not in s:
+                  raise SystemExit("Could not find showMenu() insertion point for subtitle browser")
+              s = s.replace(marker, method + marker, 1)
+          s = s.replace('pickSubtitle.launch(arrayOf("application/x-subrip", "text/vtt", "text/plain", "application/octet-stream"))', 'showSubtitleFilePicker(1)')
+          s = s.replace('pickSubtitle2.launch(arrayOf("application/x-subrip", "text/vtt", "text/plain", "application/octet-stream"))', 'showSubtitleFilePicker(2)')
+          s = s.replace('if (which == 0) pickSubtitle.launch(types) else pickSubtitle2.launch(types)', 'if (which == 0) showSubtitleFilePicker(1) else showSubtitleFilePicker(2)')
+          if "pickSubtitle.launch(" in s or "pickSubtitle2.launch(" in s:
+              raise SystemExit("A system subtitle picker launch remains")
+          p.write_text(s)
+          print("Subtitle selection now uses GX1's own folder browser, starts in the video's folder, and sorts same-basename subtitle files first.")
+          PY
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
