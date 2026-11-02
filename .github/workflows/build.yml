@@ -1870,6 +1870,90 @@ jobs:
           print("Added Android Environment import for the GX1 browser.")
           PY
 
+      - name: Fix repeat modes and aspect ratio controls
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          old_repeat = '''                      if (item.third == "repeat") {
+                          row.addView(android.widget.Switch(this).apply {
+                              isChecked = player?.repeatMode == Player.REPEAT_MODE_ONE ||
+                                  player?.repeatMode == Player.REPEAT_MODE_ALL
+                              setOnCheckedChangeListener { _, checked ->
+                                  player?.repeatMode = if (checked) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
+                              }
+                          })
+                      } else if (item.third != "settings") {'''
+          new_repeat = '''                      if (item.third != "settings") {'''
+          if old_repeat not in s:
+              raise SystemExit("Could not find the old Repeat switch block")
+          s = s.replace(old_repeat, new_repeat, 1)
+          old_aspect = '''                              "aspect" -> {
+                                  val modes = intArrayOf(
+                                      androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT,
+                                      androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL,
+                                      androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                                  )
+                                  val names = arrayOf("Fit", "Fill", "Zoom")
+                                  val next = (modes.indexOf(playerView.resizeMode) + 1).let { if (it < 0) 0 else (it + 1) % modes.size }
+                                  playerView.resizeMode = modes[next]
+                                  Toast.makeText(this, "Aspect ratio: " + names[next], Toast.LENGTH_SHORT).show()
+                              }'''
+          new_aspect = '''                              "aspect" -> {
+                                  val modes = intArrayOf(
+                                      androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT,
+                                      androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL,
+                                      androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
+                                      androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH,
+                                      androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT
+                                  )
+                                  val names = arrayOf("Fit", "Stretch", "Zoom", "Fixed width", "Fixed height")
+                                  val current = modes.indexOf(playerView.resizeMode).coerceAtLeast(0)
+                                  AlertDialog.Builder(this)
+                                      .setTitle("Aspect ratio")
+                                      .setSingleChoiceItems(names, current) { dialog, which ->
+                                          playerView.resizeMode = modes[which]
+                                          playerView.requestLayout()
+                                          playerView.post { playerView.requestLayout() }
+                                          Toast.makeText(this, "Aspect ratio: " + names[which], Toast.LENGTH_SHORT).show()
+                                          dialog.dismiss()
+                                      }
+                                      .setNegativeButton("Cancel", null)
+                                      .show()
+                              }'''
+          if old_aspect not in s:
+              raise SystemExit("Could not find the old Aspect Ratio action")
+          s = s.replace(old_aspect, new_aspect, 1)
+          marker = '''                              "aspect" -> {'''
+          repeat_action = '''                              "repeat" -> {
+                                  val modes = intArrayOf(
+                                      Player.REPEAT_MODE_OFF,
+                                      Player.REPEAT_MODE_ONE,
+                                      Player.REPEAT_MODE_ALL
+                                  )
+                                  val names = arrayOf("Off", "Repeat current video", "Repeat all")
+                                  val current = modes.indexOf(player?.repeatMode ?: Player.REPEAT_MODE_OFF).coerceAtLeast(0)
+                                  AlertDialog.Builder(this)
+                                      .setTitle("Repeat")
+                                      .setSingleChoiceItems(names, current) { dialog, which ->
+                                          player?.repeatMode = modes[which]
+                                          Toast.makeText(this, "Repeat: " + names[which], Toast.LENGTH_SHORT).show()
+                                          dialog.dismiss()
+                                      }
+                                      .setNegativeButton("Cancel", null)
+                                      .show()
+                              }
+          '''
+          if '"repeat" -> {' not in s:
+              if marker not in s:
+                  raise SystemExit("Could not find action switch insertion point")
+              s = s.replace(marker, repeat_action + marker, 1)
+          p.write_text(s)
+          print("Repeat now offers Off/One/All; aspect ratio now offers five explicit resize modes.")
+          PY
+
       - name: Ensure playback history is recorded on every selection
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
