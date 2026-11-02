@@ -2008,18 +2008,10 @@ jobs:
           s = p.read_text()
 
           # Remove the Library overlay before revealing the home dashboard.
-          old_home = """          private fun showHome() {
-              if (!::homePanel.isInitialized) return
-              homePanel.visibility = View.VISIBLE"""
-          new_home = """          private fun showHome() {
-              if (!::homePanel.isInitialized) return
-              if (::rootLayout.isInitialized) {
-                  rootLayout.findViewWithTag<View>("gx1_library_panel")?.let { rootLayout.removeView(it) }
-              }
-              homePanel.visibility = View.VISIBLE"""
-          if old_home in s:
-              s = s.replace(old_home, new_home, 1)
-          elif 'rootLayout.findViewWithTag<View>("gx1_library_panel")?.let { rootLayout.removeView(it) }' not in s[s.find("private fun showHome()"):s.find("private fun showHome()") + 700]:
+          home_patch = r'(private fun showHome\\(\\) \\{\\s*if \\(!::homePanel.isInitialized\\) return\\s*)(homePanel.visibility = View.VISIBLE)'
+          home_replacement = r'\\1if (::rootLayout.isInitialized) {\\n            rootLayout.findViewWithTag<View>("gx1_library_panel")?.let { rootLayout.removeView(it) }\\n        }\\n        homePanel.visibility = View.VISIBLE'
+          s, home_count = re.subn(home_patch, home_replacement, s, count=1)
+          if home_count != 1 and 'rootLayout.findViewWithTag<View>("gx1_library_panel")?.let { rootLayout.removeView(it) }' not in s[s.find("private fun showHome()"):s.find("private fun showHome()") + 700]:
               raise SystemExit("Could not patch showHome() to remove the Library overlay")
 
           # Render each item as one reliable, readable text view rather than three
