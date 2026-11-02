@@ -580,7 +580,7 @@ jobs:
           # GX1 in-app media browser uses MediaStore, not the Android folder picker.
           for imp in ["import android.Manifest", "import android.content.pm.PackageManager", "import android.os.Build", "import android.provider.MediaStore", "import android.content.ContentUris"]:
               if imp not in s:
-                  s = s.replace("import android.net.Uri", "import android.net.Uri\\n" + imp, 1)
+                  s = s.replace("import android.net.Uri", "import android.net.Uri\n" + imp, 1)
           manifest = Path("app/src/main/AndroidManifest.xml")
           ms = manifest.read_text()
           perms = """    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
