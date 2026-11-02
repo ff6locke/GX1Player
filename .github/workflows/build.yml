@@ -1877,7 +1877,7 @@ jobs:
               }
 
           '''
-          pattern = r'(?ms)^[ \\t]*private fun chooseLibraryLocation\\(\\) \\{.*?^[ \\t]*\\}'
+          pattern = r'(?ms)^[ \t]*private fun chooseLibraryLocation\(\) \{.*?^[ \t]*\}'
           s, count = re.subn(pattern, choose, s, count=1)
           if count != 1:
               raise SystemExit("Could not replace the Library permission chooser")
