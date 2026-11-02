@@ -1947,7 +1947,7 @@ jobs:
                   }
               }
               val filtered = entries.filter { e ->'''
-          listing_pattern = r'(?s)val tree = prefs.*?val filtered = entries.*?\\{ e ->'
+          listing_pattern = r'(?s)val tree = prefs.*?val filtered = entries.filter.*?e ->'
           s, listing_count = re.subn(listing_pattern, new_start, s, count=1)
           if listing_count != 1:
               raise SystemExit("Could not locate the SAF Library listing block by its Kotlin structure")
