@@ -2008,10 +2008,11 @@ jobs:
           s = p.read_text()
 
           # Remove the Library overlay before revealing the home dashboard.
-          home_patch = r'(private fun showHome\\(\\) \\{\\s*if \\(!::homePanel.isInitialized\\) return\\s*)(homePanel.visibility = View.VISIBLE)'
-          home_replacement = r'\\1if (::rootLayout.isInitialized) {\\n            rootLayout.findViewWithTag<View>("gx1_library_panel")?.let { rootLayout.removeView(it) }\\n        }\\n        homePanel.visibility = View.VISIBLE'
-          s, home_count = re.subn(home_patch, home_replacement, s, count=1)
-          if home_count != 1 and 'rootLayout.findViewWithTag<View>("gx1_library_panel")?.let { rootLayout.removeView(it) }' not in s[s.find("private fun showHome()"):s.find("private fun showHome()") + 700]:
+          home_patch = r'(?s)(private fun showHome\(\)\s*\{\s*if \(!::homePanel.isInitialized\) return\s*)(homePanel.visibility = View.VISIBLE)'
+          def add_library_cleanup(match):
+              return match.group(1) + 'if (::rootLayout.isInitialized) {\n            rootLayout.findViewWithTag<View>("gx1_library_panel")?.let { rootLayout.removeView(it) }\n        }\n        ' + match.group(2)
+          s, home_count = re.subn(home_patch, add_library_cleanup, s, count=1)
+          if home_count != 1:
               raise SystemExit("Could not patch showHome() to remove the Library overlay")
 
           # Render each item as one reliable, readable text view rather than three
