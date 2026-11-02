@@ -258,7 +258,7 @@ jobs:
           startup_line = '        val initial = intent?.data ?: prefs.getString(KEY_LAST_URI, null)?.let { Uri.parse(it) }'
           if startup_line not in s:
               raise SystemExit("Could not find startup media restore line")
-          s = s.replace(startup_line, '        val initial = intent?.data', 1)
+          s = s.replace(startup_line, '        val initial: Uri? = null', 1)
 
           back_marker = '        val initial = intent?.data'
           back_callback = '''        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
