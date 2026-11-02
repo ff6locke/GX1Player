@@ -2033,7 +2033,7 @@ jobs:
                               } else {
                                   subtitleUri2 = uri
                                   videoUri?.let { prefs.edit().putString(subKey(it) + "|2", uri.toString()).apply() }
-                                  loadSecondSubtitleOverlay(uri)
+                                  loadSecondSubtitleOverlay()
                               }
                               Toast.makeText(this, "Subtitle ${slot}: ${chosen.name}", Toast.LENGTH_SHORT).show()
                           }
