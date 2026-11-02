@@ -1977,7 +1977,7 @@ jobs:
                   }
               }
           """
-          anchor = "              val filtered = entries.filter { e ->"
+          anchor = "    val filtered = entries.filter { e ->"
           if "getExternalFilesDirs(null)" not in s:
               if anchor not in s:
                   raise SystemExit("Could not find Library filter insertion point")
