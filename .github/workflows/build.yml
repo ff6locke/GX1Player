@@ -376,7 +376,7 @@ jobs:
                               setPadding(0, 0, 0, 0)
                               scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
                               setOnClickListener {
-                                  pickVideo.launch(arrayOf("video/*", "audio/*"))
+                                  chooseLibraryLocation()
                               }
                           }
                           val oldParams = gear.layoutParams
