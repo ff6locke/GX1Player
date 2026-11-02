@@ -1481,14 +1481,18 @@ jobs:
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
 
-          # Back should never open the playback menu. Dismiss an open popup first;
-          # otherwise leave playback and return to the home panel.
+          # First Back hides Media3's controller so playback returns to clean full screen.
+          # A second Back leaves playback and returns to Home; popup dialogs dismiss first.
           old = """          override fun handleOnBackPressed() {
                           showMenu()
                       }"""
           new = """          override fun handleOnBackPressed() {
                           if (menuPopupRef?.isShowing == true) {
                               menuPopupRef?.dismiss()
+                              return
+                          }
+                          if (::playerView.isInitialized && playerView.visibility == View.VISIBLE && playerView.isControllerVisible) {
+                              playerView.hideController()
                               return
                           }
                           if (::homePanel.isInitialized && homePanel.visibility == View.VISIBLE) {
