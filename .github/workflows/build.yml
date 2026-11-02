@@ -658,7 +658,7 @@ jobs:
               s = s.replace("    private fun showMenu() {", library_methods + "    private fun showMenu() {", 1)
           if 'addTile("Library"' not in s:
               s = s.replace('              addTile("Open video", "Browse files") {',
-                            '              addTile("Library", "Browse your folders") { showLibrary() }\n              addTile("Open video", "Choose one file") {', 1)
+                            '              addTile("Library", "Browse your folders") { chooseLibraryLocation() }\n              addTile("Open video", "Choose one file") {', 1)
 
           # Replace the player-only launch with a TV-first home dashboard.
           for imp in ["import android.graphics.drawable.GradientDrawable", "import android.view.View", "import android.widget.LinearLayout", "import android.widget.TextView"]:
