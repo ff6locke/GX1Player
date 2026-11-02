@@ -646,7 +646,7 @@ jobs:
               AlertDialog.Builder(this).setTitle(title).setItems(entries.map { it.label }.toTypedArray()) { _, which ->
                   val item = entries[which]
                   when {
-                      item.folder == ".." -> showLibrary(path.substringBeforeLast(47.toChar(), "").let { if (it.isEmpty()) "" else "$it/" })
+                      item.folder == ".." -> { val current = path.trimEnd(47.toChar()); val parent = current.substringBeforeLast(47.toChar(), ""); showLibrary(if (parent.isEmpty()) "" else "$parent/") }
                       item.folder != null -> showLibrary(path + item.folder + "/")
                       item.uri != null -> { selectMedia(item.uri); startPlayer() }
                   }
