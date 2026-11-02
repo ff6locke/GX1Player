@@ -1973,9 +1973,9 @@ jobs:
           if "private var subtitleUri: Uri? = null" not in s:
               if player_anchor not in s:
                   raise SystemExit("Could not find player field insertion point")
-              s = s.replace(player_anchor, "    private var subtitleUri: Uri? = null\n    private var subtitleUri2: Uri? = null\n" + player_anchor, 1)
+              s = s.replace(player_anchor, "    private var subtitleUri: Uri? = null" + chr(10) + "    private var subtitleUri2: Uri? = null" + chr(10) + player_anchor, 1)
           elif "private var subtitleUri2: Uri? = null" not in s:
-              s = s.replace("    private var subtitleUri: Uri? = null", "    private var subtitleUri: Uri? = null\n    private var subtitleUri2: Uri? = null", 1)
+              s = s.replace("    private var subtitleUri: Uri? = null", "    private var subtitleUri: Uri? = null" + chr(10) + "    private var subtitleUri2: Uri? = null", 1)
           method = r'''
               private fun currentVideoFile(): java.io.File? {
                   val uri = mediaUri ?: return null
