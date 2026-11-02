@@ -586,6 +586,7 @@ jobs:
           perms = """    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
               <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
               <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+              <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
           """
           if "android.permission.READ_MEDIA_VIDEO" not in ms:
               ms = ms.replace("<application", perms + "\n    <application", 1)
@@ -615,10 +616,64 @@ jobs:
                           val missing = permissions.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
                           if (missing.isEmpty()) showLibrary("") else libraryPermissionRequest.launch(missing.toTypedArray())
                       } else {
-                          chooseSdCardTree.launch(null)
+                          browseExternalSdCard()
                       }
                   }
                   .setNegativeButton("Cancel", null)
+                  .show()
+          }
+          private fun browseExternalSdCard(path: java.io.File? = null) {
+              if (Build.VERSION.SDK_INT >= 30 && !Environment.isExternalStorageManager()) {
+                  try {
+                      val intent = Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                          Uri.parse("package:" + packageName))
+                      startActivity(intent)
+                  } catch (_: Exception) {
+                      startActivity(Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
+                  }
+                  Toast.makeText(this, "Allow GX1 Player file access, then open External SD card again.", Toast.LENGTH_LONG).show()
+                  return
+              }
+              val roots = getExternalFilesDirs(null).filterNotNull().mapNotNull { dir ->
+                  val p = dir.absolutePath
+                  val marker = "/Android/data/"
+                  val cut = p.indexOf(marker)
+                  if (cut > 0) java.io.File(p.substring(0, cut)) else null
+              }.distinctBy { it.absolutePath }
+              val sdRoot = roots.firstOrNull { it.absolutePath != Environment.getExternalStorageDirectory().absolutePath }
+              if (sdRoot == null || !sdRoot.exists()) {
+                  AlertDialog.Builder(this).setTitle("External SD card")
+                      .setMessage("No removable SD card was detected. Insert or mount the card and try again.")
+                      .setPositiveButton("OK", null).show()
+                  return
+              }
+              val current = path ?: sdRoot
+              val entries = current.listFiles()?.filter { it.isDirectory || it.isFile &&
+                  it.extension.lowercase() in listOf("mkv","mp4","avi","mov","webm","mpg","mpeg","ts","m2ts","mp3","flac","m4a","aac","wav","ogg") }
+                  ?.sortedWith(compareBy<java.io.File>({ !it.isDirectory }, { it.name.lowercase() })) ?: emptyList()
+              val labels = mutableListOf<String>()
+              if (current.absolutePath != sdRoot.absolutePath) labels.add("..")
+              entries.forEach { labels.add(if (it.isDirectory) "📁 " + it.name else "▶ " + it.name) }
+              if (labels.isEmpty()) labels.add("(No media files or folders)")
+              val relative = current.relativeTo(sdRoot).path.let { if (it == ".") "" else it }
+              AlertDialog.Builder(this).setTitle("SD card / " + relative)
+                  .setItems(labels.toTypedArray()) { _, which ->
+                      if (current.absolutePath != sdRoot.absolutePath && which == 0) {
+                          browseExternalSdCard(current.parentFile ?: sdRoot)
+                      } else {
+                          val index = which - if (current.absolutePath != sdRoot.absolutePath) 1 else 0
+                          if (index in entries.indices) {
+                              val selected = entries[index]
+                              if (selected.isDirectory) browseExternalSdCard(selected)
+                              else {
+                                  selectMedia(Uri.fromFile(selected))
+                                  startPlayer()
+                              }
+                          }
+                      }
+                  }
+                  .setNegativeButton("Close", null)
+                  .setNeutralButton("Refresh") { _, _ -> browseExternalSdCard(current) }
                   .show()
           }
           '''
