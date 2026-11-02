@@ -1780,7 +1780,7 @@ jobs:
           # The Library hub already reads library_tree_uri through DocumentsContract.
           # Give it a real SAF tree grant rather than the old MediaStore permission screen.
           if "private val libraryTreePicker" not in s:
-              marker = "    private val libraryPermissionRequest"
+              marker = "private val libraryPermissionRequest"
               if marker not in s:
                   raise SystemExit("Library activity-result insertion point not found")
               launcher = r'''    private val libraryTreePicker = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
