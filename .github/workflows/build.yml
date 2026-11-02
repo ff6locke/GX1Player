@@ -1775,14 +1775,10 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
-          # The Library hub already reads library_tree_uri through DocumentsContract.
-          # Give it a real SAF tree grant rather than the old MediaStore permission screen.
           if "private val libraryTreePicker" not in s:
-              marker = "private val libraryPermissionRequest"
-              if marker not in s:
-                  raise SystemExit("Library activity-result insertion point not found")
               launcher = r'''    private val libraryTreePicker = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
                   if (uri != null) {
                       val flags = android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or
@@ -1792,8 +1788,7 @@ jobs:
                           prefs.edit().putString("library_tree_uri", uri.toString()).apply()
                           showLibraryHub()
                       } catch (e: Exception) {
-                          AlertDialog.Builder(this)
-                              .setTitle("Folder access failed")
+                          AlertDialog.Builder(this).setTitle("Folder access failed")
                               .setMessage(e.message ?: "Android could not grant access to this folder.")
                               .setPositiveButton("Choose again") { _, _ -> chooseLibraryLocation() }
                               .setNegativeButton("Cancel", null).show()
@@ -1802,24 +1797,21 @@ jobs:
               }
 
           '''
-              s = s.replace(marker, launcher + marker, 1)
-          old = """          private fun chooseLibraryLocation() {
-              val permissions = if (Build.VERSION.SDK_INT >= 33) arrayOf(Manifest.permission.READ_MEDIA_VIDEO, Manifest.permission.READ_MEDIA_AUDIO)
-                  else arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
-              val missing = permissions.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
-              if (missing.isEmpty()) showLibrary("") else libraryPermissionRequest.launch(missing.toTypedArray())
-          }"""
-          new = """          private fun chooseLibraryLocation() {
-              libraryTreePicker.launch(prefs.getString("library_tree_uri", null)?.let { Uri.parse(it) })
-          }"""
-          if old in s:
-              s = s.replace(old, new, 1)
-          elif "private fun chooseLibraryLocation() {\n              libraryTreePicker.launch" not in s:
-              raise SystemExit("Could not replace old Library folder chooser")
+              marker = "override fun onCreate(savedInstanceState: Bundle?)"
+              if marker not in s:
+                  raise SystemExit("Could not find MainActivity onCreate insertion point")
+              s = s.replace(marker, launcher + "    " + marker, 1)
+          pattern = r'(?ms)^(\s*)private fun chooseLibraryLocation\(\) \{.*?^\1\}'
+          replacement = r'''\1private fun chooseLibraryLocation() {
+          \1    libraryTreePicker.launch(prefs.getString("library_tree_uri", null)?.let { Uri.parse(it) })
+          \1}'''
+          s, count = re.subn(pattern, replacement, s, count=1)
+          if count != 1:
+              raise SystemExit("Could not locate chooseLibraryLocation() function")
           if "ActivityResultContracts.OpenDocumentTree()" not in s or 'putString("library_tree_uri", uri.toString())' not in s:
               raise SystemExit("Persistent folder picker patch did not apply")
           p.write_text(s)
-          print("Library now opens Android's folder picker, remembers the selected folder grant, and opens the Library hub.")
+          print("Installed persistent Android folder picker and updated Library chooser.")
           PY
 
       - name: Set up JDK 17
