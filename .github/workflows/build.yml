@@ -1952,15 +1952,9 @@ jobs:
           if listing_count != 1:
               raise SystemExit("Could not locate the SAF Library listing block by its Kotlin structure")
 
-          # Directory entries now carry file:// URIs; convert their path directly.
-          s, navigation_count = re.subn(
-              r'DocumentsContract\.getDocumentId\(e\.uri\)',
-              'e.uri.path ?: rootPath',
-              s,
-              count=1
-          )
-          if navigation_count != 1:
-              raise SystemExit("Could not patch Library directory navigation from SAF to File URI")
+          # The earlier Library UI patch already navigates with the file URI path.
+          if 'e.uri.path ?: Environment.getExternalStorageDirectory().absolutePath' not in s:
+              raise SystemExit("Library folder navigation does not use the selected File URI path")
           s = s.replace(
               'android.util.Log.e("GX1Player", "Library failed to open; clearing stale SAF tree grant", e)',
               'android.util.Log.e("GX1Player", "GX1 file browser failed to open folder", e)',
@@ -1994,7 +1988,7 @@ jobs:
               "Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION",
               "File(parentId ?: rootPath)",
               "Uri.fromFile(file)",
-              "e.uri.path ?: rootPath"
+              "e.uri.path ?: Environment.getExternalStorageDirectory().absolutePath"
           ]
           missing = [x for x in required if x not in s and x not in ms]
           if missing:
