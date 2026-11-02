@@ -963,7 +963,7 @@ jobs:
                       .setTitle("Library permission expired")
                       .setMessage("Android denied access to this folder. Please choose the library folder again.\\n\\n" +
                           (e.message ?: e.javaClass.simpleName))
-                      .setPositiveButton("Choose folder") { _, _ -> pickLibraryFolder.launch(null) }
+                      .setPositiveButton("Choose folder") { _, _ -> chooseLibraryLocation() }
                       .setNegativeButton("Cancel", null)
                       .show()
               }
