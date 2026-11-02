@@ -577,109 +577,84 @@ jobs:
           for imp in ["import android.provider.DocumentsContract", "import android.database.Cursor"]:
               if imp not in s:
                   s = s.replace("import android.net.Uri", "import android.net.Uri\n" + imp, 1)
-          if "private val pickLibraryFolder" not in s:
-              launcher = """
-          private fun chooseLibraryLocation() {
-              // Use Android's normal picker rather than a synthetic root tree URI.
-              // Some OEM document providers reject the supplied root URI before
-              // the user can navigate to Internal storage or Download.
-              AlertDialog.Builder(this)
-                  .setTitle("Choose library folder")
-                  .setMessage("In the Android folder picker, open Internal storage, then choose Download, Movies, Music, or another folder. You can also choose an SD card if available.")
-                  .setPositiveButton("Browse folders") { _, _ ->
-                      pickLibraryFolder.launch(null)
-                  }
-                  .setNegativeButton("Cancel", null)
-                  .show()
-          }
-          private val pickLibraryFolder = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
-              if (uri != null) {
-                  // takePersistableUriPermission accepts READ/WRITE mode bits only;
-                  // PERSISTABLE is an intent grant flag, not a permission mode.
-                  val readWrite = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                  val readOnly = Intent.FLAG_GRANT_READ_URI_PERMISSION
-                  val savedGrant = runCatching {
-                      contentResolver.takePersistableUriPermission(uri, readWrite)
-                  }.recoverCatching {
-                      contentResolver.takePersistableUriPermission(uri, readOnly)
-                  }.isSuccess
-                  if (savedGrant) {
-                      prefs.edit().putString("library_tree_uri", uri.toString()).apply()
-                      showLibraryHub()
-                  } else {
-                      prefs.edit().remove("library_tree_uri").apply()
-                      Toast.makeText(this, "Android did not grant folder read access. Please choose the folder again.", Toast.LENGTH_LONG).show()
-                  }
-              }
-          }
+          # GX1 in-app media browser uses MediaStore, not the Android folder picker.
+          for imp in ["import android.Manifest", "import android.content.pm.PackageManager", "import android.os.Build", "import android.provider.MediaStore", "import android.content.ContentUris"]:
+              if imp not in s:
+                  s = s.replace("import android.net.Uri", "import android.net.Uri\\n" + imp, 1)
+          manifest = Path("app/src/main/AndroidManifest.xml")
+          ms = manifest.read_text()
+          perms = """    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+              <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+              <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
           """
-              s = s.replace("    override fun onCreate(savedInstanceState: Bundle?) {", launcher + "\n    override fun onCreate(savedInstanceState: Bundle?) {", 1)
+          if "android.permission.READ_MEDIA_VIDEO" not in ms:
+              ms = ms.replace("<application", perms + "\\n    <application", 1)
+              manifest.write_text(ms)
+          library_launcher = r'''
+          private val libraryPermissionRequest = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+              if (result.values.any { it }) showLibrary("") else Toast.makeText(this, "Media access is needed to browse your library.", Toast.LENGTH_LONG).show()
+          }
+          private fun chooseLibraryLocation() {
+              val permissions = if (Build.VERSION.SDK_INT >= 33) arrayOf(Manifest.permission.READ_MEDIA_VIDEO, Manifest.permission.READ_MEDIA_AUDIO)
+                  else arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+              val missing = permissions.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
+              if (missing.isEmpty()) showLibrary("") else libraryPermissionRequest.launch(missing.toTypedArray())
+          }
+          '''
+          if "private val libraryPermissionRequest" not in s:
+              s = s.replace("    override fun onCreate(savedInstanceState: Bundle?) {", library_launcher + "\\n    override fun onCreate(savedInstanceState: Bundle?) {", 1)
           library_methods = r'''
-          private fun showLibrary() {
-              val saved = prefs.getString("library_tree_uri", null)?.let { Uri.parse(it) }
-              if (saved == null) {
-                  AlertDialog.Builder(this)
-                      .setTitle("Set up your library")
-                      .setMessage("Choose a movies or music folder. GX1 Player will remember it for next time.")
-                      .setPositiveButton("Choose folder") { _, _ -> chooseLibraryLocation() }
-                      .setNegativeButton("Cancel", null)
-                      .show()
-                  return
-              }
-              val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(
-                  saved, DocumentsContract.getTreeDocumentId(saved)
-              )
-              val items = mutableListOf<Pair<String, Uri>>()
-              val names = mutableListOf<String>()
+          private fun showLibrary(path: String = "") {
+              data class Entry(val label: String, val folder: String? = null, val uri: Uri? = null)
+              val folders = sortedSetOf<String>(String.CASE_INSENSITIVE_ORDER)
+              val files = mutableListOf<Entry>()
+              val collection = MediaStore.Files.getContentUri("external")
+              val projection = arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.DISPLAY_NAME, MediaStore.MediaColumns.RELATIVE_PATH, MediaStore.MediaColumns.MIME_TYPE)
               try {
-                  contentResolver.query(
-                      childrenUri,
-                      arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID,
-                              DocumentsContract.Document.COLUMN_DISPLAY_NAME,
-                              DocumentsContract.Document.COLUMN_MIME_TYPE),
-                      null, null, null
-                  )?.use { cursor ->
-                      val idCol = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
-                      val nameCol = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
-                      val mimeCol = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_MIME_TYPE)
+                  contentResolver.query(collection, projection, null, null, MediaStore.MediaColumns.DISPLAY_NAME + " COLLATE NOCASE ASC")?.use { cursor ->
+                      val idCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
+                      val nameCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DISPLAY_NAME)
+                      val pathCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.RELATIVE_PATH)
+                      val mimeCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.MIME_TYPE)
                       while (cursor.moveToNext()) {
-                          val name = cursor.getString(nameCol) ?: continue
-                          val mime = cursor.getString(mimeCol) ?: ""
-                          if (mime.startsWith("video/") || mime.startsWith("audio/") ||
-                              name.endsWith(".mkv", true) || name.endsWith(".mp4", true) ||
-                              name.endsWith(".avi", true) || name.endsWith(".mov", true) ||
-                              name.endsWith(".mp3", true) || name.endsWith(".flac", true) ||
-                              name.endsWith(".m4a", true)) {
-                              val doc = DocumentsContract.buildDocumentUriUsingTree(saved, cursor.getString(idCol))
-                              items.add(name to doc)
-                              names.add("▶   " + name)
+                          val mime = cursor.getString(mimeCol) ?: continue
+                          if (!mime.startsWith("video/") && !mime.startsWith("audio/")) continue
+                          val relative = (cursor.getString(pathCol) ?: "").trimStart(47.toChar())
+                          if (!relative.startsWith(path, ignoreCase = true)) continue
+                          val remainder = relative.substring(path.length)
+                          val slash = remainder.indexOf(47.toChar())
+                          if (slash >= 0) {
+                              val folder = remainder.substring(0, slash)
+                              if (folder.isNotBlank()) folders.add(folder)
+                          } else {
+                              val id = cursor.getLong(idCol)
+                              val name = cursor.getString(nameCol) ?: continue
+                              files.add(Entry(name, uri = ContentUris.withAppendedId(collection, id)))
                           }
                       }
                   }
               } catch (e: Exception) {
-                  prefs.edit().remove("library_tree_uri").apply()
-                  Toast.makeText(this, "Library folder access expired. Please choose it again.", Toast.LENGTH_LONG).show()
-                  pickLibraryFolder.launch(null)
+                  Toast.makeText(this, "Cannot read media storage: ${e.message}", Toast.LENGTH_LONG).show()
                   return
               }
-              val options = if (items.isEmpty()) arrayOf("No media files found", "Choose a different folder") else
-                  names.toTypedArray() + "Change library folder"
-              AlertDialog.Builder(this)
-                  .setTitle("LIBRARY  ·  " + items.size + " items")
-                  .setItems(options) { _, which ->
-                      if (which < items.size) {
-                          selectMedia(items[which].second)
-                          startPlayer()
-                      } else if (items.isEmpty() || which == items.size) {
-                          pickLibraryFolder.launch(null)
-                      }
+              val entries = mutableListOf<Entry>()
+              if (path.isNotEmpty()) entries.add(Entry("..  Parent folder", folder = ".."))
+              folders.forEach { entries.add(Entry("📁  " + it, folder = it)) }
+              entries.addAll(files)
+              if (entries.isEmpty()) entries.add(Entry("No video or audio files in this folder"))
+              val title = if (path.isEmpty()) "GX1 PLAYER  ·  LIBRARY" else "LIBRARY  ·  " + path.trimEnd(47.toChar())
+              AlertDialog.Builder(this).setTitle(title).setItems(entries.map { it.label }.toTypedArray()) { _, which ->
+                  val item = entries[which]
+                  when {
+                      item.folder == ".." -> showLibrary(path.substringBeforeLast(47.toChar(), "").let { if (it.isEmpty()) "" else "$it/" })
+                      item.folder != null -> showLibrary(path + item.folder + "/")
+                      item.uri != null -> { selectMedia(item.uri); startPlayer() }
                   }
-                  .setNegativeButton("Close", null)
-                  .show()
+              }.setPositiveButton("Close", null).setNeutralButton("Refresh") { _, _ -> showLibrary(path) }.show()
           }
 
           '''
-          if "private fun showLibrary()" not in s:
+          if "private fun showLibrary(path: String = \"\")" not in s:
               s = s.replace("    private fun showMenu() {", library_methods + "    private fun showMenu() {", 1)
           if 'addTile("Library"' not in s:
               s = s.replace('              addTile("Open video", "Browse files") {',
