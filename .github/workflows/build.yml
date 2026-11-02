@@ -1870,6 +1870,32 @@ jobs:
           print("Added Android Environment import for the GX1 browser.")
           PY
 
+      - name: Ensure playback history is recorded on every selection
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          start = s.find("    private fun selectMedia(uri: Uri) {")
+          if start < 0:
+              raise SystemExit("selectMedia(uri) not found")
+          end = s.find("\n    }", start)
+          if end < 0:
+              raise SystemExit("selectMedia(uri) end not found")
+          block = s[start:end]
+          lines = [line for line in block.splitlines() if "putString(KEY_LAST_URI" not in line and "putLong(KEY_HISTORY_PREFIX" not in line]
+          insert_at = next((i for i, line in enumerate(lines) if "mediaUri = uri" in line), None)
+          if insert_at is None:
+              raise SystemExit("mediaUri assignment not found in selectMedia")
+          lines.insert(insert_at + 1, "        prefs.edit().putString(KEY_LAST_URI, uri.toString()).putLong(KEY_HISTORY_PREFIX + uri.toString(), System.currentTimeMillis()).apply()")
+          block = "\n".join(lines)
+          s = s[:start] + block + s[end:]
+          if "private const val KEY_HISTORY_PREFIX = \"history|\"" not in s:
+              raise SystemExit("History preference key is missing")
+          p.write_text(s)
+          print("History recording is now wired directly into selectMedia().")
+          PY
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
