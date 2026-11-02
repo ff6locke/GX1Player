@@ -1789,7 +1789,7 @@ jobs:
               marker = "import android.os.Bundle"
               if marker not in s:
                   raise SystemExit("Could not find Android Bundle import")
-              s = s.replace(marker, marker + "\\n" + imp, 1)
+              s = s.replace(marker, marker + "\n" + imp, 1)
           p.write_text(s)
           print("Added Android Environment import for the GX1 browser.")
           PY
