@@ -95,6 +95,25 @@ jobs:
               raise SystemExit("Could not set launcher icon in manifest")
           PY
 
+      - name: Upgrade Media3 audio engine
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          files = list(Path('.').rglob('*.gradle')) + list(Path('.').rglob('*.gradle.kts'))
+          changed = []
+          for p in files:
+              old = p.read_text()
+              new = re.sub(r'(?<![0-9])1\\.4\\.1(?![0-9])', '1.8.0', old)
+              if new != old:
+                  p.write_text(new)
+                  changed.append(str(p))
+          if not changed:
+              raise SystemExit('Media3 1.4.1 dependency declaration not found; refusing an unverified upgrade')
+          print('Upgraded Media3 1.4.1 to 1.8.0 in:', ', '.join(changed))
+          PY
+
       - name: Inspect extracted Media3 player construction
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
@@ -170,77 +189,20 @@ jobs:
             exit 1
           fi
 
-      - name: Increase Media3 HDMI passthrough AudioTrack buffer
+      - name: Use updated Media3 native HDMI audio sink
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          p = Path("app/src/main/java/com/example/gx1player/PassthroughRenderersFactory.kt")
-          original = p.read_text()
-          package = next((line for line in original.splitlines() if line.startswith("package ")), None)
+          p = Path('app/src/main/java/com/example/gx1player/PassthroughRenderersFactory.kt')
+          old = p.read_text()
+          package = next((line for line in old.splitlines() if line.startswith('package ')), None)
           if not package:
-              raise SystemExit("Could not determine passthrough renderer package")
-          # Keep Media3's normal capability detection and encoded passthrough path,
-          # but give HDMI compressed audio a larger AudioTrack queue to tolerate
-          # short scheduling/driver delays on Android TV boxes.
-          p.write_text(package + """
-
-          import android.content.Context
-          import androidx.media3.common.audio.AudioProcessor
-          import androidx.media3.common.util.UnstableApi
-          import androidx.media3.exoplayer.DefaultRenderersFactory
-          import androidx.media3.exoplayer.audio.AudioSink
-          import androidx.media3.exoplayer.audio.DefaultAudioSink
-
-          @UnstableApi
-          class PassthroughRenderersFactory(context: Context) : DefaultRenderersFactory(context) {
-              init {
-                  setExtensionRendererMode(EXTENSION_RENDERER_MODE_OFF)
-              }
-
-              override fun buildAudioSink(
-                  context: Context,
-                  enableFloatOutput: Boolean,
-                  enableAudioTrackPlaybackParams: Boolean
-              ): AudioSink {
-                  val bufferProvider = object : DefaultAudioSink.AudioTrackBufferSizeProvider {
-                      override fun getBufferSizeInBytes(
-                          minBufferSizeInBytes: Int,
-                          encoding: Int,
-                          outputMode: Int,
-                          pcmFrameSize: Int,
-                          sampleRate: Int,
-                          bitrate: Int,
-                          maxAudioTrackPlaybackSpeed: Double
-                      ): Int {
-                          val standard = DefaultAudioSink.AudioTrackBufferSizeProvider.DEFAULT
-                              .getBufferSizeInBytes(
-                                  minBufferSizeInBytes,
-                                  encoding,
-                                  outputMode,
-                                  pcmFrameSize,
-                                  sampleRate,
-                                  bitrate,
-                                  maxAudioTrackPlaybackSpeed
-                              )
-                          if (outputMode != DefaultAudioSink.OUTPUT_MODE_PASSTHROUGH) {
-                              return standard
-                          }
-                          return (standard.toLong() * 3L)
-                              .coerceAtMost(1_048_576L)
-                              .coerceAtLeast(minBufferSizeInBytes.toLong())
-                              .toInt()
-                      }
-                  }
-                  return DefaultAudioSink.Builder(context)
-                      .setAudioTrackBufferSizeProvider(bufferProvider)
-                      .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
-                      .setAudioProcessors(emptyArray<AudioProcessor>())
-                      .build()
-              }
-          }
-          """)
-          print("Configured a 3x Media3 AudioTrack buffer for encoded HDMI passthrough; PCM/offload sizing and bitstream format remain unchanged.")
+              raise SystemExit('Could not determine passthrough renderer package')
+          # Let the updated Media3 implementation choose the correct E-AC-3 JOC
+          # AudioTrack encoding, channel mask, and native buffer strategy.
+          p.write_text(package + '''\n\nimport android.content.Context\nimport androidx.media3.exoplayer.DefaultRenderersFactory\n\nclass PassthroughRenderersFactory(context: Context) : DefaultRenderersFactory(context) {\n    init {\n        setExtensionRendererMode(EXTENSION_RENDERER_MODE_OFF)\n    }\n}\n''')
+          print('Using updated Media3 native E-AC-3 JOC HDMI passthrough implementation.')
           PY
 
       - name: Inspect passthrough renderer and audio configuration
