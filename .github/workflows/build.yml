@@ -1754,127 +1754,12 @@ jobs:
           import re
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
-          # Never infer a playback target from the saved last-video preference.
           s, n = re.subn(
-              r'(?m)^([ \\t]*)val initial = intent\\?\\.data(?: \\?:[^\\n]*)?        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-          cache: gradle
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: ${{ env.GRADLE_VERSION }}
-
-      - name: Configure stable versioning and release signing
-        working-directory: ${{ env.PROJECT_DIR }}
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: |
-          cat > app/build.gradle.kts <<'GRADLE'
-          plugins {
-              id("com.android.application")
-              id("org.jetbrains.kotlin.android")
-          }
-
-          val buildNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
-          val storeFilePath = System.getenv("ANDROID_KEYSTORE_FILE")
-          val storePasswordValue = System.getenv("ANDROID_KEYSTORE_PASSWORD")
-          val aliasValue = System.getenv("ANDROID_KEY_ALIAS")
-          val keyPasswordValue = System.getenv("ANDROID_KEY_PASSWORD")
-          val signed = !storeFilePath.isNullOrBlank() && !storePasswordValue.isNullOrBlank() &&
-              !aliasValue.isNullOrBlank() && !keyPasswordValue.isNullOrBlank()
-
-          android {
-              namespace = "com.example.gx1player"
-              compileSdk = 34
-              defaultConfig {
-                  applicationId = "com.example.gx1player"
-                  minSdk = 30
-                  targetSdk = 34
-                  versionCode = buildNumber
-                  versionName = "1.0.$buildNumber"
-                  buildConfigField("String", "BUILD_NUMBER", "\"$buildNumber\"")
-              }
-              buildFeatures { buildConfig = true }
-              signingConfigs {
-                  if (signed) create("stableRelease") {
-                      storeFile = file(storeFilePath!!)
-                      storePassword = storePasswordValue
-                      keyAlias = aliasValue
-                      keyPassword = keyPasswordValue
-                  }
-              }
-              buildTypes {
-                  release {
-                      isMinifyEnabled = false
-                      if (signed) signingConfig = signingConfigs.getByName("stableRelease")
-                  }
-              }
-              compileOptions {
-                  sourceCompatibility = JavaVersion.VERSION_17
-                  targetCompatibility = JavaVersion.VERSION_17
-              }
-              kotlinOptions { jvmTarget = "17" }
-          }
-          dependencies {
-              val media3 = "1.4.1"
-              implementation("androidx.media3:media3-exoplayer:$media3")
-              implementation("androidx.media3:media3-ui:$media3")
-              implementation("androidx.media3:media3-common:$media3")
-              implementation("androidx.media3:media3-extractor:$media3")
-              implementation("androidx.core:core-ktx:1.13.1")
-              implementation("androidx.appcompat:appcompat:1.7.0")
-          }
-          GRADLE
-
-          if [ -n "${ANDROID_KEYSTORE_BASE64:-}" ] && [ -n "${ANDROID_KEYSTORE_PASSWORD:-}" ] && [ -n "${ANDROID_KEY_ALIAS:-}" ] && [ -n "${ANDROID_KEY_PASSWORD:-}" ]; then
-            echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/gx1-release.jks"
-            echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/gx1-release.jks" >> "$GITHUB_ENV"
-            echo "BUILD_KIND=release" >> "$GITHUB_ENV"
-          else
-            echo "::warning::Signing secrets are not configured; producing a debug APK that cannot update-install over a differently signed app."
-            echo "BUILD_KIND=debug" >> "$GITHUB_ENV"
-          fi
-
-      - name: Generate Gradle wrapper
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: gradle wrapper --gradle-version "$GRADLE_VERSION" --no-daemon
-
-      - name: Inspect generated Kotlin subtitle declarations
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          nl -ba app/src/main/java/com/example/gx1player/MainActivity.kt | sed -n '45,150p'
-
-      - name: Build APK
-        working-directory: ${{ env.PROJECT_DIR }}
-        env:
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: |
-          chmod +x ./gradlew
-          if [ "$BUILD_KIND" = "release" ]; then
-            ./gradlew :app:assembleRelease --no-daemon --stacktrace
-          else
-            ./gradlew :app:assembleDebug --no-daemon --stacktrace
-          fi
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: gx1-player-${{ env.BUILD_KIND }}-b${{ github.run_number }}
-          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/${{ env.BUILD_KIND }}/*.apk
-          if-no-files-found: error
-          retention-days: 30,
+              r'(?m)^([ \\t]*)val initial = intent\\?\\.data(?: \\: [^\\n]*)?$',
               r'\\1val initial = null',
               s, count=1)
           if n != 1:
-              raise SystemExit("Could not force launcher initial media to null")
+              raise SystemExit("Could not disable automatic startup restore")
           start = s.find("    override fun onCreate(savedInstanceState: Bundle?) {")
           if start < 0:
               raise SystemExit("onCreate not found")
@@ -1885,10 +1770,10 @@ jobs:
           close = s.rfind("\\n    }", start, boundary)
           if close < 0:
               raise SystemExit("Could not locate onCreate closing brace")
-          if "showHome() // Always start the launcher on Home." not in s[start:close]:
-              s = s[:close] + "\\n        // Always start the launcher on Home; Resume is an explicit user action.\\n        showHome()" + s[close:]
+          if "Always start launcher on Home" not in s[start:close]:
+              s = s[:close] + "\\n        // Always start launcher on Home; Resume is an explicit user action.\\n        showHome()" + s[close:]
           p.write_text(s)
-          print("Launcher startup forced to Home; saved media is not auto-played.")
+          print("Launcher startup forced to Home.")
           PY
 
       - name: Set up JDK 17
