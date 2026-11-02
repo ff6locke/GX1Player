@@ -2058,6 +2058,8 @@ jobs:
           s = s.replace('pickSubtitle2.launch(arrayOf("application/x-subrip", "text/vtt", "text/plain", "application/octet-stream"))', 'showSubtitleFilePicker(2)')
           s = s.replace('if (which == 0) pickSubtitle.launch(types) else pickSubtitle2.launch(types)', 'if (which == 0) showSubtitleFilePicker(1) else showSubtitleFilePicker(2)')
           s = s.replace('pickSubtitle.launch(types)', 'showSubtitleFilePicker(1)')
+          s = s.replace('pickSubtitle.launch(arrayOf("*/*"))', 'showSubtitleFilePicker(1)')
+          s = s.replace('pickSubtitle2.launch(arrayOf("*/*"))', 'showSubtitleFilePicker(2)')
           import re
           s = re.sub(r'pickSubtitle2?\\.launch\\(arrayOf\\([^)]*\\)\\)', lambda m: 'showSubtitleFilePicker(2)' if m.group(0).startswith('pickSubtitle2') else 'showSubtitleFilePicker(1)', s)
           s = s.replace('pickSubtitle.launch(types)', 'showSubtitleFilePicker(1)')
