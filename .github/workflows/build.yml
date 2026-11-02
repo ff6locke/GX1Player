@@ -1729,6 +1729,47 @@ jobs:
           print("Added embedded subtitle tracks plus separate custom subtitle 1 and 2 entries.")
           PY
 
+      - name: Route every Open video entry to GX1 browser
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          replacements = {
+              'add("Open video file") { pickVideo.launch(arrayOf("video/*", "audio/*")) }':
+                  'add("Open video file") { chooseLibraryLocation() }',
+              'pickVideo.launch(arrayOf("video/*", "audio/*", "application/octet-stream", "application/x-matroska"))':
+                  'chooseLibraryLocation()',
+          }
+          for old, new in replacements.items():
+              s = s.replace(old, new)
+          # Catch any remaining file-picker launch inside Open video tile/menu blocks.
+          import re
+          s, n1 = re.subn(
+              r'(addTile\("Open video",[^\n]*\)\s*\{)\s*pickVideo\.launch\([^\n]*\)',
+              r'\1\n                  chooseLibraryLocation()',
+              s
+          )
+          s, n2 = re.subn(
+              r'(add\("Open video file"\)\s*\{)\s*pickVideo\.launch\([^\n]*\)',
+              r'\1 chooseLibraryLocation()',
+              s
+          )
+          p.write_text(s)
+          print("Routed Open video tile/menu to GX1 browser; tile matches:", n1, "menu matches:", n2)
+          if 'addTile("Open video"' in s:
+              start = s.index('addTile("Open video"')
+              block = s[start:start+350]
+              if "chooseLibraryLocation()" not in block:
+                  raise SystemExit("Home Open video tile did not route to GX1 browser")
+          if 'add("Open video file")' in s:
+              start = s.index('add("Open video file")')
+              block = s[start:start+180]
+              if "chooseLibraryLocation()" not in block:
+                  raise SystemExit("Playback menu Open video did not route to GX1 browser")
+          PY
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
