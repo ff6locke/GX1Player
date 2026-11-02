@@ -1969,6 +1969,15 @@ jobs:
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
+          if "private var subtitleUri: Uri? = null" not in s:
+              field_anchor = "    private var subtitleUri2: Uri? = null"
+              if field_anchor in s:
+                  s = s.replace(field_anchor, "    private var subtitleUri: Uri? = null\\n" + field_anchor, 1)
+              else:
+                  player_anchor = "    private var player: ExoPlayer? = null"
+                  if player_anchor not in s:
+                      raise SystemExit("Could not find subtitle/player field insertion point")
+                  s = s.replace(player_anchor, "    private var subtitleUri: Uri? = null\\n" + player_anchor, 1)
           method = r'''
               private fun currentVideoFile(): java.io.File? {
                   val uri = mediaUri ?: return null
