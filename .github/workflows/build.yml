@@ -284,6 +284,14 @@ jobs:
                   "        setContentView(playerView)",
                   """        val root = FrameLayout(this)
                   rootLayout = root
+                  // Use clean white captions with fully transparent background/window and no edge.
+                  playerView.subtitleView?.setStyle(
+                      androidx.media3.ui.CaptionStyleCompat(
+                          Color.WHITE, Color.TRANSPARENT, Color.TRANSPARENT,
+                          androidx.media3.ui.CaptionStyleCompat.EDGE_TYPE_NONE,
+                          Color.TRANSPARENT, null
+                      )
+                  )
                   root.addView(playerView, FrameLayout.LayoutParams(
                       FrameLayout.LayoutParams.MATCH_PARENT,
                       FrameLayout.LayoutParams.MATCH_PARENT
@@ -1387,7 +1395,7 @@ jobs:
                       setTextColor(Color.WHITE)
                       textSize = 22f
                       gravity = Gravity.CENTER
-                      setShadowLayer(5f, 2f, 2f, Color.BLACK)
+                      // Transparent subtitle text: no black outline, shadow, or background.
                       setPadding(24, 8, 24, 28)
                       visibility = View.GONE
                   }
