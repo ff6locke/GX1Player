@@ -105,7 +105,7 @@ jobs:
           changed = []
           for p in files:
               old = p.read_text()
-              new = re.sub(r'(?<![0-9])1\\.4\\.1(?![0-9])', '1.8.0', old)
+              new = re.sub(r'(?<![0-9])1[.]4[.]1(?![0-9])', '1.8.0', old)
               if new != old:
                   p.write_text(new)
                   changed.append(str(p))
