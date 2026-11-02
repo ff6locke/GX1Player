@@ -588,7 +588,7 @@ jobs:
               <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
           """
           if "android.permission.READ_MEDIA_VIDEO" not in ms:
-              ms = ms.replace("<application", perms + "\\n    <application", 1)
+              ms = ms.replace("<application", perms + "\n    <application", 1)
               manifest.write_text(ms)
           library_launcher = r'''
           private val libraryPermissionRequest = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
@@ -602,7 +602,7 @@ jobs:
           }
           '''
           if "private val libraryPermissionRequest" not in s:
-              s = s.replace("    override fun onCreate(savedInstanceState: Bundle?) {", library_launcher + "\\n    override fun onCreate(savedInstanceState: Bundle?) {", 1)
+              s = s.replace("    override fun onCreate(savedInstanceState: Bundle?) {", library_launcher + "\n    override fun onCreate(savedInstanceState: Bundle?) {", 1)
           library_methods = r'''
           private fun showLibrary(path: String = "") {
               data class Entry(val label: String, val folder: String? = null, val uri: Uri? = null)
