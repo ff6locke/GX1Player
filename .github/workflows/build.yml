@@ -1824,7 +1824,7 @@ jobs:
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
 
-          for imp in ["import android.os.Environment", "import android.provider.Settings"]:
+          for imp in ["import android.os.Environment", "import android.provider.Settings", "import java.io.File"]:
               if imp not in s:
                   s = s.replace("import android.net.Uri", "import android.net.Uri\n" + imp, 1)
 
@@ -1877,7 +1877,7 @@ jobs:
               }
 
           '''
-          pattern = r'(?ms)^    private fun chooseLibraryLocation\(\) \{.*?^    \}'
+          pattern = r'(?ms)^[ \\t]*private fun chooseLibraryLocation\\(\\) \\{.*?^[ \\t]*\\}'
           s, count = re.subn(pattern, choose, s, count=1)
           if count != 1:
               raise SystemExit("Could not replace the Library permission chooser")
