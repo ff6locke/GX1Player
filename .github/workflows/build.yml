@@ -2004,36 +2004,49 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import re
+
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
 
-          # Remove the Library overlay before revealing the home dashboard.
-          home_patch = r'(?s)(private fun showHome\(\)\s*\{\s*if \(!::homePanel.isInitialized\) return\s*)(homePanel.visibility = View.VISIBLE)'
+          # Remove the Library overlay when returning to the Home dashboard.
+          home_pattern = r'(?s)(private fun showHome\(\)\s*\{\s*if \(!::homePanel.isInitialized\) return\s*)(homePanel.visibility = View.VISIBLE)'
           def add_library_cleanup(match):
-              return match.group(1) + 'if (::rootLayout.isInitialized) {\n            rootLayout.findViewWithTag<View>("gx1_library_panel")?.let { rootLayout.removeView(it) }\n        }\n        ' + match.group(2)
-          s, home_count = re.subn(home_patch, add_library_cleanup, s, count=1)
-          if home_count != 1:
-              raise SystemExit("Could not patch showHome() to remove the Library overlay")
+              cleanup = (
+                  'if (::rootLayout.isInitialized) {\\n'
+                  '            rootLayout.findViewWithTag<View>("gx1_library_panel")?.let { rootLayout.removeView(it) }\\n'
+                  '        }\\n        '
+              )
+              return match.group(1) + cleanup + match.group(2)
 
-          # Replace the three stacked labels using stable source boundaries.
-          card_start = s.find('                      card.addView(TextView(this).apply {', s.find('private fun showLibraryHub('))
-          card_end = s.find('                      row.addView(card,', card_start)
+          s, home_count = re.subn(home_pattern, add_library_cleanup, s, count=1)
+          if home_count != 1:
+              raise SystemExit("Could not find showHome() visibility statement")
+
+          # Find the first Library card label and replace all labels up to row.addView.
+          hub = s.find("private fun showLibraryHub(")
+          if hub < 0:
+              raise SystemExit("Could not find showLibraryHub()")
+          card_start = s.find("card.addView(TextView(this).apply {", hub)
+          card_end = s.find("row.addView(card,", card_start)
           if card_start < 0 or card_end < 0:
-              raise SystemExit("Could not locate Library card label boundaries")
-          new_card = '''                      card.addView(TextView(this).apply {
-                          text = (if (e.dir) "FOLDER  ·  " else if (e.mime.startsWith("audio/")) "AUDIO  ·  " else "VIDEO  ·  ") + e.name
-                          textSize = 16f
-                          maxLines = 3
-                          ellipsize = android.text.TextUtils.TruncateAt.END
-                          gravity = Gravity.CENTER_VERTICAL
-                          setTextColor(Color.WHITE)
-                          setTypeface(null, android.graphics.Typeface.BOLD)
-                      }, LinearLayout.LayoutParams(-1, -1))
-'''
+              raise SystemExit("Could not find Library card label section")
+          indent_start = s.rfind("\\n", 0, card_start) + 1
+          indent = s[indent_start:card_start]
+          new_card = (
+              indent + "card.addView(TextView(this).apply {\\n"
+              + indent + "    text = (if (e.dir) \"FOLDER  ·  \" else if (e.mime.startsWith(\"audio/\")) \"AUDIO  ·  \" else \"VIDEO  ·  \") + e.name\\n"
+              + indent + "    textSize = 16f\\n"
+              + indent + "    maxLines = 3\\n"
+              + indent + "    ellipsize = android.text.TextUtils.TruncateAt.END\\n"
+              + indent + "    gravity = Gravity.CENTER_VERTICAL\\n"
+              + indent + "    setTextColor(Color.WHITE)\\n"
+              + indent + "    setTypeface(null, android.graphics.Typeface.BOLD)\\n"
+              + indent + "}, LinearLayout.LayoutParams(-1, -1))\\n"
+          )
           s = s[:card_start] + new_card + s[card_end:]
 
           p.write_text(s)
-          print("Patched Library item labels and removed the Library overlay on Home navigation.")
+          print("Library card labels and Home navigation patch applied.")
           PY
 
       - name: Set up JDK 17
