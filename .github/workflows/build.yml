@@ -831,7 +831,7 @@ jobs:
               if (tree == null) {
                   AlertDialog.Builder(this).setTitle("Set up your library")
                       .setMessage("Choose the folder containing your movies and music.")
-                      .setPositiveButton("Choose folder") { _, _ -> chooseLibraryLocation() }
+                      .setPositiveButton("Open Library") { _, _ -> chooseLibraryLocation() }
                       .setNegativeButton("Cancel", null).show()
                   return
               }
@@ -920,7 +920,7 @@ jobs:
                               }
                           }
                           setOnClickListener {
-                              if (e.dir) showLibraryHub("All", DocumentsContract.getDocumentId(e.uri))
+                              if (e.dir) showLibraryHub("All", e.uri.path ?: Environment.getExternalStorageDirectory().absolutePath)
                               else { selectMedia(e.uri); startPlayer() }
                           }
                       }
@@ -955,13 +955,13 @@ jobs:
               rootLayout.addView(panel, FrameLayout.LayoutParams(-1, -1))
               panel.post { tabs.getChildAt(0)?.requestFocus() }
               } catch (e: Exception) {
-                  android.util.Log.e("GX1Player", "Library failed to open; clearing stale SAF tree grant", e)
+                  android.util.Log.e("GX1Player", "GX1 in-app Library browser failed", e)
                   // A saved tree URI can outlive its Android provider grant. Do not keep retrying
                   // the inaccessible URI: clear it and ask the user to grant the folder again.
-                  prefs.edit().remove("library_tree_uri").apply()
+                  
                   AlertDialog.Builder(this)
-                      .setTitle("Library permission expired")
-                      .setMessage("Android denied access to this folder. Please choose the library folder again.\\n\\n" +
+                      .setTitle("Cannot open Library folder")
+                      .setMessage("GX1 Player could not read this folder.\\n\\n" +
                           (e.message ?: e.javaClass.simpleName))
                       .setPositiveButton("Choose folder") { _, _ -> chooseLibraryLocation() }
                       .setNegativeButton("Cancel", null)
