@@ -1746,36 +1746,6 @@ jobs:
           print("Added embedded subtitle tracks plus separate custom subtitle 1 and 2 entries.")
           PY
 
-      - name: Force launcher startup to Home
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
-          s = p.read_text()
-          s, n = re.subn(
-              r'(?m)^([ \t]*)val initial = intent\?\.data(?: \?:[^\n]*)?$',
-              r'\1val initial = null',
-              s, count=1)
-          if n != 1:
-              raise SystemExit("Could not disable automatic startup restore")
-          start = s.find("    override fun onCreate(savedInstanceState: Bundle?) {")
-          if start < 0:
-              raise SystemExit("onCreate not found")
-          next_method = re.search(r'\n    (?:private|override|public|protected) fun ', s[start+1:])
-          if not next_method:
-              raise SystemExit("Could not locate method after onCreate")
-          boundary = start + 1 + next_method.start()
-          close = s.rfind("\n    }", start, boundary)
-          if close < 0:
-              raise SystemExit("Could not locate onCreate closing brace")
-          if "Always start launcher on Home" not in s[start:close]:
-              s = s[:close] + "\n        // Always start launcher on Home; Resume is an explicit user action.\n        showHome()" + s[close:]
-          p.write_text(s)
-          print("Launcher startup forced to Home.")
-          PY
-
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
