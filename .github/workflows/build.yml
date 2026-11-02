@@ -888,7 +888,7 @@ jobs:
               addTab("Music", category == "Music") { showLibraryHub("Music", parentId) }
               addTab("Folders", category == "Folders") { showLibraryHub("Folders", parentId) }
               addTab("History", false) { showHistory() }
-              addTab("Change folder", false) { pickLibraryFolder.launch(null) }
+              addTab("Change folder", false) { chooseLibraryLocation() }
               panel.addView(tabs)
               val summary = TextView(this).apply {
                   text = filtered.size.toString() + " ITEMS"; textSize = 12f
