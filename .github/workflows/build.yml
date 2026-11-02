@@ -1981,7 +1981,7 @@ jobs:
           if "getExternalFilesDirs(null)" not in s:
               if anchor not in s:
                   raise SystemExit("Could not find Library filter insertion point")
-              s = s.replace(anchor, sd_roots + "\\n" + anchor, 1)
+              s = s.replace(anchor, sd_roots + "\n" + anchor, 1)
 
           # The earlier Library UI patch already navigates with the file URI path.
           if 'e.uri.path ?: Environment.getExternalStorageDirectory().absolutePath' not in s:
