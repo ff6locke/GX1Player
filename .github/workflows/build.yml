@@ -1755,7 +1755,7 @@ jobs:
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
           s, n = re.subn(
-              r'(?m)^([ \t]*)val initial = intent\\?\\.data(?: \\?:[^\\n]*)?$',
+              r'(?m)^([ \t]*)val initial = intent\?\.data(?: \?:[^\n]*)?$',
               r'\1val initial = null',
               s, count=1)
           if n != 1:
