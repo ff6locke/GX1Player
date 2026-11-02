@@ -2173,6 +2173,31 @@ jobs:
         run: |
           nl -ba app/src/main/java/com/example/gx1player/MainActivity.kt | sed -n '45,150p'
 
+      - name: Remove duplicate subtitle state declarations
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          lines = p.read_text().splitlines()
+          seen = set()
+          out = []
+          for line in lines:
+              stripped = line.strip()
+              key = stripped if stripped in {
+                  "private var subtitleUri: Uri? = null",
+                  "private var subtitleUri2: Uri? = null",
+                  "private fun subKey(uri: Uri) = KEY_SUBTITLE_1 + uri.toString()"
+              } else None
+              if key is not None and key in seen:
+                  continue
+              if key is not None:
+                  seen.add(key)
+              out.append(line)
+          p.write_text("\n".join(out) + "\n")
+          print("Duplicate subtitle state declarations removed.")
+          PY
+
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
         env:
