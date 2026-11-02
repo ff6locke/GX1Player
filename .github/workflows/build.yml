@@ -1947,9 +1947,10 @@ jobs:
                   }
               }
               val filtered = entries.filter { e ->'''
-          if old_start not in s:
-              raise SystemExit("Could not find the existing SAF-based Library listing block")
-          s = s.replace(old_start, new_start, 1)
+          listing_pattern = r'(?s)val tree = prefs\\.getString\\("library_tree_uri", null\\)\\?\\.let \\{ Uri\\.parse\\(it\\) \\}.*?val filtered = entries\\.filter \\{ e ->'
+          s, listing_count = re.subn(listing_pattern, new_start, s, count=1)
+          if listing_count != 1:
+              raise SystemExit("Could not locate the SAF Library listing block by its Kotlin structure")
 
           s = s.replace(
               'if (e.dir) showLibraryHub("All", DocumentsContract.getDocumentId(e.uri))',
