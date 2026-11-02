@@ -920,8 +920,15 @@ jobs:
                               }
                           }
                           setOnClickListener {
-                              if (e.dir) showLibraryHub("All", e.uri.path ?: Environment.getExternalStorageDirectory().absolutePath)
-                              else { selectMedia(e.uri); startPlayer() }
+                              if (e.dir) {
+                                  showLibraryHub("All", e.uri.path ?: Environment.getExternalStorageDirectory().absolutePath)
+                              } else {
+                                  rootLayout.findViewWithTag<View>("gx1_library_panel")?.let { rootLayout.removeView(it) }
+                                  homePanel.visibility = View.GONE
+                                  playerView.visibility = View.VISIBLE
+                                  selectMedia(e.uri)
+                                  startPlayer()
+                              }
                           }
                       }
                       card.addView(TextView(this).apply {
@@ -1951,6 +1958,30 @@ jobs:
           s, listing_count = re.subn(listing_pattern, new_start, s, count=1)
           if listing_count != 1:
               raise SystemExit("Could not locate the SAF Library listing block by its Kotlin structure")
+
+          # Add removable SD-card roots alongside internal storage. Android exposes
+          # each mounted volume through getExternalFilesDirs(); strip the app-private suffix.
+          sd_roots = r"""
+              if (currentDir.absolutePath == rootPath) {
+                  getExternalFilesDirs(null).filterNotNull().forEach { appDir ->
+                      val marker = "/Android/data/$packageName/"
+                      val appPath = appDir.absolutePath
+                      if (appPath.contains(marker) && Environment.isExternalStorageRemovable(appDir)) {
+                          val volumeRoot = File(appPath.substringBefore(marker))
+                          if (volumeRoot.exists() && volumeRoot.canRead() &&
+                              volumeRoot.absolutePath != rootPath &&
+                              entries.none { it.uri.path == volumeRoot.absolutePath }) {
+                              entries.add(Entry("SD card (${volumeRoot.name})", Uri.fromFile(volumeRoot), "folder", true))
+                          }
+                      }
+                  }
+              }
+          """
+          anchor = "              val filtered = entries.filter { e ->"
+          if "getExternalFilesDirs(null)" not in s:
+              if anchor not in s:
+                  raise SystemExit("Could not find Library filter insertion point")
+              s = s.replace(anchor, sd_roots + "\\n" + anchor, 1)
 
           # The earlier Library UI patch already navigates with the file URI path.
           if 'e.uri.path ?: Environment.getExternalStorageDirectory().absolutePath' not in s:
