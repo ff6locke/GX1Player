@@ -2015,21 +2015,9 @@ jobs:
           if home_count != 1:
               raise SystemExit("Could not patch showHome() to remove the Library overlay")
 
-          # Render each item as one reliable, readable text view rather than three
-          # vertically stacked children that were being clipped on the TV layout.
-          old_cards = """                      card.addView(TextView(this).apply {
-                          text = if (e.dir) "▰" else if (e.mime.startsWith("audio/")) "♫" else "▶"
-                          textSize = 28f; setTextColor(Color.rgb(255, 145, 0))
-                      })
-                      card.addView(TextView(this).apply {
-                          text = e.name; textSize = 17f; maxLines = 2
-                          setTextColor(Color.WHITE); setTypeface(null, android.graphics.Typeface.BOLD)
-                      })
-                      card.addView(TextView(this).apply {
-                          text = if (e.dir) "FOLDER" else if (e.mime.startsWith("audio/")) "AUDIO" else "VIDEO"
-                          textSize = 11f; setTextColor(Color.LTGRAY); setPadding(0, 5, 0, 0)
-                      })"""
-          new_cards = """                      card.addView(TextView(this).apply {
+          # Replace the three stacked labels using whitespace-tolerant matching.
+          card_pattern = r'(?s)card\\.addView\\(TextView\\(this\\)\\.apply \\{\\s*text = if \\(e\\.dir\\).*?\\}\\)\\s*card\\.addView\\(TextView\\(this\\)\\.apply \\{\\s*text = e\\.name.*?\\}\\)\\s*card\\.addView\\(TextView\\(this\\)\\.apply \\{\\s*text = if \\(e\\.dir\\).*?\\}\\)'
+          new_card = """card.addView(TextView(this).apply {
                           text = (if (e.dir) "FOLDER  ·  " else if (e.mime.startsWith("audio/")) "AUDIO  ·  " else "VIDEO  ·  ") + e.name
                           textSize = 16f
                           maxLines = 3
@@ -2038,10 +2026,9 @@ jobs:
                           setTextColor(Color.WHITE)
                           setTypeface(null, android.graphics.Typeface.BOLD)
                       }, LinearLayout.LayoutParams(-1, -1))"""
-          if old_cards in s:
-              s = s.replace(old_cards, new_cards, 1)
-          elif 'text = (if (e.dir) "FOLDER  ·  "' not in s:
-              raise SystemExit("Could not find Library item card views to replace")
+          s, card_count = re.subn(card_pattern, lambda m: new_card, s, count=1)
+          if card_count != 1 and 'text = (if (e.dir) "FOLDER  ·  "' not in s:
+              raise SystemExit("Could not locate the three Library item labels")
 
           p.write_text(s)
           print("Patched Library item labels and removed the Library overlay on Home navigation.")
