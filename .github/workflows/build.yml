@@ -1826,11 +1826,11 @@ jobs:
 
           for imp in ["import android.os.Environment", "import android.provider.Settings"]:
               if imp not in s:
-                  s = s.replace("import android.net.Uri", "import android.net.Uri\\n" + imp, 1)
+                  s = s.replace("import android.net.Uri", "import android.net.Uri\n" + imp, 1)
 
           manifest = Path("app/src/main/AndroidManifest.xml")
           ms = manifest.read_text()
-          permission = '    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />\\n'
+          permission = '    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />\n'
           if "android.permission.MANAGE_EXTERNAL_STORAGE" not in ms:
               ms = ms.replace("<application", permission + "    <application", 1)
               manifest.write_text(ms)
@@ -1858,7 +1858,7 @@ jobs:
                   }
                   AlertDialog.Builder(this)
                       .setTitle("Allow GX1 Player to browse storage")
-                      .setMessage("GX1 Player needs All files access to show your folders in its own Library browser. Android will open the app permission page. Enable \\"Allow access to manage all files\\" and return to GX1 Player.")
+                      .setMessage("GX1 Player needs All files access to show your folders in its own Library browser. Android will open the app permission page. Enable \"Allow access to manage all files\" and return to GX1 Player.")
                       .setPositiveButton("Open Settings") { _, _ ->
                           val appSettings = android.content.Intent(
                               Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
@@ -1972,8 +1972,8 @@ jobs:
               1
           )
           s = s.replace(
-              '"Android denied access to this folder. Please choose the library folder again.\\n\\n" +',
-              '"GX1 Player could not read this folder.\\n\\n" +',
+              '"Android denied access to this folder. Please choose the library folder again.\n\n" +',
+              '"GX1 Player could not read this folder.\n\n" +',
               1
           )
           s = s.replace(
