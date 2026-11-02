@@ -675,6 +675,7 @@ jobs:
                   s = s.replace("import android.view.KeyEvent", "import android.view.KeyEvent\n" + imp, 1)
           fields = """    private lateinit var rootLayout: FrameLayout
           private lateinit var homePanel: LinearLayout
+          private var homeFirstTile: View? = null
           private lateinit var menuButtonRef: Button
 
           """
@@ -753,6 +754,7 @@ jobs:
                   row.addView(tile, LinearLayout.LayoutParams(0, 132, 1f).apply {
                       setMargins(0, 0, 16, 0)
                   })
+                  if (homeFirstTile == null) homeFirstTile = tile
               }
               addTile("Open video", "Browse files") {
                   pickVideo.launch(arrayOf("video/*", "audio/*", "application/octet-stream", "application/x-matroska"))
@@ -772,7 +774,8 @@ jobs:
               }
               panel.addView(footer)
               panel.isFocusableInTouchMode = true
-              panel.post { row.getChildAt(0)?.requestFocus() }
+              panel.descendantFocusability = android.view.ViewGroup.FOCUS_AFTER_DESCENDANTS
+              panel.post { homeFirstTile?.requestFocus() }
               return panel
           }
 
@@ -781,7 +784,9 @@ jobs:
               homePanel.visibility = View.VISIBLE
               playerView.visibility = View.GONE
               if (::menuButtonRef.isInitialized) menuButtonRef.visibility = View.GONE
-              homePanel.requestFocus()
+              // Keep focus on a selectable home tile, not the full-screen container.
+              homePanel.descendantFocusability = android.view.ViewGroup.FOCUS_AFTER_DESCENDANTS
+              homePanel.post { homeFirstTile?.requestFocus() }
           }
 
           '''
