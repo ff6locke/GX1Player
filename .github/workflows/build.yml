@@ -1815,6 +1815,33 @@ jobs:
           print("Added Android Environment import for the GX1 browser.")
           PY
 
+      - name: Record every selected video in playback history
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          start = s.find("private fun selectMedia(uri: Uri)")
+          if start < 0:
+              raise SystemExit("selectMedia() not found")
+          end = s.find("\\n    }", start)
+          if end < 0:
+              raise SystemExit("selectMedia() end not found")
+          block = s[start:end]
+          old = "prefs.edit().putString(KEY_LAST_URI, uri.toString()).apply()"
+          new = "prefs.edit().putString(KEY_LAST_URI, uri.toString()).putLong(KEY_HISTORY_PREFIX + uri.toString(), System.currentTimeMillis()).apply()"
+          if new not in block:
+              if old not in block:
+                  raise SystemExit("Could not locate last-video preference write")
+              block = block.replace(old, new, 1)
+              s = s[:start] + block + s[end:]
+          if "private fun showHistory()" not in s:
+              raise SystemExit("History display method is missing")
+          p.write_text(s)
+          print("Playback history now records each selected media URI.")
+          PY
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
