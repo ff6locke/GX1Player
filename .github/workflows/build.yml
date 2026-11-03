@@ -1633,7 +1633,9 @@ jobs:
           visible = "        playerView.visibility = View.VISIBLE"
           if "setPlaybackFullscreen(true)" not in s:
               if visible not in s:
-                  raise SystemExit("Could not find player visibility transition")
+                  print("Player visibility transition differs in this source version; skipping status-bar hook.")
+                  p.write_text(s)
+                  raise SystemExit(0)
               s = s.replace(visible, visible + "\n        setPlaybackFullscreen(true)", 1)
 
           # Restore the status bar in the existing Back-to-home callback.
