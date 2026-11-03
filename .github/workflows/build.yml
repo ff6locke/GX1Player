@@ -1432,10 +1432,11 @@ jobs:
           }
 
           '''
-          if "private fun loadSecondSubtitleOverlay" not in s:
+          if "private fun parseExternalSubtitle(uri: Uri)" not in s:
               marker = "    private fun showMenu() {"
               if marker not in s: raise SystemExit("showMenu insertion point missing")
-              s = s.replace(marker, parser + marker, 1)
+              parser_only = parser.split("private fun loadSecondSubtitleOverlay", 1)[0]
+              s = s.replace(marker, parser_only + marker, 1)
 
           # The current project selects the destination slot before launching
           # the shared picker. Attach the overlay only when slot 2 is selected.
@@ -1592,26 +1593,23 @@ jobs:
           if "private lateinit var firstSubtitleOverlay:" not in s:
               s = s.replace(anchor, "private lateinit var firstSubtitleOverlay: android.widget.TextView\\n          " + anchor, 1)
 
-          # Rebuild the ticker's cue rendering block without regex ambiguity.
-          old = """val active = secondSubtitleCues.filter { pos >= it.startMs && pos <= it.endMs }
-                  if (::secondSubtitleOverlay.isInitialized) {
-                      secondSubtitleOverlay.text = active.joinToString("\\n") { it.text }
-                      secondSubtitleOverlay.visibility =
-                          if (active.isEmpty() || player?.isPlaying != true) android.view.View.GONE
-                          else android.view.View.VISIBLE
-                  }"""
-          new = """val active1 = firstSubtitleCues.filter { pos >= it.startMs && pos <= it.endMs }
+          # Replace the ticker cue block by boundaries to avoid stale active references.
+          ticker_at = s.find("val active = secondSubtitleCues.filter")
+          if ticker_at >= 0:
+              ticker_end = s.find("subtitleUiHandler.postDelayed(this, 200L)", ticker_at)
+              if ticker_end < 0: raise SystemExit("Subtitle ticker end not found")
+              replacement = """val active1 = firstSubtitleCues.filter { pos >= it.startMs && pos <= it.endMs }
                   val active2 = secondSubtitleCues.filter { pos >= it.startMs && pos <= it.endMs }
                   if (::firstSubtitleOverlay.isInitialized) {
                       firstSubtitleOverlay.text = active1.joinToString("\\n") { it.text }
                       firstSubtitleOverlay.visibility = if (active1.isEmpty() || player?.isPlaying != true) android.view.View.GONE else android.view.View.VISIBLE
                       secondSubtitleOverlay.text = active2.joinToString("\\n") { it.text }
                       secondSubtitleOverlay.visibility = if (active2.isEmpty() || player?.isPlaying != true) android.view.View.GONE else android.view.View.VISIBLE
-                  }"""
-          if old in s:
-              s = s.replace(old, new, 1)
+                  }
+                  """
+              s = s[:ticker_at] + replacement + s[ticker_end:]
           elif "val active1 = firstSubtitleCues.filter" not in s:
-              raise SystemExit("Ticker cue block did not match expected source")
+              raise SystemExit("Subtitle ticker cue block not found")
 
           # Remove any misplaced copy of the first loader and insert at class scope.
           start = s.find("private fun loadFirstSubtitleOverlay()")
