@@ -2228,7 +2228,7 @@ jobs:
 
           android {
               namespace = "com.example.gx1player"
-              compileSdk = 35
+              compileSdk = 36
               defaultConfig {
                   applicationId = "com.example.gx1player"
                   minSdk = 30
