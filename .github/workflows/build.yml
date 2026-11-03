@@ -233,6 +233,52 @@ jobs:
           print('Using updated Media3 native E-AC-3 JOC HDMI passthrough implementation.')
           PY
 
+      - name: Make Audio pass-through Off force PCM decoding
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          base = Path("app/src/main/java/com/example/gx1player")
+          source = base / "PassthroughRenderersFactory.kt"
+          package = next((line for line in source.read_text().splitlines() if line.startswith("package ")), None)
+          if not package:
+              raise SystemExit("Could not determine renderer package")
+          pcm = base / "PcmRenderersFactory.kt"
+          pcm.write_text(package + """\n\nimport android.content.Context
+          import androidx.media3.exoplayer.DefaultRenderersFactory
+          import androidx.media3.exoplayer.audio.AudioCapabilities
+          import androidx.media3.exoplayer.audio.AudioSink
+          import androidx.media3.exoplayer.audio.DefaultAudioSink
+
+          // An AudioCapabilities instance with no encoded formats forces Media3 to
+          // decode TrueHD/AC3/etc. to PCM instead of opening an encoded HDMI track.
+          class PcmRenderersFactory(context: Context) : DefaultRenderersFactory(context) {
+              override fun buildAudioSink(
+                  context: Context,
+                  enableFloatOutput: Boolean,
+                  enableAudioOutputPlaybackParams: Boolean
+              ): AudioSink {
+                  return DefaultAudioSink.Builder()
+                      .setAudioCapabilities(AudioCapabilities.DEFAULT_AUDIO_CAPABILITIES)
+                      .setEnableFloatOutput(enableFloatOutput)
+                      .setEnableAudioOutputPlaybackParameters(enableAudioOutputPlaybackParams)
+                      .build()
+              }
+          }
+          """)
+          main = base / "MainActivity.kt"
+          s = main.read_text()
+          old = "DefaultRenderersFactory(this)"
+          if old not in s:
+              raise SystemExit("Could not find PCM renderer selection in MainActivity")
+          s, count = re.subn(re.escape(old), "PcmRenderersFactory(this)", s, count=1)
+          if count != 1:
+              raise SystemExit("Could not switch Audio pass-through Off to PCM")
+          main.write_text(s)
+          print("Audio pass-through Off now uses an AudioSink with no encoded passthrough capabilities.")
+          PY
+
       - name: Inspect passthrough renderer and audio configuration
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
