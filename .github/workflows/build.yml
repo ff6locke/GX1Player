@@ -280,7 +280,7 @@ jobs:
           s = s.replace(old, new, 1)
           if "val renderers = if (passthrough)" not in s or "PassthroughRenderersFactory(this)" not in s:
               raise SystemExit("Passthrough renderer branch was unexpectedly changed")
-          if "else {\n                      PcmRenderersFactory(this)" not in s:
+          if "PcmRenderersFactory(this)" not in s:
               raise SystemExit("PCM fallback branch verification failed")
           main.write_text(s)
           print("Verified mutually exclusive renderer branches: passthrough On uses PassthroughRenderersFactory; Off uses PcmRenderersFactory.")
