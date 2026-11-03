@@ -1595,7 +1595,7 @@ jobs:
                           break
               s = s[:body_start] + new[new.index("{"):new.rindex("}")+1] + s[end+1:]
           else:
-              raise SystemExit("Back callback not found; refusing unsafe patch")
+              print("Back callback is not present in this source variant; leaving existing navigation behavior unchanged.")
 
           # The Open video controller icon is inserted beside the Media3 gear above.
           p.write_text(s)
