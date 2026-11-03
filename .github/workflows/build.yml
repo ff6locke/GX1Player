@@ -2168,6 +2168,12 @@ jobs:
           s = re.sub(r'pickSubtitle2?\\.launch\\(arrayOf\\([^)]*\\)\\)', lambda m: 'showSubtitleFilePicker(2)' if m.group(0).startswith('pickSubtitle2') else 'showSubtitleFilePicker(1)', s)
           s = s.replace('pickSubtitle.launch(types)', 'showSubtitleFilePicker(1)')
           s = s.replace('pickSubtitle2.launch(types)', 'showSubtitleFilePicker(2)')
+          # Subtitle 1 is a Media3 track: reload the current media item with its subtitle configuration.
+          s = s.replace("""                                  loadFirstSubtitleOverlay()
+                                  subtitleUiHandler.removeCallbacks(subtitleTicker)
+                                  subtitleUiHandler.post(subtitleTicker)""", """                                  startPlayer()""")
+          # Subtitle 2 must remain exclusively in GX1's synchronized ASS/SRT overlay.
+          s = s.replace('listOfNotNull(subtitleUri, subtitleUri2)', 'listOfNotNull(subtitleUri)')
           remaining = [line.strip() for line in s.splitlines() if 'pickSubtitle.launch(' in line or 'pickSubtitle2.launch(' in line]
           if remaining:
               raise SystemExit("System subtitle picker calls remain: " + repr(remaining))
