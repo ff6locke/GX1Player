@@ -278,7 +278,7 @@ jobs:
           if old not in s:
               raise SystemExit("Could not find the exact existing PCM fallback branch; refusing a risky renderer rewrite")
           s = s.replace(old, new, 1)
-          if "if (passthrough) PassthroughRenderersFactory(this)" not in s:
+          if "val renderers = if (passthrough)" not in s or "PassthroughRenderersFactory(this)" not in s:
               raise SystemExit("Passthrough renderer branch was unexpectedly changed")
           if "else {\n                      PcmRenderersFactory(this)" not in s:
               raise SystemExit("PCM fallback branch verification failed")
