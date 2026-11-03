@@ -2327,6 +2327,143 @@ jobs:
           print("Duplicate subtitle state declarations removed.")
           PY
 
+      - name: Implement GX1 native Library and Open Video browser
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          methods = r"""
+          private fun ensureGX1FileAccess(onGranted: () -> Unit) {
+              if (android.os.Build.VERSION.SDK_INT >= 30 && !Environment.isExternalStorageManager()) {
+                  try {
+                      startActivity(Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                          Uri.parse("package:" + packageName)))
+                  } catch (_: Exception) {
+                      startActivity(Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
+                  }
+                  Toast.makeText(this, "Allow GX1 Player file access, then open Library again.", Toast.LENGTH_LONG).show()
+                  return
+              }
+              if (android.os.Build.VERSION.SDK_INT < 30 &&
+                  checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                  libraryPermissionRequest.launch(arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE))
+                  return
+              }
+              onGranted()
+          }
+
+          private fun gx1StorageRoots(): List<java.io.File> {
+              val internal = Environment.getExternalStorageDirectory()
+              val external = getExternalFilesDirs(null).filterNotNull().mapNotNull { dir ->
+                  val marker = "/Android/data/"
+                  val cut = dir.absolutePath.indexOf(marker)
+                  if (cut > 0) java.io.File(dir.absolutePath.substring(0, cut)) else null
+              }
+              return (listOf(internal) + external).distinctBy { it.absolutePath }.filter { it.exists() }
+          }
+
+          private fun chooseGX1LibraryFolder() {
+              ensureGX1FileAccess {
+                  val roots = gx1StorageRoots()
+                  if (roots.isEmpty()) {
+                      Toast.makeText(this, "No accessible storage found.", Toast.LENGTH_LONG).show()
+                      return@ensureGX1FileAccess
+                  }
+                  val labels = roots.mapIndexed { i, f -> if (i == 0) "Internal storage" else "External storage / SD card" }
+                  AlertDialog.Builder(this).setTitle("Choose Library storage")
+                      .setItems(labels.toTypedArray()) { _, which -> browseGX1Folder(roots[which], true) }
+                      .setNegativeButton("Cancel", null).show()
+              }
+          }
+
+          private fun openVideoWithGX1Browser() {
+              ensureGX1FileAccess {
+                  val saved = prefs.getString("gx1_library_path", null)?.let { java.io.File(it) }
+                  val start = if (saved?.isDirectory == true) saved else gx1StorageRoots().firstOrNull()
+                  if (start == null) Toast.makeText(this, "No storage found.", Toast.LENGTH_LONG).show()
+                  else browseGX1Folder(start, false)
+              }
+          }
+
+          private fun showGX1Library() {
+              ensureGX1FileAccess {
+                  val saved = prefs.getString("gx1_library_path", null)?.let { java.io.File(it) }
+                  if (saved?.isDirectory == true) browseGX1Folder(saved, false)
+                  else chooseGX1LibraryFolder()
+              }
+          }
+
+          private fun browseGX1Folder(folder: java.io.File, selectingLibrary: Boolean) {
+              val current = folder.canonicalFile
+              val mediaExt = setOf("mkv","mp4","m4v","avi","mov","webm","mpg","mpeg","ts","m2ts","mp3","flac","m4a","aac","wav","ogg","opus")
+              val entries = current.listFiles()?.filter { f ->
+                  f.isDirectory || (f.isFile && f.extension.lowercase() in mediaExt)
+              }?.sortedWith(compareBy<java.io.File>({ !it.isDirectory }, { it.name.lowercase() })) ?: emptyList()
+              val labels = mutableListOf<String>()
+              if (current.parentFile != null) labels.add("..  Parent folder")
+              entries.forEach { labels.add((if (it.isDirectory) "📁  " else "▶  ") + it.name) }
+              if (labels.isEmpty()) labels.add("(No folders or media files)")
+              val title = (if (selectingLibrary) "Choose Library folder" else "GX1 Library") +
+                  "\\n" + current.absolutePath
+              val builder = AlertDialog.Builder(this).setTitle(title)
+                  .setItems(labels.toTypedArray()) { _, which ->
+                      val parentOffset = if (current.parentFile != null) 1 else 0
+                      if (parentOffset == 1 && which == 0) {
+                          browseGX1Folder(current.parentFile!!, selectingLibrary)
+                      } else {
+                          val index = which - parentOffset
+                          if (index in entries.indices) {
+                              val selected = entries[index]
+                              if (selected.isDirectory) browseGX1Folder(selected, selectingLibrary)
+                              else if (!selectingLibrary) {
+                                  selectMedia(Uri.fromFile(selected))
+                                  startPlayer()
+                              }
+                          }
+                      }
+                  }
+              if (selectingLibrary) {
+                  builder.setPositiveButton("Use this folder") { _, _ ->
+                      prefs.edit().putString("gx1_library_path", current.absolutePath).apply()
+                      Toast.makeText(this, "Library folder saved.", Toast.LENGTH_SHORT).show()
+                      browseGX1Folder(current, false)
+                  }
+              } else {
+                  builder.setPositiveButton("Choose folder") { _, _ -> browseGX1Folder(current, true) }
+              }
+              builder.setNegativeButton("Close", null)
+              builder.setNeutralButton("Refresh") { _, _ -> browseGX1Folder(current, selectingLibrary) }
+              builder.show()
+          }
+
+          """
+          if "private fun showGX1Library()" not in s:
+              marker = "    private fun showMenu() {"
+              if marker not in s:
+                  raise SystemExit("Could not find MainActivity method insertion point")
+              s = s.replace(marker, methods + marker, 1)
+          # Keep Library and Open Video as distinct actions. Library browses its saved folder;
+          # Open Video browses files but never changes the saved Library location.
+          s = re.sub(r'addTile\("Library"[^\n]*\)\s*\{[^}]*\}',
+                     'addTile("Library", "Browse saved folders") { showGX1Library() }', s, count=0)
+          s = re.sub(r'addTile\("Open video"[^\n]*\)\s*\{[^}]*\}',
+                     'addTile("Open video", "Choose one file") { openVideoWithGX1Browser() }', s, count=0)
+          s = re.sub(r'add\("Open video file"\)\s*\{[^}]*\}',
+                     'add("Open video file") { openVideoWithGX1Browser() }', s, count=0)
+          # Replace the old Android Storage Access Framework folder chooser route.
+          s = re.sub(r'addTab\("Change folder", false\)\s*\{[^}]*\}',
+                     'addTab("Change folder", false) { chooseGX1LibraryFolder() }', s)
+          # Existing Library entry points must use the GX1 browser, not Android's picker.
+          s = s.replace('chooseLibraryLocation() }', 'chooseGX1LibraryFolder() }') if False else s
+          p.write_text(s)
+          if "private fun browseGX1Folder(" not in s or 'addTile("Library"' not in s or 'addTile("Open video"' not in s:
+              raise SystemExit("GX1 Library browser patch verification failed")
+          print("Installed GX1 in-app folder browser with a persistent Library path and separate Open Video action.")
+          PY
+
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
         env:
