@@ -43,14 +43,13 @@ jobs:
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           lines = p.read_text().splitlines()
+          print("=== ORIGINAL MainActivity.kt: full source ===")
           for i, line in enumerate(lines):
-              if "private fun showMenu" in line:
-                  print("=== ORIGINAL showMenu() ===")
-                  for j in range(i, min(i + 150, len(lines))):
-                      print(f"{j+1}: {lines[j]}")
-                  break
-          else:
-              raise SystemExit("showMenu() not found")
+              print(f"{i+1}: {line}")
+          print("=== ORIGINAL declarations ===")
+          for i, line in enumerate(lines):
+              if line.lstrip().startswith(("class ", "private ", "override fun ", "fun ")):
+                  print(f"{i+1}: {line}")
           PY
 
       - name: Install GX1 Player TV app icon
