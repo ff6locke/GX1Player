@@ -2841,7 +2841,7 @@ jobs:
               anchor = 'implementation("androidx.appcompat:appcompat:1.7.0")'
               if anchor not in g:
                   raise SystemExit("Could not find appcompat dependency insertion point")
-              g = g.replace(anchor, anchor + "\\n    " + dep, 1)
+              g = g.replace(anchor, anchor + "\n    " + dep, 1)
               gradle.write_text(g)
 
           pkg = Path("app/src/main/java/com/example/gx1player")
@@ -2967,12 +2967,12 @@ jobs:
           tile = 'Triple("ⓘ", "Audio diagnostics", "audio_diagnostics"),'
           if tile not in s:
               raise SystemExit("Could not find Audio diagnostics tile")
-          s = s.replace(tile, tile + '\\n                      Triple("VLC", "LibVLC TrueHD test", "vlc_test"),', 1)
+          s = s.replace(tile, tile + '\n                      Triple("VLC", "LibVLC TrueHD test", "vlc_test"),', 1)
           dispatch = '"audio_diagnostics" -> showAudioDiagnostics()'
           if dispatch not in s:
               raise SystemExit("Could not find audio diagnostics action")
           if '"vlc_test" -> launchVlcTest()' not in s:
-              s = s.replace(dispatch, dispatch + '\\n                              "vlc_test" -> launchVlcTest()', 1)
+              s = s.replace(dispatch, dispatch + '\n                              "vlc_test" -> launchVlcTest()', 1)
           main.write_text(s)
           print("Added isolated LibVLC test activity, HDMI digital output detection, and menu entry.")
           PY
