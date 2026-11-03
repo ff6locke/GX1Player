@@ -2510,6 +2510,22 @@ jobs:
           print("Library lists folders; Open Video asks for internal or external storage; permission continuation is saved.")
           PY
 
+      - name: Normalize generated Kotlin strings before compilation
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          # Earlier patch generators inserted real newlines inside Kotlin string literals.
+          s = re.sub(r'joinToString\("\s*\n\s*"\)', r'joinToString("\\n")', s)
+          s = re.sub(r'\.setMessage\(detail \+ "\s*\n\s*\nSelected: " \+', r'.setMessage(detail + "\\n\\nSelected: " +', s)
+          s = s.replace('secondSubtitleOverlay.elevation = 1000f', 'secondSubtitleOverlay.elevation = 1000.0f')
+          p.write_text(s)
+          print("Normalized generated Kotlin string literals and overlay elevation.")
+          PY
+
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
         env:
