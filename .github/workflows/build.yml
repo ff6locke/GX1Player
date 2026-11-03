@@ -2259,6 +2259,16 @@ jobs:
         run: |
           nl -ba app/src/main/java/com/example/gx1player/MainActivity.kt | sed -n '45,150p'
 
+      - name: Inspect MainActivity structure around failing declarations
+        run: |
+          p=app/src/main/java/com/example/gx1player/MainActivity.kt
+          echo "=== lines 130-220 ==="
+          nl -ba "$p" | sed -n '130,220p'
+          echo "=== lines 430-530 ==="
+          nl -ba "$p" | sed -n '430,530p'
+          echo "=== class and function declarations ==="
+          grep -n -E '^(class |private (data class|fun|var|val)|    private (fun|var|val))' "$p" | head -180
+
       - name: Remove duplicate subtitle state declarations
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
