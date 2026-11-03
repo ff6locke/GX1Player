@@ -2518,7 +2518,9 @@ jobs:
           s = p.read_text()
           method = r"""    private fun showAudioDiagnostics() {
                   val caps = androidx.media3.exoplayer.audio.AudioCapabilities.getCapabilities(this)
-                  val encodings = caps.supportedEncodings
+                  val encodings = (caps.javaClass.methods
+                      .firstOrNull { method -> method.name == "getSupportedEncodings" }
+                      ?.invoke(caps) as? IntArray) ?: intArrayOf()
                   fun encodingName(value: Int): String = when (value) {
                       android.media.AudioFormat.ENCODING_AC3 -> "Dolby Digital (AC3)"
                       android.media.AudioFormat.ENCODING_E_AC3 -> "Dolby Digital Plus (E-AC3)"
@@ -2535,7 +2537,7 @@ jobs:
                   lines.add("HDMI / Android audio capabilities")
                   lines.add("Maximum reported channels: ${caps.maxChannelCount}")
                   lines.add("Reported encodings:")
-                  lines.addAll(encodings.map { "  • " + encodingName(it) })
+                  lines.addAll(encodings.map { encoding -> "  • " + encodingName(encoding) })
                   lines.add("")
                   lines.add("Current Media3 audio tracks:")
                   val audioGroups = player?.currentTracks?.groups?.filter {
