@@ -2811,6 +2811,59 @@ jobs:
           print("Added native AudioTrack lifecycle and audio-sink error diagnostics.")
           PY
 
+      - name: Preserve created and released HDMI AudioTrack diagnostics separately
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          created = '''                android.util.Log.i("GX1PlayerAudio", detail)
+                prefs.edit().putString("gx1_last_audio_track_event", detail).apply()
+            }
+            override fun onAudioInputFormatChanged('''
+          created_new = '''                android.util.Log.i("GX1PlayerAudio", detail)
+                prefs.edit()
+                    .putString("gx1_last_audio_track_created", detail)
+                    .putString("gx1_last_audio_track_event", detail)
+                    .apply()
+            }
+            override fun onAudioInputFormatChanged('''
+          if created in s:
+              s = s.replace(created, created_new, 1)
+          elif "gx1_last_audio_track_created" not in s:
+              raise SystemExit("Could not locate AudioTrack initialization callback")
+          released = '''                prefs.edit().putString("gx1_last_audio_track_event", detail).apply()
+            }
+        })
+        exo.addAnalyticsListener'''
+          released_new = '''                prefs.edit()
+                    .putString("gx1_last_audio_track_released", detail)
+                    .putString("gx1_last_audio_track_event", detail)
+                    .apply()
+            }
+        })
+        exo.addAnalyticsListener'''
+          if released in s:
+              s = s.replace(released, released_new, 1)
+          elif "gx1_last_audio_track_released" not in s:
+              raise SystemExit("Could not locate AudioTrack release callback")
+          marker = '''        lines.add("Last audio track event: " +
+            (prefs.getString("gx1_last_audio_track_event", null) ?: "none recorded"))'''
+          replacement = '''        lines.add("Last AudioTrack created: " +
+            (prefs.getString("gx1_last_audio_track_created", null) ?: "none recorded"))
+        lines.add("Last AudioTrack released: " +
+            (prefs.getString("gx1_last_audio_track_released", null) ?: "none recorded"))
+        lines.add("Last audio track event: " +
+            (prefs.getString("gx1_last_audio_track_event", null) ?: "none recorded"))'''
+          if marker in s:
+              s = s.replace(marker, replacement, 1)
+          elif "Last AudioTrack created:" not in s:
+              raise SystemExit("Could not locate AudioTrack diagnostics display")
+          p.write_text(s)
+          print("AudioTrack creation and release are now retained independently.")
+          PY
+
       - name: Normalize generated Kotlin strings before compilation
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
