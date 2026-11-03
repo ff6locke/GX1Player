@@ -2645,6 +2645,51 @@ jobs:
                           android.util.Log.i("GX1PlayerAudio", detail)
                           prefs.edit().putString("gx1_last_audio_track_event", detail).apply()
                       }
+                      override fun onAudioInputFormatChanged(
+                          eventTime: AnalyticsListener.EventTime,
+                          format: androidx.media3.common.Format,
+                          decoderReuseEvaluation: androidx.media3.exoplayer.DecoderReuseEvaluation?
+                      ) {
+                          val detail = "Audio input: " + (format.sampleMimeType ?: "unknown") +
+                              ", codecs=" + (format.codecs ?: "none") +
+                              ", channels=" + format.channelCount +
+                              ", rate=" + format.sampleRate
+                          prefs.edit().putString("gx1_audio_input_format", detail).apply()
+                          android.util.Log.i("GX1PlayerAudio", detail)
+                      }
+                      override fun onAudioDecoderInitialized(
+                          eventTime: AnalyticsListener.EventTime,
+                          decoderName: String,
+                          initializedTimestampMs: Long,
+                          initializationDurationMs: Long
+                      ) {
+                          val detail = "Audio decoder: " + decoderName +
+                              ", initMs=" + initializationDurationMs
+                          prefs.edit().putString("gx1_audio_decoder", detail).apply()
+                          android.util.Log.i("GX1PlayerAudio", detail)
+                      }
+                      override fun onAudioUnderrun(
+                          eventTime: AnalyticsListener.EventTime,
+                          bufferSize: Int,
+                          bufferSizeMs: Long,
+                          elapsedSinceLastFeedMs: Long
+                      ) {
+                          val detail = "Audio underrun: buffer=" + bufferSize +
+                              ", bufferMs=" + bufferSizeMs +
+                              ", sinceFeedMs=" + elapsedSinceLastFeedMs
+                          prefs.edit().putString("gx1_audio_underrun", detail).apply()
+                          android.util.Log.e("GX1PlayerAudio", detail)
+                      }
+                      override fun onDroppedVideoFrames(
+                          eventTime: AnalyticsListener.EventTime,
+                          droppedFrames: Int,
+                          elapsedMs: Long
+                      ) {
+                          val detail = "Dropped video frames: " + droppedFrames +
+                              " over " + elapsedMs + "ms"
+                          prefs.edit().putString("gx1_dropped_video_frames", detail).apply()
+                          android.util.Log.w("GX1PlayerAudio", detail)
+                      }
                       override fun onAudioTrackReleased(
                           eventTime: AnalyticsListener.EventTime,
                           audioTrackConfig: androidx.media3.exoplayer.audio.AudioSink.AudioTrackConfig
@@ -2670,6 +2715,11 @@ jobs:
                       (prefs.getString("gx1_last_audio_sink_error", null) ?: "none recorded"))
                   lines.add("Last audio track event: " +
                       (prefs.getString("gx1_last_audio_track_event", null) ?: "none recorded"))
+                  lines.add("Audio input: " +
+                      (prefs.getString("gx1_audio_input_format", null) ?: "not recorded"))
+                  lines.add(prefs.getString("gx1_audio_decoder", "Audio decoder: not recorded") ?: "Audio decoder: not recorded")
+                  lines.add(prefs.getString("gx1_audio_underrun", "Audio underrun: none recorded") ?: "Audio underrun: none recorded")
+                  lines.add(prefs.getString("gx1_dropped_video_frames", "Dropped video frames: none recorded") ?: "Dropped video frames: none recorded")
                   lines.add("")
                   lines.add("Current Media3 audio tracks:")'''
           if old not in s:
