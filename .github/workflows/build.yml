@@ -1555,6 +1555,15 @@ jobs:
           # Do not create or parse a custom overlay for slot 1.
           s = s.replace("private lateinit var firstSubtitleOverlay: android.widget.TextView\n", "")
           s = s.replace("private fun loadFirstSubtitleOverlay()", "private fun loadFirstSubtitleOverlay_REMOVED()")
+          # Remove any picker call left behind after deleting the slot-1 overlay.
+          # Match whitespace from the generated Kotlin source, not this YAML script.
+          s, removed = re.subn(
+              r'(?m)^[ \t]*loadFirstSubtitleOverlay\(\)[ \t]*\r?\n[ \t]*subtitleUiHandler\.removeCallbacks\(subtitleTicker\)[ \t]*\r?\n[ \t]*subtitleUiHandler\.post\(subtitleTicker\)',
+              "startPlayer()",
+              s
+          )
+          if removed == 0 and "loadFirstSubtitleOverlay()" in s:
+              raise SystemExit("Unremoved call to deleted loadFirstSubtitleOverlay() remains")
           p.write_text(s)
           print("Media3 handles Subtitle 1; GX1's custom overlay handles Subtitle 2 only.")
           PY
