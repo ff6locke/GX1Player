@@ -269,14 +269,21 @@ jobs:
           """)
           main = base / "MainActivity.kt"
           s = main.read_text()
-          old = "DefaultRenderersFactory(this)"
+          old = """        } else {
+                      DefaultRenderersFactory(this)
+                  }"""
+          new = """        } else {
+                      PcmRenderersFactory(this)
+                  }"""
           if old not in s:
-              raise SystemExit("Could not find PCM renderer selection in MainActivity")
-          s, count = re.subn(re.escape(old), "if (passthrough) PassthroughRenderersFactory(this) else PcmRenderersFactory(this)", s, count=1)
-          if count != 1:
-              raise SystemExit("Could not switch Audio pass-through Off to PCM")
+              raise SystemExit("Could not find the exact existing PCM fallback branch; refusing a risky renderer rewrite")
+          s = s.replace(old, new, 1)
+          if "if (passthrough) PassthroughRenderersFactory(this)" not in s:
+              raise SystemExit("Passthrough renderer branch was unexpectedly changed")
+          if "else {\n                      PcmRenderersFactory(this)" not in s:
+              raise SystemExit("PCM fallback branch verification failed")
           main.write_text(s)
-          print("Audio renderer now follows the saved passthrough setting: native HDMI bitstream when On, PCM-only when Off.")
+          print("Verified mutually exclusive renderer branches: passthrough On uses PassthroughRenderersFactory; Off uses PcmRenderersFactory.")
           PY
 
       - name: Inspect passthrough renderer and audio configuration
