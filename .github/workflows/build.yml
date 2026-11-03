@@ -2602,6 +2602,68 @@ jobs:
           print("Added HDMI capability and Media3 track diagnostics.")
           PY
 
+      - name: Capture actual HDMI audio output events
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          marker = "        exo.addAnalyticsListener(object : AnalyticsListener {"
+          if marker not in s:
+              raise SystemExit("Could not find Media3 analytics listener insertion point")
+          listener = """        exo.addAnalyticsListener(object : AnalyticsListener {
+                      override fun onAudioSinkError(
+                          eventTime: AnalyticsListener.EventTime,
+                          audioSinkError: Exception
+                      ) {
+                          val detail = audioSinkError.javaClass.simpleName + ": " +
+                              (audioSinkError.message ?: "no message")
+                          android.util.Log.e("GX1PlayerAudio", "Audio sink error: " + detail, audioSinkError)
+                          prefs.edit().putString("gx1_last_audio_sink_error", detail).apply()
+                      }
+                      override fun onAudioTrackInitialized(
+                          eventTime: AnalyticsListener.EventTime,
+                          audioTrackConfig: androidx.media3.exoplayer.audio.AudioSink.AudioTrackConfig
+                      ) {
+                          val detail = "AudioTrack created: " + audioTrackConfig.toString()
+                          android.util.Log.i("GX1PlayerAudio", detail)
+                          prefs.edit().putString("gx1_last_audio_track_event", detail).apply()
+                      }
+                      override fun onAudioTrackReleased(
+                          eventTime: AnalyticsListener.EventTime,
+                          audioTrackConfig: androidx.media3.exoplayer.audio.AudioSink.AudioTrackConfig
+                      ) {
+                          val detail = "AudioTrack released: " + audioTrackConfig.toString()
+                          android.util.Log.w("GX1PlayerAudio", detail)
+                          prefs.edit().putString("gx1_last_audio_track_event", detail).apply()
+                      }
+                  })
+          """
+          s = s.replace(marker, listener + marker, 1)
+          # Add live player state and the recorded native audio output events to diagnostics.
+          old = '                  lines.add("Current Media3 audio tracks:")'
+          new = '''                  lines.add("Player state: " + when (player?.playbackState) {
+                      Player.STATE_IDLE -> "IDLE"
+                      Player.STATE_BUFFERING -> "BUFFERING"
+                      Player.STATE_READY -> "READY"
+                      Player.STATE_ENDED -> "ENDED"
+                      else -> "UNKNOWN"
+                  } + ", isPlaying=" + (player?.isPlaying ?: false) +
+                      ", positionMs=" + (player?.currentPosition ?: -1L))
+                  lines.add("Last audio sink error: " +
+                      (prefs.getString("gx1_last_audio_sink_error", null) ?: "none recorded"))
+                  lines.add("Last audio track event: " +
+                      (prefs.getString("gx1_last_audio_track_event", null) ?: "none recorded"))
+                  lines.add("")
+                  lines.add("Current Media3 audio tracks:")'''
+          if old not in s:
+              raise SystemExit("Could not find audio diagnostics insertion point")
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+          print("Added native AudioTrack lifecycle and audio-sink error diagnostics.")
+          PY
+
       - name: Normalize generated Kotlin strings before compilation
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
