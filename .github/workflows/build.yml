@@ -272,11 +272,11 @@ jobs:
           old = "DefaultRenderersFactory(this)"
           if old not in s:
               raise SystemExit("Could not find PCM renderer selection in MainActivity")
-          s, count = re.subn(re.escape(old), "PcmRenderersFactory(this)", s, count=1)
+          s, count = re.subn(re.escape(old), "if (passthrough) PassthroughRenderersFactory(this) else PcmRenderersFactory(this)", s, count=1)
           if count != 1:
               raise SystemExit("Could not switch Audio pass-through Off to PCM")
           main.write_text(s)
-          print("Audio pass-through Off now uses an AudioSink with no encoded passthrough capabilities.")
+          print("Audio renderer now follows the saved passthrough setting: native HDMI bitstream when On, PCM-only when Off.")
           PY
 
       - name: Inspect passthrough renderer and audio configuration
