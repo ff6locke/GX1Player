@@ -48,9 +48,9 @@ jobs:
           )]
           changed = []
           patterns = [
-              (r'(id\\(["\\']org\\.jetbrains\\.kotlin\\.android["\\']\\)\\s+version\\s+["\\'])2\\.0\\.0', r'\\g<1>2.2.10'),
-              (r'(kotlin\\s*=\\s*["\\'])2\\.0\\.0', r'\\g<1>2.2.10'),
-              (r'(org\\.jetbrains\\.kotlin\\.android\\s*=\\s*\\{[^}]*version\\s*=\\s*["\\'])2\\.0\\.0', r'\\g<1>2.2.10'),
+              (r'(id\(["\']org\.jetbrains\.kotlin\.android["\']\)\s+version\s+["\'])2\.0\.0', r'\g<1>2.2.10'),
+              (r'(kotlin\s*=\s*["\'])2\.0\.0', r'\g<1>2.2.10'),
+              (r'(org\.jetbrains\.kotlin\.android\s*=\s*\{[^}]*version\s*=\s*["\'])2\.0\.0', r'\g<1>2.2.10'),
           ]
           for path in files:
               text = path.read_text()
