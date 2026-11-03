@@ -246,7 +246,7 @@ jobs:
                   runOnUiThread {
                       AlertDialog.Builder(this@MainActivity)
                           .setTitle("Playback error")
-                          .setMessage(detail + "\\n\\nSelected: " + (mediaUri?.toString() ?: "unknown"))
+                          .setMessage(detail + "\n\nSelected: " + (mediaUri?.toString() ?: "unknown"))
                           .setPositiveButton("OK", null)
                           .show()
                   }
@@ -1043,7 +1043,7 @@ jobs:
                   
                   AlertDialog.Builder(this)
                       .setTitle("Cannot open Library folder")
-                      .setMessage("GX1 Player could not read this folder.\\n\\n" +
+                      .setMessage("GX1 Player could not read this folder.\n\n" +
                           (e.message ?: e.javaClass.simpleName))
                       .setPositiveButton("Choose folder") { _, _ -> chooseLibraryLocation() }
                       .setNegativeButton("Cancel", null)
@@ -1301,11 +1301,11 @@ jobs:
                   val active1 = firstSubtitleCues.filter { pos >= it.startMs && pos <= it.endMs }
                   val active2 = secondSubtitleCues.filter { pos >= it.startMs && pos <= it.endMs }
                   if (::firstSubtitleOverlay.isInitialized) {
-                      firstSubtitleOverlay.text = active1.joinToString("\\n") { it.text }
+                      firstSubtitleOverlay.text = active1.joinToString("\n") { it.text }
                       firstSubtitleOverlay.visibility =
                           if (active1.isEmpty() || player?.isPlaying != true) android.view.View.GONE
                           else android.view.View.VISIBLE
-                      secondSubtitleOverlay.text = active2.joinToString("\\n") { it.text }
+                      secondSubtitleOverlay.text = active2.joinToString("\n") { it.text }
                       secondSubtitleOverlay.visibility =
                           if (active2.isEmpty() || player?.isPlaying != true) android.view.View.GONE
                           else android.view.View.VISIBLE
@@ -1540,7 +1540,7 @@ jobs:
                   val pos = player?.currentPosition ?: 0L
                   val active2 = secondSubtitleCues.filter { pos >= it.startMs && pos <= it.endMs }
                   if (::secondSubtitleOverlay.isInitialized) {
-                      secondSubtitleOverlay.text = active2.joinToString("\\n") { it.text }
+                      secondSubtitleOverlay.text = active2.joinToString("\n") { it.text }
                       secondSubtitleOverlay.visibility =
                           if (active2.isEmpty() || player?.isPlaying != true) android.view.View.GONE
                           else android.view.View.VISIBLE
@@ -2119,7 +2119,7 @@ jobs:
                   }
                   if (entries.isEmpty()) {
                       AlertDialog.Builder(this).setTitle("Choose subtitle")
-                          .setMessage("No subtitle files found in:\\n${startFolder.absolutePath}")
+                          .setMessage("No subtitle files found in:\n${startFolder.absolutePath}")
                           .setPositiveButton("OK", null).show()
                       return
                   }
@@ -2412,7 +2412,7 @@ jobs:
               entries.forEach { labels.add((if (it.isDirectory) "📁  " else "▶  ") + it.name) }
               if (labels.isEmpty()) labels.add("(No folders or media files)")
               val title = (if (selectingLibrary) "Choose Library folder" else "GX1 Library") +
-                  "\\n" + current.absolutePath
+                  "\n" + current.absolutePath
               val builder = AlertDialog.Builder(this).setTitle(title)
                   .setItems(labels.toTypedArray()) { _, which ->
                       val parentOffset = if (current.parentFile != null) 1 else 0
@@ -2464,7 +2464,7 @@ jobs:
           # Existing Library entry points must use the GX1 browser, not Android's picker.
           s = s.replace('chooseLibraryLocation() }', 'chooseGX1LibraryFolder() }') if False else s
           # Resume the selected browser action after Android grants storage access.
-          pending_property = "    private var pendingGX1FileAccessAction: (() -> Unit)? = null\\n"
+          pending_property = "    private var pendingGX1FileAccessAction: (() -> Unit)? = null\n"
           if "private var pendingGX1FileAccessAction" not in s:
               s = s.replace("    private fun ensureGX1FileAccess(", pending_property + "    private fun ensureGX1FileAccess(", 1)
           old_permission_callback = """private val libraryPermissionRequest = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
@@ -2483,11 +2483,11 @@ jobs:
               print("Permission callback already changed or source pattern differs.")
           s = s.replace(
               "if (android.os.Build.VERSION.SDK_INT >= 30 && !Environment.isExternalStorageManager()) {",
-              "if (android.os.Build.VERSION.SDK_INT >= 30 && !Environment.isExternalStorageManager()) {\\n                pendingGX1FileAccessAction = onGranted",
+              "if (android.os.Build.VERSION.SDK_INT >= 30 && !Environment.isExternalStorageManager()) {\n                pendingGX1FileAccessAction = onGranted",
               1)
           s = s.replace(
               "libraryPermissionRequest.launch(arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE))",
-              "pendingGX1FileAccessAction = onGranted\\n                libraryPermissionRequest.launch(arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE))",
+              "pendingGX1FileAccessAction = onGranted\n                libraryPermissionRequest.launch(arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE))",
               1)
           if "override fun onResume()" not in s:
               resume_method = """    override fun onResume() {
