@@ -1467,7 +1467,9 @@ jobs:
                       FrameLayout.LayoutParams.MATCH_PARENT,
                       FrameLayout.LayoutParams.WRAP_CONTENT,
                       Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-                  ))
+                  ).apply {
+                      bottomMargin = (20 * resources.displayMetrics.density).toInt()
+                  })
                   subtitleUiHandler.post(subtitleTicker)
                   homePanel = buildHomePanel()"""
           if "secondSubtitleOverlay = android.widget.TextView(this)" not in s:
@@ -1523,7 +1525,9 @@ jobs:
                       FrameLayout.LayoutParams.MATCH_PARENT,
                       FrameLayout.LayoutParams.WRAP_CONTENT,
                       Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-                  ))
+                  ).apply {
+                      bottomMargin = (76 * resources.displayMetrics.density).toInt()
+                  })
                   secondSubtitleOverlay = android.widget.TextView(this).apply {'''
           if old_overlay in s and 'root.addView(firstSubtitleOverlay' not in s:
               s = s.replace(old_overlay, new_overlay, 1)
