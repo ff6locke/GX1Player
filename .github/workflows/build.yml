@@ -36,6 +36,35 @@ jobs:
           unzip -oq "$ZIP_FILE" -d .
           test -f "$PROJECT_DIR/settings.gradle.kts"
 
+      - name: Align Kotlin Gradle plugin with resolved Kotlin libraries
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          files = [p for p in Path(".").rglob("*") if p.is_file() and (
+              p.name.endswith(".gradle.kts") or p.name.endswith(".gradle") or
+              p.name == "libs.versions.toml"
+          )]
+          changed = []
+          patterns = [
+              (r'(id\\(["\\']org\\.jetbrains\\.kotlin\\.android["\\']\\)\\s+version\\s+["\\'])2\\.0\\.0', r'\\g<1>2.2.10'),
+              (r'(kotlin\\s*=\\s*["\\'])2\\.0\\.0', r'\\g<1>2.2.10'),
+              (r'(org\\.jetbrains\\.kotlin\\.android\\s*=\\s*\\{[^}]*version\\s*=\\s*["\\'])2\\.0\\.0', r'\\g<1>2.2.10'),
+          ]
+          for path in files:
+              text = path.read_text()
+              updated = text
+              for pattern, replacement in patterns:
+                  updated = re.sub(pattern, replacement, updated)
+              if updated != text:
+                  path.write_text(updated)
+                  changed.append(str(path))
+          if not changed:
+              raise SystemExit("No Kotlin 2.0.0 plugin/version declaration found; refusing to build with mismatched Kotlin.")
+          print("Updated Kotlin Gradle plugin version to 2.2.10 in: " + ", ".join(changed))
+          PY
+
       - name: Inspect original menu implementation
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
