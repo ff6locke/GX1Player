@@ -1481,7 +1481,7 @@ jobs:
           print("Second subtitle now uses an independent ASS/SRT overlay synchronized to player position.")
           PY
 
-      - name: Restore custom ASS/SRT rendering for both subtitle slots
+      - name: Restore Media3 Subtitle 1 and custom Subtitle 2
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -1490,176 +1490,65 @@ jobs:
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
 
-          # Render both external subtitle files through GX1's parser and overlays.
-          # Do not route slot 1 through Media3's native subtitle renderer.
-          s = re.sub(
-              r'        val subtitleConfigs = listOfNotNull\(subtitleUri, subtitleUri2\).*?if \(subtitleConfigs.isNotEmpty\(\)\) builder\.setSubtitleConfigurations\(subtitleConfigs\)',
-              '',
-              s,
-              flags=re.S
-          )
-
-          s = s.replace(
-              'private lateinit var secondSubtitleOverlay: android.widget.TextView',
-              'private lateinit var firstSubtitleOverlay: android.widget.TextView\n          private lateinit var secondSubtitleOverlay: android.widget.TextView'
-          )
-          s = s.replace(
-              'val active = secondSubtitleCues.filter { pos >= it.startMs && pos <= it.endMs }',
-              'val active1 = firstSubtitleCues.filter { pos >= it.startMs && pos <= it.endMs }\n                  val active2 = secondSubtitleCues.filter { pos >= it.startMs && pos <= it.endMs }'
-          )
-          s = s.replace(
-              'if (::secondSubtitleOverlay.isInitialized) {\n                      secondSubtitleOverlay.text = active.joinToString("\\n") { it.text }\n                      secondSubtitleOverlay.visibility =\n                          if (active.isEmpty() || player?.isPlaying != true) android.view.View.GONE\n                          else android.view.View.VISIBLE\n                  }',
-              'if (::firstSubtitleOverlay.isInitialized) {\n                      firstSubtitleOverlay.text = active1.joinToString("\\n") { it.text }\n                      firstSubtitleOverlay.visibility = if (active1.isEmpty() || player?.isPlaying != true) android.view.View.GONE else android.view.View.VISIBLE\n                      secondSubtitleOverlay.text = active2.joinToString("\\n") { it.text }\n                      secondSubtitleOverlay.visibility = if (active2.isEmpty() || player?.isPlaying != true) android.view.View.GONE else android.view.View.VISIBLE\n                  }'
-          )
-
-          # Initialize both transparent overlays above the video surface.
-          old_overlay = 'secondSubtitleOverlay = android.widget.TextView(this).apply {'
-          new_overlay = '''firstSubtitleOverlay = android.widget.TextView(this).apply {
-                      setTextColor(Color.WHITE)
-                      textSize = 22f
-                      gravity = Gravity.CENTER
-                      setPadding(24, 8, 24, 28)
-                      visibility = View.GONE
-                  }
-                  root.addView(firstSubtitleOverlay, FrameLayout.LayoutParams(
-                      FrameLayout.LayoutParams.MATCH_PARENT,
-                      FrameLayout.LayoutParams.WRAP_CONTENT,
-                      Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-                  ).apply {
-                      bottomMargin = (76 * resources.displayMetrics.density).toInt()
-                  })
-                  secondSubtitleOverlay = android.widget.TextView(this).apply {'''
-          if old_overlay in s and 'root.addView(firstSubtitleOverlay' not in s:
-              s = s.replace(old_overlay, new_overlay, 1)
-          if 'root.addView(firstSubtitleOverlay' in s:
-              s = s.replace(
-                  'secondSubtitleOverlay.elevation = 1000f',
-                  'firstSubtitleOverlay.bringToFront()\n                  secondSubtitleOverlay.bringToFront()\n                  firstSubtitleOverlay.elevation = 999f\n                  secondSubtitleOverlay.elevation = 1000f'
+          # Restore the original Media3 external-subtitle configuration for slot 1 only.
+          old = """        subtitleUri?.let { sub ->
+              val name = displayName(sub)
+              builder.setSubtitleConfigurations(
+                  listOf(
+                      MediaItem.SubtitleConfiguration.Builder(sub)
+                          .setMimeType(subtitleMime(name))
+                          .setLabel(name)
+                          .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
+                          .build()
+                  )
               )
-
-          # Load persisted slot 1 when a video is selected, and load newly chosen files immediately.
-          loader = '''private fun loadFirstSubtitleOverlay() {
-              val uri = subtitleUri
-              if (uri == null) {
-                  firstSubtitleCues = emptyList()
-                  return
-              }
-              try {
-                  firstSubtitleCues = parseExternalSubtitle(uri)
-                  Toast.makeText(this, "Subtitle 1 loaded: ${firstSubtitleCues.size} cues", Toast.LENGTH_LONG).show()
-              } catch (e: Exception) {
-                  firstSubtitleCues = emptyList()
-                  Toast.makeText(this, "Subtitle 1 error: ${e.message}", Toast.LENGTH_LONG).show()
-              }
-          }
-
-          '''
-          if 'private fun loadFirstSubtitleOverlay()' not in s:
-              anchor = '          private fun loadSecondSubtitleOverlay(uri: Uri) {'
-              if anchor in s:
-                  s = s.replace(anchor, loader + anchor, 1)
-              else:
-                  anchor = '    private fun loadSecondSubtitleOverlay()'
-                  if anchor not in s:
-                      raise SystemExit('Could not find second subtitle loader insertion point')
-                  s = s.replace(anchor, loader + anchor, 1)
-
-          # Normalize the slot-2 loader to the selected URI held in subtitleUri2.
-          s = s.replace(
-              'private fun loadSecondSubtitleOverlay(uri: Uri) {\n              try {\n                  secondSubtitleCues = parseExternalSubtitle(uri)',
-              'private fun loadSecondSubtitleOverlay() {\n              val uri = subtitleUri2 ?: run { secondSubtitleCues = emptyList(); return }\n              try {\n                  secondSubtitleCues = parseExternalSubtitle(uri)'
+          }"""
+          config = re.search(
+              r'        val subtitleConfigs = listOfNotNull\(subtitleUri, subtitleUri2\).*?if \(subtitleConfigs.isNotEmpty\(\)\) builder\.setSubtitleConfigurations\(subtitleConfigs\)',
+              s, re.S
           )
+          if config:
+              s = s[:config.start()] + old + s[config.end():]
+          elif "setSubtitleConfigurations" not in s:
+              raise SystemExit("Media3 Subtitle 1 configuration could not be restored")
 
-          # Custom file picker: slot 1 and slot 2 both use the same parser.
+          # Remove the slot-1 custom overlay and keep only slot 2 in the ticker.
           s = s.replace(
-              'videoUri?.let { prefs.edit().putString(subKey(it), uri.toString()).apply() }\n                                  startPlayer()',
-              'videoUri?.let { prefs.edit().putString(subKey(it), uri.toString()).apply() }\n                                  loadFirstSubtitleOverlay()\n                                  subtitleUiHandler.post(subtitleTicker)'
+              "val active1 = firstSubtitleCues.filter { pos >= it.startMs && pos <= it.endMs }\n                  ", ""
           )
-          # Ensure the two overlays are created and the ticker remains active.
-          if 'root.addView(firstSubtitleOverlay' not in s:
-              raise SystemExit('First subtitle overlay was not initialized')
-          if 'private fun loadFirstSubtitleOverlay()' not in s:
-              raise SystemExit('First subtitle loader was not added')
-          if 'firstSubtitleCues = parseExternalSubtitle(uri)' not in s:
-              raise SystemExit('First subtitle parser call missing')
-
-          p.write_text(s)
-          print('Both custom subtitle slots now use the same ASS/SRT parser and independent synchronized overlays.')
-          PY
-
-      - name: Repair dual subtitle overlay declarations and parser scope
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
-          s = p.read_text()
-
-          # Add the missing class-level first overlay field.
-          anchor = "private lateinit var secondSubtitleOverlay: android.widget.TextView"
-          if anchor not in s:
-              raise SystemExit("Subtitle-2 overlay declaration not found")
-          if "private lateinit var firstSubtitleOverlay:" not in s:
-              s = s.replace(anchor, "private lateinit var firstSubtitleOverlay: android.widget.TextView\\n          " + anchor, 1)
-
-          # Replace the ticker cue block by boundaries to avoid stale active references.
-          ticker_at = s.find("val active = secondSubtitleCues.filter")
-          if ticker_at >= 0:
-              ticker_end = s.find("subtitleUiHandler.postDelayed(this, 200L)", ticker_at)
-              if ticker_end < 0: raise SystemExit("Subtitle ticker end not found")
-              replacement = """val active1 = firstSubtitleCues.filter { pos >= it.startMs && pos <= it.endMs }
+          a = s.find("private val subtitleTicker = object : Runnable")
+          b = s.find("private fun parseExternalSubtitle", a)
+          if a < 0 or b < 0: raise SystemExit("Subtitle ticker/parser boundary missing")
+          ticker = """private val subtitleTicker = object : Runnable {
+              override fun run() {
+                  val pos = player?.currentPosition ?: 0L
                   val active2 = secondSubtitleCues.filter { pos >= it.startMs && pos <= it.endMs }
-                  if (::firstSubtitleOverlay.isInitialized) {
-                      firstSubtitleOverlay.text = active1.joinToString("\\n") { it.text }
-                      firstSubtitleOverlay.visibility = if (active1.isEmpty() || player?.isPlaying != true) android.view.View.GONE else android.view.View.VISIBLE
+                  if (::secondSubtitleOverlay.isInitialized) {
                       secondSubtitleOverlay.text = active2.joinToString("\\n") { it.text }
-                      secondSubtitleOverlay.visibility = if (active2.isEmpty() || player?.isPlaying != true) android.view.View.GONE else android.view.View.VISIBLE
+                      secondSubtitleOverlay.visibility =
+                          if (active2.isEmpty() || player?.isPlaying != true) android.view.View.GONE
+                          else android.view.View.VISIBLE
+                      secondSubtitleOverlay.bringToFront()
+                      secondSubtitleOverlay.elevation = 1000f
                   }
-                  """
-              s = s[:ticker_at] + replacement + s[ticker_end:]
-          elif "val active1 = firstSubtitleCues.filter" not in s:
-              raise SystemExit("Subtitle ticker cue block not found")
-
-          # Remove any misplaced copy of the first loader and insert at class scope.
-          start = s.find("private fun loadFirstSubtitleOverlay()")
-          if start >= 0:
-              brace = s.find("{", start)
-              depth = 0
-              end = -1
-              for i in range(brace, len(s)):
-                  if s[i] == "{": depth += 1
-                  elif s[i] == "}":
-                      depth -= 1
-                      if depth == 0:
-                          end = i + 1
-                          break
-              if end < 0:
-                  raise SystemExit("Malformed first subtitle loader")
-              s = s[:start] + s[end:]
-          loader = """    private fun loadFirstSubtitleOverlay() {
-              val uri = subtitleUri
-              if (uri == null) {
-                  firstSubtitleCues = emptyList()
-                  return
-              }
-              try {
-                  firstSubtitleCues = parseExternalSubtitle(uri)
-                  Toast.makeText(this, "Subtitle 1 loaded: ${firstSubtitleCues.size} cues", Toast.LENGTH_LONG).show()
-              } catch (e: Exception) {
-                  firstSubtitleCues = emptyList()
-                  Toast.makeText(this, "Subtitle 1 error: ${e.message}", Toast.LENGTH_LONG).show()
+                  subtitleUiHandler.postDelayed(this, 200L)
               }
           }
 
           """
-          anchor = "    private fun showMenu() {"
-          if anchor not in s:
-              raise SystemExit("Class-level showMenu insertion point not found")
-          s = s.replace(anchor, loader + anchor, 1)
+          s = s[:a] + ticker + s[b:]
+
+          # Do not create or parse a custom overlay for slot 1.
+          s = s.replace("private lateinit var firstSubtitleOverlay: android.widget.TextView\n", "")
+          s = s.replace("private fun loadFirstSubtitleOverlay()", "private fun loadFirstSubtitleOverlay_REMOVED()")
           p.write_text(s)
-          print("Repaired dual subtitle ticker and first-slot loader.")
+          print("Media3 handles Subtitle 1; GX1's custom overlay handles Subtitle 2 only.")
           PY
 
+      - name: Remove obsolete dual-overlay repair
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          echo "Subtitle 1 is native Media3; Subtitle 2 is the sole custom overlay."
       - name: Make Back return home and add an Open video controller shortcut
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
