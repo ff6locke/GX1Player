@@ -1511,7 +1511,24 @@ jobs:
           if config:
               s = s[:config.start()] + old + s[config.end():]
           elif "setSubtitleConfigurations" not in s:
-              raise SystemExit("Media3 Subtitle 1 configuration could not be restored")
+              anchor = "val builder = MediaItem.Builder().setUri(uri)"
+              if anchor not in s:
+                  raise SystemExit("MediaItem builder not found for native Subtitle 1")
+              native = """
+                  subtitleUri?.let { sub ->
+                      val name = displayName(sub)
+                      builder.setSubtitleConfigurations(
+                          listOf(
+                              MediaItem.SubtitleConfiguration.Builder(sub)
+                                  .setMimeType(subtitleMime(name))
+                                  .setLabel(name)
+                                  .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
+                                  .build()
+                          )
+                      )
+                  }
+              """
+              s = s.replace(anchor, anchor + native, 1)
 
           # Remove the slot-1 custom overlay and keep only slot 2 in the ticker.
           s = s.replace(
