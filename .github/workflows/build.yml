@@ -2145,6 +2145,7 @@ jobs:
                                   subtitleUiHandler.post(subtitleTicker)
                               } else {
                                   subtitleUri2 = uri
+                                  subtitle2Uri = uri
                                   videoUri?.let { prefs.edit().putString(subKey(it) + "|2", uri.toString()).apply() }
                                   loadSecondSubtitleOverlay()
                               }
