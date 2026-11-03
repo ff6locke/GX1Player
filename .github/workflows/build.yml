@@ -2449,12 +2449,10 @@ jobs:
           # Open Video browses files but never changes the saved Library location.
           s = re.sub(r'addTile\("Library"[^\n]*\)\s*\{[^}]*\}',
                      'addTile("Library", "Browse saved folders") { showGX1Library() }', s, count=0)
-          # Open Video uses Android's document picker so users can choose either
-          # internal storage or an attached SD card. Library remains the GX1 media browser.
           s = re.sub(r'addTile\("Open video"[^\n]*\)\s*\{[^}]*\}',
-                     'addTile("Open video", "Internal or external storage") { pickVideo.launch(arrayOf("video/*", "audio/*")) }', s, count=0)
+                     'addTile("Open video", "Choose one file") { openVideoWithGX1Browser() }', s, count=0)
           s = re.sub(r'add\("Open video file"\)\s*\{[^}]*\}',
-                     'add("Open video file") { pickVideo.launch(arrayOf("video/*", "audio/*")) }', s, count=0)
+                     'add("Open video file") { openVideoWithGX1Browser() }', s, count=0)
           # Replace the old Android Storage Access Framework folder chooser route.
           s = re.sub(r'addTab\("Change folder", false\)\s*\{[^}]*\}',
                      'addTab("Change folder", false) { chooseGX1LibraryFolder() }', s)
