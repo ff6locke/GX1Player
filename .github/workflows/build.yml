@@ -2642,7 +2642,7 @@ jobs:
           """
           s = s.replace(marker, listener + marker, 1)
           # Add live player state and the recorded native audio output events to diagnostics.
-          old = '                  lines.add("Current Media3 audio tracks:")'
+          old = 'lines.add("Current Media3 audio tracks:")'
           new = '''                  lines.add("Player state: " + when (player?.playbackState) {
                       Player.STATE_IDLE -> "IDLE"
                       Player.STATE_BUFFERING -> "BUFFERING"
