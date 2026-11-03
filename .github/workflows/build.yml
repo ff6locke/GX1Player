@@ -2412,7 +2412,7 @@ jobs:
               entries.forEach { labels.add((if (it.isDirectory) "📁  " else "▶  ") + it.name) }
               if (labels.isEmpty()) labels.add("(No folders or media files)")
               val title = (if (selectingLibrary) "Choose Library folder" else "GX1 Library") +
-                  "\n" + current.absolutePath
+                  "\\n" + current.absolutePath
               val builder = AlertDialog.Builder(this).setTitle(title)
                   .setItems(labels.toTypedArray()) { _, which ->
                       val parentOffset = if (current.parentFile != null) 1 else 0
@@ -2466,7 +2466,7 @@ jobs:
           # Resume the selected browser action after Android grants storage access.
           pending_property = "    private var pendingGX1FileAccessAction: (() -> Unit)? = null\n"
           if "private var pendingGX1FileAccessAction" not in s:
-              s = s.replace("    private fun ensureGX1FileAccess(", pending_property + "    private fun ensureGX1FileAccess(", 1)
+              s = s.replace("private fun ensureGX1FileAccess(", pending_property + "private fun ensureGX1FileAccess(", 1)
           old_permission_callback = """private val libraryPermissionRequest = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
               if (result.values.any { it }) showLibrary("")
               else Toast.makeText(this, "Media access is needed to browse internal storage.", Toast.LENGTH_LONG).show()
@@ -2477,10 +2477,10 @@ jobs:
               if (result.values.any { it }) action?.invoke()
               else Toast.makeText(this, "Storage access is needed to browse files.", Toast.LENGTH_LONG).show()
           }"""
-          if old_permission_callback in s:
-              s = s.replace(old_permission_callback, new_permission_callback, 1)
-          else:
-              print("Permission callback already changed or source pattern differs.")
+          callback_pattern = r"private val libraryPermissionRequest = registerForActivityResult\\(ActivityResultContracts\\.RequestMultiplePermissions\\(\\)\\) \\{ result ->.*?\\n\\s*\\}"
+          s, callback_count = re.subn(callback_pattern, new_permission_callback, s, count=1, flags=re.S)
+          if callback_count == 0:
+              print("Permission callback pattern not found; leaving existing callback.")
           s = s.replace(
               "if (android.os.Build.VERSION.SDK_INT >= 30 && !Environment.isExternalStorageManager()) {",
               "if (android.os.Build.VERSION.SDK_INT >= 30 && !Environment.isExternalStorageManager()) {\n                pendingGX1FileAccessAction = onGranted",
