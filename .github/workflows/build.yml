@@ -1298,11 +1298,16 @@ jobs:
           private val subtitleTicker = object : Runnable {
               override fun run() {
                   val pos = player?.currentPosition ?: 0L
-                  val active = secondSubtitleCues.filter { pos >= it.startMs && pos <= it.endMs }
-                  if (::secondSubtitleOverlay.isInitialized) {
-                      secondSubtitleOverlay.text = active.joinToString("\\n") { it.text }
+                  val active1 = firstSubtitleCues.filter { pos >= it.startMs && pos <= it.endMs }
+                  val active2 = secondSubtitleCues.filter { pos >= it.startMs && pos <= it.endMs }
+                  if (::firstSubtitleOverlay.isInitialized) {
+                      firstSubtitleOverlay.text = active1.joinToString("\\n") { it.text }
+                      firstSubtitleOverlay.visibility =
+                          if (active1.isEmpty() || player?.isPlaying != true) android.view.View.GONE
+                          else android.view.View.VISIBLE
+                      secondSubtitleOverlay.text = active2.joinToString("\\n") { it.text }
                       secondSubtitleOverlay.visibility =
-                          if (active.isEmpty() || player?.isPlaying != true) android.view.View.GONE
+                          if (active2.isEmpty() || player?.isPlaying != true) android.view.View.GONE
                           else android.view.View.VISIBLE
                   }
                   subtitleUiHandler.postDelayed(this, 200L)
