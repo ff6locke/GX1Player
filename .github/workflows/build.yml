@@ -2223,7 +2223,9 @@ jobs:
                               if (slot == 1) {
                                   subtitleUri = uri
                                   videoUri?.let { prefs.edit().putString(subKey(it), uri.toString()).apply() }
-                                  startPlayer()
+                                  loadFirstSubtitleOverlay()
+                                  subtitleUiHandler.removeCallbacks(subtitleTicker)
+                                  subtitleUiHandler.post(subtitleTicker)
                               } else {
                                   subtitleUri2 = uri
                                   videoUri?.let { prefs.edit().putString(subKey(it) + "|2", uri.toString()).apply() }
