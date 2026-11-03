@@ -447,8 +447,7 @@ jobs:
               listener = """        // Persist resume position immediately on pause, seek, and playback-state changes.
                   exo.addListener(object : Player.Listener {
                       override fun onIsPlayingChanged(isPlaying: Boolean) {
-                          if (!isPlaying) savePosition(exo)
-                      }
+                          if (!isPlaying) savePosition(exo)                      }
                       override fun onPlaybackStateChanged(playbackState: Int) {
                           if (playbackState == Player.STATE_ENDED || playbackState == Player.STATE_READY) {
                               savePosition(exo)
@@ -897,8 +896,7 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
-          s = p.read_text()
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")          s = p.read_text()
           method = r"""
           private fun showLibraryHub(category: String = "All", parentId: String? = null) {
               try {
@@ -1347,8 +1345,7 @@ jobs:
                   fun assMs(value: String): Long {
                       val m = timePattern.matchEntire(value.trim())
                           ?: throw IllegalArgumentException("Invalid ASS timestamp: $value")
-                      val fraction = m.groupValues[4].padEnd(2, '0').toLong() * 10L
-                      return ((m.groupValues[1].toLong() * 3600 +
+                      val fraction = m.groupValues[4].padEnd(2, '0').toLong() * 10L                      return ((m.groupValues[1].toLong() * 3600 +
                           m.groupValues[2].toLong() * 60 + m.groupValues[3].toLong()) * 1000) + fraction
                   }
                   for (line in lines) {
@@ -1797,8 +1794,7 @@ jobs:
           PY
 
       - name: Add VLC-style built-in subtitle track list
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
+        working-directory: ${{ env.PROJECT_DIR }}        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -2247,8 +2243,7 @@ jobs:
                       keyPassword = keyPasswordValue
                   }
               }
-              buildTypes {
-                  release {
+              buildTypes {                  release {
                       isMinifyEnabled = false
                       if (signed) signingConfig = signingConfigs.getByName("stableRelease")
                   }
@@ -2508,6 +2503,84 @@ jobs:
               raise SystemExit("GX1 browser permission-resume verification failed")
           p.write_text(s)
           print("Library lists folders; Open Video asks for internal or external storage; permission continuation is saved.")
+          PY
+
+      - name: Add HDMI audio capability diagnostics
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          method = r"""    private fun showAudioDiagnostics() {
+                  val caps = androidx.media3.exoplayer.audio.AudioCapabilities.getCapabilities(this)
+                  val encodings = caps.supportedEncodings
+                  fun encodingName(value: Int): String = when (value) {
+                      android.media.AudioFormat.ENCODING_AC3 -> "Dolby Digital (AC3)"
+                      android.media.AudioFormat.ENCODING_E_AC3 -> "Dolby Digital Plus (E-AC3)"
+                      android.media.AudioFormat.ENCODING_E_AC3_JOC -> "Dolby Atmos (E-AC3 JOC)"
+                      android.media.AudioFormat.ENCODING_DTS -> "DTS"
+                      android.media.AudioFormat.ENCODING_DTS_HD -> "DTS-HD"
+                      android.media.AudioFormat.ENCODING_DOLBY_TRUEHD -> "Dolby TrueHD"
+                      android.media.AudioFormat.ENCODING_PCM_16BIT -> "PCM 16-bit"
+                      android.media.AudioFormat.ENCODING_PCM_8BIT -> "PCM 8-bit"
+                      android.media.AudioFormat.ENCODING_PCM_FLOAT -> "PCM float"
+                      else -> "Encoding $value"
+                  }
+                  val lines = mutableListOf<String>()
+                  lines.add("HDMI / Android audio capabilities")
+                  lines.add("Maximum reported channels: ${caps.maxChannelCount}")
+                  lines.add("Reported encodings:")
+                  lines.addAll(encodings.map { "  • " + encodingName(it) })
+                  lines.add("")
+                  lines.add("Current Media3 audio tracks:")
+                  val audioGroups = player?.currentTracks?.groups?.filter {
+                      it.type == androidx.media3.common.C.TRACK_TYPE_AUDIO
+                  }.orEmpty()
+                  if (audioGroups.isEmpty()) lines.add("  No audio tracks discovered yet")
+                  for (group in audioGroups) {
+                      for (index in 0 until group.length) {
+                          val f = group.getTrackFormat(index)
+                          val state = when {
+                              group.isTrackSelected(index) -> "SELECTED"
+                              group.isTrackSupported(index) -> "supported"
+                              else -> "NOT supported"
+                          }
+                          lines.add("  [$state] ${f.sampleMimeType ?: "unknown"} / ${f.codecs ?: "no codec tag"}")
+                          lines.add("    channels=${f.channelCount}, sampleRate=${f.sampleRate}, language=${f.language ?: "und"}")
+                      }
+                  }
+                  lines.add("")
+                  lines.add("If TrueHD or E-AC3 JOC is missing above, Android is not reporting that HDMI format to GX1Player.")
+                  AlertDialog.Builder(this)
+                      .setTitle("Audio diagnostics")
+                      .setMessage(lines.joinToString("\n"))
+                      .setPositiveButton("OK", null)
+                      .show()
+              }
+
+          """
+          if "private fun showAudioDiagnostics()" not in s:
+              marker = "    private fun showMenu() {"
+              if marker not in s:
+                  raise SystemExit("Could not find showMenu() insertion point for audio diagnostics")
+              s = s.replace(marker, method + marker, 1)
+          if '"audio_diagnostics"' not in s:
+              s = s.replace(
+                  'Triple("♫", "Audio Track", "audio"),',
+                  'Triple("♫", "Audio Track", "audio"),\n                      Triple("ⓘ", "Audio diagnostics", "audio_diagnostics"),',
+                  1
+              )
+          if '"audio_diagnostics" -> showAudioDiagnostics()' not in s:
+              s = s.replace(
+                  '"audio" -> {',
+                  '"audio_diagnostics" -> showAudioDiagnostics()\n                              "audio" -> {',
+                  1
+              )
+          p.write_text(s)
+          if "private fun showAudioDiagnostics()" not in s or '"audio_diagnostics"' not in s:
+              raise SystemExit("Audio diagnostics UI insertion failed")
+          print("Added HDMI capability and Media3 track diagnostics.")
           PY
 
       - name: Normalize generated Kotlin strings before compilation
