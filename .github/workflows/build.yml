@@ -2266,10 +2266,12 @@ jobs:
           test -f "$p"
           echo "=== lines 1-180 ==="
           nl -ba "$p" | sed -n '1,180p'
+          echo "=== lines 180-340 ==="
+          nl -ba "$p" | sed -n '180,340p'
           echo "=== lines 340-520 ==="
           nl -ba "$p" | sed -n '340,520p'
           echo "=== class and function declarations ==="
-          grep -n -E '^(class |private (data class|fun|var|val)|    private (fun|var|val))' "$p" | head -220
+          grep -n -E '^(class |[[:space:]]+(private )?(data class|fun|var|val|override fun)|[[:space:]]*private (data class|fun|var|val))' "$p" | head -260
 
       - name: Remove duplicate subtitle state declarations
         working-directory: ${{ env.PROJECT_DIR }}
