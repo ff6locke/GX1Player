@@ -2827,6 +2827,156 @@ jobs:
           print("Normalized generated Kotlin string literals and overlay elevation.")
           PY
 
+      - name: Add isolated LibVLC TrueHD passthrough test
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          gradle = Path("app/build.gradle.kts")
+          g = gradle.read_text()
+          dep = 'implementation("org.videolan.android:libvlc-all:3.7.5")'
+          if dep not in g:
+              anchor = 'implementation("androidx.appcompat:appcompat:1.7.0")'
+              if anchor not in g:
+                  raise SystemExit("Could not find appcompat dependency insertion point")
+              g = g.replace(anchor, anchor + "\\n    " + dep, 1)
+              gradle.write_text(g)
+
+          pkg = Path("app/src/main/java/com/example/gx1player")
+          vlc = pkg / "VlcTestActivity.kt"
+          vlc.write_text(r'''package com.example.gx1player
+
+          import android.net.Uri
+          import android.os.Bundle
+          import android.view.View
+          import android.widget.FrameLayout
+          import android.widget.TextView
+          import android.widget.Toast
+          import androidx.appcompat.app.AppCompatActivity
+          import org.videolan.libvlc.LibVLC
+          import org.videolan.libvlc.Media
+          import org.videolan.libvlc.MediaPlayer
+          import org.videolan.libvlc.util.VLCVideoLayout
+
+          /**
+           * Isolated LibVLC playback experiment. It does not share or replace the
+           * Media3 player and is intentionally separate from the subtitle overlay.
+           */
+          class VlcTestActivity : AppCompatActivity() {
+              private var libVLC: LibVLC? = null
+              private var vlcPlayer: MediaPlayer? = null
+              private var videoLayout: VLCVideoLayout? = null
+
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                  val uri = intent.data ?: run {
+                      Toast.makeText(this, "No video selected for LibVLC test", Toast.LENGTH_LONG).show()
+                      finish()
+                      return
+                  }
+
+                  val root = FrameLayout(this).apply { setBackgroundColor(android.graphics.Color.BLACK) }
+                  val video = VLCVideoLayout(this)
+                  videoLayout = video
+                  root.addView(video, FrameLayout.LayoutParams(
+                      FrameLayout.LayoutParams.MATCH_PARENT,
+                      FrameLayout.LayoutParams.MATCH_PARENT
+                  ))
+                  val hint = TextView(this).apply {
+                      text = "LibVLC TrueHD test  •  BACK to exit"
+                      setTextColor(android.graphics.Color.WHITE)
+                      textSize = 14f
+                      setPadding(18, 10, 18, 10)
+                      setBackgroundColor(0x88000000.toInt())
+                  }
+                  root.addView(hint, FrameLayout.LayoutParams(
+                      FrameLayout.LayoutParams.WRAP_CONTENT,
+                      FrameLayout.LayoutParams.WRAP_CONTENT,
+                      android.view.Gravity.TOP or android.view.Gravity.START
+                  ))
+                  setContentView(root)
+
+                  try {
+                      val vlc = LibVLC(this, arrayListOf("--aout=android_audiotrack"))
+                      libVLC = vlc
+                      val mp = MediaPlayer(vlc)
+                      vlcPlayer = mp
+                      mp.attachViews(video, null, false, false)
+                      val digitalOutputEnabled = mp.setAudioDigitalOutputEnabled(true)
+                      Toast.makeText(
+                          this,
+                          "LibVLC HDMI digital output: " + if (digitalOutputEnabled) "enabled" else "not enabled",
+                          Toast.LENGTH_LONG
+                      ).show()
+                      val media = Media(vlc, uri)
+                      mp.media = media
+                      media.release()
+                      mp.play()
+                  } catch (e: Exception) {
+                      Toast.makeText(this, "LibVLC test error: ${e.message}", Toast.LENGTH_LONG).show()
+                      finish()
+                  }
+              }
+
+              override fun onStop() {
+                  super.onStop()
+                  vlcPlayer?.let { mp ->
+                      runCatching { mp.stop() }
+                      runCatching { mp.detachViews() }
+                      runCatching { mp.release() }
+                  }
+                  vlcPlayer = null
+                  libVLC?.release()
+                  libVLC = null
+                  videoLayout = null
+              }
+          }
+          ''')
+
+          manifest = Path("app/src/main/AndroidManifest.xml")
+          m = manifest.read_text()
+          activity = '''        <activity
+                      android:name=".VlcTestActivity"
+                      android:exported="false"
+                      android:screenOrientation="landscape" />
+          '''
+          if '.VlcTestActivity' not in m:
+              m = m.replace('        <activity\n            android:name=".MainActivity"', activity + '        <activity\n            android:name=".MainActivity"', 1)
+              manifest.write_text(m)
+
+          main = pkg / "MainActivity.kt"
+          s = main.read_text()
+          launch = '''    private fun launchVlcTest() {
+                  val uri = mediaUri
+                  if (uri == null) {
+                      Toast.makeText(this, "Open a video first.", Toast.LENGTH_SHORT).show()
+                      return
+                  }
+                  startActivity(Intent(this, VlcTestActivity::class.java).setData(uri))
+              }
+
+          '''
+          if "private fun launchVlcTest()" not in s:
+              marker = "    private fun showMenu() {"
+              if marker not in s:
+                  raise SystemExit("Could not find MainActivity menu method")
+              s = s.replace(marker, launch + marker, 1)
+          tile = 'Triple("ⓘ", "Audio diagnostics", "audio_diagnostics"),'
+          if tile not in s:
+              raise SystemExit("Could not find Audio diagnostics tile")
+          s = s.replace(tile, tile + '\\n                      Triple("VLC", "LibVLC TrueHD test", "vlc_test"),', 1)
+          dispatch = '"audio_diagnostics" -> showAudioDiagnostics()'
+          if dispatch not in s:
+              raise SystemExit("Could not find audio diagnostics action")
+          if '"vlc_test" -> launchVlcTest()' not in s:
+              s = s.replace(dispatch, dispatch + '\\n                              "vlc_test" -> launchVlcTest()', 1)
+          main.write_text(s)
+          print("Added isolated LibVLC test activity, HDMI digital output detection, and menu entry.")
+          PY
+
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
         env:
