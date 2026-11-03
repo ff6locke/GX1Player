@@ -447,8 +447,8 @@ jobs:
               listener = """        // Persist resume position immediately on pause, seek, and playback-state changes.
                   exo.addListener(object : Player.Listener {
                       override fun onIsPlayingChanged(isPlaying: Boolean) {
-                          if (!isPlaying) savePosition(exo)                      }
-                      override fun onPlaybackStateChanged(playbackState: Int) {
+                          if (!isPlaying) savePosition(exo)
+                      }                      override fun onPlaybackStateChanged(playbackState: Int) {
                           if (playbackState == Player.STATE_ENDED || playbackState == Player.STATE_READY) {
                               savePosition(exo)
                           }
@@ -896,9 +896,9 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")          s = p.read_text()
-          method = r"""
-          private fun showLibraryHub(category: String = "All", parentId: String? = null) {
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          method = r"""          private fun showLibraryHub(category: String = "All", parentId: String? = null) {
               try {
               val tree = prefs.getString("library_tree_uri", null)?.let { Uri.parse(it) }
               if (tree == null) {
@@ -1345,10 +1345,10 @@ jobs:
                   fun assMs(value: String): Long {
                       val m = timePattern.matchEntire(value.trim())
                           ?: throw IllegalArgumentException("Invalid ASS timestamp: $value")
-                      val fraction = m.groupValues[4].padEnd(2, '0').toLong() * 10L                      return ((m.groupValues[1].toLong() * 3600 +
+                      val fraction = m.groupValues[4].padEnd(2, '0').toLong() * 10L
+                      return ((m.groupValues[1].toLong() * 3600 +
                           m.groupValues[2].toLong() * 60 + m.groupValues[3].toLong()) * 1000) + fraction
-                  }
-                  for (line in lines) {
+                  }                  for (line in lines) {
                       val t = line.trim()
                       if (t.startsWith("Format:", true)) {
                           format = t.substringAfter(':').split(',').map { it.trim() }
@@ -1794,11 +1794,11 @@ jobs:
           PY
 
       - name: Add VLC-style built-in subtitle track list
-        working-directory: ${{ env.PROJECT_DIR }}        run: |
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
           python3 - <<'PY'
           from pathlib import Path
-          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
-          s = p.read_text()
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")          s = p.read_text()
           marker = "    private fun showMenu() {"
           method = r'''    private fun showSubtitleTrackSelection() {
                   val exo = player
@@ -2243,12 +2243,12 @@ jobs:
                       keyPassword = keyPasswordValue
                   }
               }
-              buildTypes {                  release {
+              buildTypes {
+                  release {
                       isMinifyEnabled = false
                       if (signed) signingConfig = signingConfigs.getByName("stableRelease")
                   }
-              }
-              compileOptions {
+              }              compileOptions {
                   sourceCompatibility = JavaVersion.VERSION_17
                   targetCompatibility = JavaVersion.VERSION_17
               }
