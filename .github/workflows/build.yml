@@ -2863,8 +2863,17 @@ jobs:
           s = re.sub(r'joinToString\("\s*\n\s*"\)', r'joinToString("\\n")', s)
           s = re.sub(r'\.setMessage\(detail \+ "\s*\n\s*\nSelected: " \+', r'.setMessage(detail + "\\n\\nSelected: " +', s)
           s = s.replace('secondSubtitleOverlay.elevation = 1000f', 'secondSubtitleOverlay.elevation = 1000.0f')
+          # Recover code accidentally flattened into one physical line with literal \n separators.
+          lines = s.splitlines()
+          repaired = []
+          for line in lines:
+              if len(line) > 1000 and "\\n" in line:
+                  repaired.extend(line.split("\\n"))
+              else:
+                  repaired.append(line)
+          s = "\n".join(repaired) + "\n"
           p.write_text(s)
-          print("Normalized generated Kotlin string literals and overlay elevation.")
+          print("Normalized generated Kotlin strings and repaired flattened source lines.")
           PY
 
       - name: Add isolated LibVLC TrueHD passthrough test
