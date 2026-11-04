@@ -1907,6 +1907,67 @@ jobs:
           print("Added Media3 audio track listing and selection.")
           PY
 
+      - name: Diagnose missing embedded audio tracks and limit native APK ABIs
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          old = """                  val audioGroups = exo.currentTracks.groups.filter {
+                      it.type == androidx.media3.common.C.TRACK_TYPE_AUDIO
+                  }
+                  val choices = mutableListOf<Pair<androidx.media3.common.TrackGroup, Int>>()"""
+          new = """                  val allGroups = exo.currentTracks.groups
+                  val audioGroups = allGroups.filter {
+                      it.type == androidx.media3.common.C.TRACK_TYPE_AUDIO
+                  }
+                  if (audioGroups.isEmpty()) {
+                      val report = buildString {
+                          appendLine("Media3 has not exposed any embedded audio track to GX1 Player.")
+                          appendLine()
+                          appendLine("Track groups detected: ${allGroups.size}")
+                          for (group in allGroups) {
+                              appendLine("Group type=${group.type}, tracks=${group.length}")
+                              for (index in 0 until group.length) {
+                                  val f = group.getTrackFormat(index)
+                                  appendLine("  MIME=${f.sampleMimeType ?: "unknown"}")
+                                  appendLine("  codecs=${f.codecs ?: "none"}, language=${f.language ?: "und"}")
+                                  appendLine("  label=${f.label ?: "none"}, channels=${f.channelCount}")
+                              }
+                          }
+                          if (allGroups.isEmpty()) append("No Media3 track groups are available yet. Wait until playback starts, then reopen Audio track.")
+                      }
+                      AlertDialog.Builder(this)
+                          .setTitle("Embedded audio not detected")
+                          .setMessage(report)
+                          .setPositiveButton("OK", null)
+                          .show()
+                      return
+                  }
+                  val choices = mutableListOf<Pair<androidx.media3.common.TrackGroup, Int>>()"""
+          if old not in s:
+              raise SystemExit("Could not find audio selector insertion point; refusing to change unrelated code")
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+
+          # RockTek GX1 is an ARM64 Android TV target. LibVLC ships very large
+          # native libraries for several unrelated CPU architectures; package only
+          # the device ABI to avoid bundling x86 and 32-bit native binaries.
+          gradle = Path("app/build.gradle.kts")
+          g = gradle.read_text()
+          if "abiFilters" not in g:
+              marker = "    defaultConfig {"
+              if marker not in g:
+                  raise SystemExit("Could not locate defaultConfig in app/build.gradle.kts")
+              g = g.replace(marker, marker + """
+                  ndk {
+                      abiFilters += setOf("arm64-v8a")
+                  }""", 1)
+              gradle.write_text(g)
+          print("Added embedded audio diagnostics and arm64-only native packaging.")
+          PY
+
       - name: Add VLC-style built-in subtitle track list
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
