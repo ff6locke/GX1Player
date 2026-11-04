@@ -1333,6 +1333,33 @@ jobs:
           print("Installed touch-friendly VLC-style floating menu panel.")
           PY
 
+      - name: Make the playback gear menu vertically scrollable
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          old = """                  popupContent.addView(panel, android.widget.FrameLayout.LayoutParams(dp(316), -2,
+                      android.view.Gravity.TOP or android.view.Gravity.CENTER_HORIZONTAL))"""
+          new = """                  val menuScroll = android.widget.ScrollView(this).apply {
+                      isFillViewport = false
+                      isVerticalScrollBarEnabled = true
+                      isScrollbarFadingEnabled = false
+                      overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+                      descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
+                  }
+                  menuScroll.addView(panel, android.widget.ScrollView.LayoutParams(dp(316), -2))
+                  popupContent.addView(menuScroll, android.widget.FrameLayout.LayoutParams(dp(316), dp(336),
+                      android.view.Gravity.TOP or android.view.Gravity.CENTER_HORIZONTAL))"""
+          if old in s:
+              s = s.replace(old, new, 1)
+          elif "val menuScroll = android.widget.ScrollView(this)" not in s:
+              raise SystemExit("Could not find gear popup panel insertion point")
+          p.write_text(s)
+          print("Gear menu now scrolls vertically and keeps Settings reachable.")
+          PY
+
       - name: Keep the VLC gear button clean and white
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
