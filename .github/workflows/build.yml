@@ -1921,8 +1921,32 @@ jobs:
                       Toast.makeText(this, "No player is active.", Toast.LENGTH_SHORT).show()
                       return
                   }
-                  val textGroups = exo.currentTracks.groups.filter {
+                  val allGroups = exo.currentTracks.groups
+                  val textGroups = allGroups.filter {
                       it.type == androidx.media3.common.C.TRACK_TYPE_TEXT
+                  }
+                  if (textGroups.isEmpty()) {
+                      val report = buildString {
+                          appendLine("Media3 has not exposed any embedded subtitle track to GX1 Player.")
+                          appendLine()
+                          appendLine("Track groups detected: ${allGroups.size}")
+                          for (group in allGroups) {
+                              appendLine("Group type=${group.type}, tracks=${group.length}")
+                              for (index in 0 until group.length) {
+                                  val f = group.getTrackFormat(index)
+                                  appendLine("  MIME=${f.sampleMimeType ?: "unknown"}")
+                                  appendLine("  codecs=${f.codecs ?: "none"}, language=${f.language ?: "und"}")
+                                  appendLine("  label=${f.label ?: "none"}")
+                              }
+                          }
+                          if (allGroups.isEmpty()) append("No Media3 track groups are available yet. Wait until playback starts, then reopen Subtitle.")
+                      }
+                      AlertDialog.Builder(this)
+                          .setTitle("Embedded subtitle not detected")
+                          .setMessage(report)
+                          .setPositiveButton("OK", null)
+                          .show()
+                      return
                   }
                   val choices = mutableListOf<Pair<androidx.media3.common.TrackGroup, Int>>()
                   val labels = mutableListOf<String>()
