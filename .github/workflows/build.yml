@@ -2851,6 +2851,112 @@ jobs:
           print("Added native AudioTrack lifecycle and audio-sink error diagnostics.")
           PY
 
+      - name: Repair generated TV home screen method boundary
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          replacement = r"""    private fun buildHomePanel(): LinearLayout {
+              val panel = LinearLayout(this).apply {
+                  orientation = LinearLayout.VERTICAL
+                  setPadding(56, 36, 56, 32)
+                  setBackgroundColor(Color.rgb(10, 14, 22))
+                  gravity = android.view.Gravity.CENTER_VERTICAL
+              }
+              val heading = TextView(this).apply {
+                  text = "GX1 PLAYER"
+                  textSize = 30f
+                  setTextColor(Color.WHITE)
+                  setTypeface(null, android.graphics.Typeface.BOLD)
+              }
+              panel.addView(heading)
+              val subtitle = TextView(this).apply {
+                  text = "Your movies. Your screen."
+                  textSize = 16f
+                  setTextColor(Color.LTGRAY)
+                  setPadding(0, 6, 0, 28)
+              }
+              panel.addView(subtitle)
+              val row = LinearLayout(this).apply {
+                  orientation = LinearLayout.HORIZONTAL
+                  gravity = android.view.Gravity.CENTER_VERTICAL
+              }
+              fun addTile(label: String, detail: String, action: () -> Unit) {
+                  val tile = LinearLayout(this).apply {
+                      orientation = LinearLayout.VERTICAL
+                      gravity = android.view.Gravity.CENTER
+                      isFocusable = true
+                      isFocusableInTouchMode = true
+                      setPadding(22, 20, 22, 20)
+                      background = GradientDrawable().apply {
+                          setColor(Color.rgb(27, 34, 47))
+                          cornerRadius = 18f
+                          setStroke(2, Color.rgb(58, 68, 84))
+                      }
+                      setOnClickListener { action() }
+                      setOnFocusChangeListener { v, focused ->
+                          v.background = GradientDrawable().apply {
+                              setColor(if (focused) Color.rgb(65, 42, 20) else Color.rgb(27, 34, 47))
+                              cornerRadius = 18f
+                              setStroke(if (focused) 4 else 2, if (focused) Color.rgb(255, 145, 0) else Color.rgb(58, 68, 84))
+                          }
+                      }
+                  }
+                  val title = TextView(this).apply {
+                      text = label
+                      textSize = 20f
+                      setTextColor(Color.WHITE)
+                      setTypeface(null, android.graphics.Typeface.BOLD)
+                  }
+                  val hint = TextView(this).apply {
+                      text = detail
+                      textSize = 13f
+                      setTextColor(Color.LTGRAY)
+                      setPadding(0, 8, 0, 0)
+                  }
+                  tile.addView(title)
+                  tile.addView(hint)
+                  row.addView(tile, LinearLayout.LayoutParams(0, 132, 1f).apply {
+                      setMargins(0, 0, 16, 0)
+                  })
+                  if (homeFirstTile == null) homeFirstTile = tile
+              }
+              addTile("Library", "Browse saved folders") { showGX1Library() }
+              addTile("Open video", "Choose a video file") { openVideoWithGX1Browser() }
+              addTile("Resume", "Continue watching") {
+                  val last = prefs.getString(KEY_LAST_URI, null)?.let { Uri.parse(it) }
+                  if (last != null) { selectMedia(last); startPlayer() }
+                  else Toast.makeText(this, "No previous video", Toast.LENGTH_SHORT).show()
+              }
+              addTile("History", "Recently played") { showHistory() }
+              panel.addView(row)
+              panel.isFocusableInTouchMode = true
+              panel.descendantFocusability = android.view.ViewGroup.FOCUS_AFTER_DESCENDANTS
+              panel.post { homeFirstTile?.requestFocus() }
+              return panel
+          }
+
+          private fun showHome() {
+              if (!::homePanel.isInitialized) return
+              homePanel.visibility = View.VISIBLE
+              playerView.visibility = View.GONE
+              if (::menuButtonRef.isInitialized) menuButtonRef.visibility = View.GONE
+              homePanel.descendantFocusability = android.view.ViewGroup.FOCUS_AFTER_DESCENDANTS
+              homePanel.post { homeFirstTile?.requestFocus() }
+          }
+
+          """
+          pattern = r'(?ms)^\s*private fun buildHomePanel\(\): LinearLayout \{.*?(?=^\s*private fun parseExternalSubtitle\()'
+          s, count = re.subn(pattern, replacement, s, count=1)
+          if count != 1:
+              raise SystemExit("Could not isolate malformed home-screen method block")
+          p.write_text(s)
+          print("Rebuilt the complete home-screen methods and restored MainActivity scope.")
+          PY
+
       - name: Normalize generated Kotlin strings before compilation
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
