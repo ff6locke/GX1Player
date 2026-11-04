@@ -2889,8 +2889,9 @@ jobs:
           )
           output = []
           for source_line in source.splitlines():
-              if len(source_line) > 1000 and r"\\n" in source_line:
-                  chunks = source_line.split(r"\\n")
+              if len(source_line) > 1000 and (r"\n" in source_line or r"\\n" in source_line):
+                  delimiter = r"\n" if r"\n" in source_line else r"\\n"
+                  chunks = source_line.split(delimiter)
                   rebuilt = chunks[0]
                   for chunk in chunks[1:]:
                       separator = "\\n" if chunk.lstrip().startswith(statement_starts) else r"\\n"
