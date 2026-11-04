@@ -2877,38 +2877,13 @@ jobs:
               'secondSubtitleOverlay.elevation = 1000.0f'
           )
 
-          # Restore physical line breaks only on very long generated lines.
-          statement_starts = (
-              "private ", "override ", "public ", "protected ", "internal ",
-              "fun ", "val ", "var ", "if ", "else ", "when ", "return ",
-              "try ", "catch ", "finally ", "for ", "while ", "class ",
-              "object ", "data class ", "companion object ", "super.", "import ", "}", ")",
-              "setContentView(", "startActivity(", "finish(", "player.",
-              "subtitle", "secondSubtitle", "firstSubtitle", "menu",
-              "window.", "prefs.", "builder.", "dialog.", "popup.",
-              "orientation", "gravity", "setPadding(", "minimumHeight", "isClickable",
-              "isFocusable", "background", "setColor(", "cornerRadius", "row.addView",
-              "text =", "setTextColor(", "textSize", "layoutParams", "when (",
-              '"speed" ->', '"audio" ->', '"subtitle" ->', '"aspect" ->', '"sleep" ->',
-              '"settings" ->', "AlertDialog.", "Toast.", "android.", "val ", "private val "
-          )
-          output = []
-          for source_line in source.splitlines():
-              if r"\\n" in source_line or r"\n" in source_line:
-                  # Prefer the two-backslash encoding used by generated Kotlin blocks.
-                  # Testing the one-backslash form first incorrectly matches inside it.
-                  delimiter = r"\\n" if r"\\n" in source_line else r"\n"
-                  chunks = source_line.split(delimiter)
-                  rebuilt = chunks[0]
-                  for chunk in chunks[1:]:
-                      separator = "\n" if (not chunk.strip() or chunk.lstrip().startswith(statement_starts)) else r"\\n"
-                      rebuilt += separator + chunk
-                  source_line = rebuilt
-              output.append(source_line)
-          path.write_text("\n".join(output) + ("\n" if source.endswith("\n") else ""))
+          # Generated Kotlin patches encode source line breaks as two literal
+          # backslashes followed by n. Restore every such delimiter consistently;
+          # heuristic statement matching left many Kotlin expressions malformed.
+          source = source.replace(r"\\n", "\n")
+          path.write_text(source + ("\n" if not source.endswith("\n") else ""))
           print("Kotlin source normalisation completed.")
           PY
-
       - name: Add isolated LibVLC TrueHD passthrough test
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
