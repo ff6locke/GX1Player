@@ -2882,14 +2882,14 @@ jobs:
               "private ", "override ", "public ", "protected ", "internal ",
               "fun ", "val ", "var ", "if ", "else ", "when ", "return ",
               "try ", "catch ", "finally ", "for ", "while ", "class ",
-              "object ", "data class ", "companion object ", "super.", "}", ")",
+              "object ", "data class ", "companion object ", "super.", "import ", "}", ")",
               "setContentView(", "startActivity(", "finish(", "player.",
               "subtitle", "secondSubtitle", "firstSubtitle", "menu",
               "window.", "prefs.", "builder.", "dialog.", "popup."
           )
           output = []
           for source_line in source.splitlines():
-              if len(source_line) > 1000 and (r"\n" in source_line or r"\\n" in source_line):
+              if r"\n" in source_line or r"\\n" in source_line:
                   delimiter = r"\n" if r"\n" in source_line else r"\\n"
                   chunks = source_line.split(delimiter)
                   rebuilt = chunks[0]
