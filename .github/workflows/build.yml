@@ -2894,7 +2894,7 @@ jobs:
                   chunks = source_line.split(delimiter)
                   rebuilt = chunks[0]
                   for chunk in chunks[1:]:
-                      separator = "\\n" if chunk.lstrip().startswith(statement_starts) else r"\\n"
+                      separator = "\n" if chunk.lstrip().startswith(statement_starts) else r"\\n"
                       rebuilt += separator + chunk
                   source_line = rebuilt
               output.append(source_line)
