@@ -2865,8 +2865,44 @@ jobs:
           s = re.sub(r'joinToString\("\s*\n\s*"\)', r'joinToString("\\n")', s)
           s = re.sub(r'\.setMessage\(detail \+ "\s*\n\s*\nSelected: " \+', r'.setMessage(detail + "\\n\\nSelected: " +', s)
           s = s.replace('secondSubtitleOverlay.elevation = 1000f', 'secondSubtitleOverlay.elevation = 1000.0f')
+          # Decode source-generator newline markers only when outside Kotlin string/char literals.
+          out = []
+          i = 0
+          in_string = False
+          in_char = False
+          in_triple = False
+          escaped = False
+          while i < len(s):
+              if not in_string and not in_char and s.startswith('"""', i):
+                  in_triple = not in_triple
+                  out.append('"""')
+                  i += 3
+                  continue
+              ch = s[i]
+              if not in_triple:
+                  if escaped:
+                      out.append(ch)
+                      escaped = False
+                      i += 1
+                      continue
+                  if (in_string or in_char) and ch == '\\':
+                      out.append(ch)
+                      escaped = True
+                      i += 1
+                      continue
+                  if not in_char and ch == '"' and not in_triple:
+                      in_string = not in_string
+                  elif not in_string and ch == "'":
+                      in_char = not in_char
+                  if not in_string and not in_char and s.startswith(r'\n', i):
+                      out.append('\n')
+                      i += 2
+                      continue
+              out.append(ch)
+              i += 1
+          s = ''.join(out)
           p.write_text(s)
-          print("Normalized generated Kotlin string literals without altering escaped newlines.")
+          print("Normalized Kotlin source-generator newlines outside string literals.")
           PY
 
       - name: Add isolated LibVLC TrueHD passthrough test
