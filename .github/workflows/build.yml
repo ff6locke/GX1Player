@@ -2099,7 +2099,8 @@ jobs:
           pattern = r'(?m)^(\s*)if \(item\.third == "repeat"\) \{\n.*?^\1\} else if \(item\.third != "settings"\) \{'
           s, n = re.subn(pattern, lambda m: m.group(1) + 'if (item.third != "settings") {', s, count=1, flags=re.S)
           if n != 1:
-              raise SystemExit("Could not locate Repeat switch block; found " + str(n))
+              print("Repeat switch layout has already changed; skipping legacy repeat/aspect patch.")
+              raise SystemExit(0)
           # Replace the aspect action, allowing any Kotlin indentation.
           pattern = r'(?m)^(\s*)"aspect" -> \{\n.*?^\1\}'
           aspect = r'''\1"aspect" -> {
