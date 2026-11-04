@@ -2887,6 +2887,16 @@ jobs:
           in_line_comment = False
           while i < len(source):
               if in_line_comment:
+                  if source.startswith(r"\\n", i):
+                      out.append("\n")
+                      i += 3
+                      in_line_comment = False
+                      continue
+                  if source.startswith(r"\n", i):
+                      out.append("\n")
+                      i += 2
+                      in_line_comment = False
+                      continue
                   ch = source[i]
                   out.append(ch)
                   if ch == "\n":
