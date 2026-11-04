@@ -2089,25 +2089,9 @@ jobs:
                   raise SystemExit("Could not find showMenu() insertion point for subtitle selector")
               s = s.replace(marker, method + marker, 1)
 
-          # The actual playback UI is the floating panel, not the legacy add() menu.
-          # Route its Subtitle Track row to the built-in + custom unified selector.
-          import re
-          # Replace the complete floating gear-menu subtitle branch by its
-          # start/end lines. This avoids fragile escaping in a multiline regex.
-          lines = s.splitlines()
-          start = next((i for i, line in enumerate(lines)
-                        if '"subtitle" -> AlertDialog.Builder(this)' in line), None)
-          if start is None:
-              if '"subtitle" -> showSubtitleTrackSelection()' not in s:
-                  raise SystemExit("Could not find floating gear Subtitle Track action")
-          else:
-              end = next((i for i in range(start, len(lines))
-                          if '.show()' in lines[i]), None)
-              if end is None:
-                  raise SystemExit("Could not find end of floating gear subtitle dialog")
-              indent = lines[start][:len(lines[start]) - len(lines[start].lstrip())]
-              lines[start:end + 1] = [indent + '"subtitle" -> showSubtitleTrackSelection()']
-              s = "\\n".join(lines) + ("\\n" if s.endswith("\\n") else "")
+          # Do not rewrite the floating gear-menu branch by scanning to the next
+          # generic .show(): nested dialogs make that boundary ambiguous and can
+          # delete unrelated methods. Keep the existing menu implementation intact.
 
           menu_anchor = '        add("Load Subtitle 1 (.srt / .ass)") {'
           menu_entry = '        add("Built-in subtitle tracks") { showSubtitleTrackSelection() }\n'
