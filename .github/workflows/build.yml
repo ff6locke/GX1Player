@@ -1276,6 +1276,49 @@ jobs:
                           }
                       }
                       panel.addView(row)
+                      if (item.third == "aspect") {
+                          row.isClickable = false
+                          row.isFocusable = false
+                          val aspectModes = intArrayOf(
+                              androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT,
+                              androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL,
+                              androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
+                              androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH,
+                              androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT
+                          )
+                          val aspectNames = arrayOf("Fit", "Stretch", "Zoom", "Fixed width", "Fixed height")
+                          aspectNames.forEachIndexed { aspectIndex, aspectName ->
+                              val selected = playerView.resizeMode == aspectModes[aspectIndex]
+                              val option = android.widget.TextView(this).apply {
+                                  text = (if (selected) "✓  " else "    ") + aspectName
+                                  setTextColor(if (selected) android.graphics.Color.rgb(120, 200, 255) else android.graphics.Color.LTGRAY)
+                                  textSize = 14f
+                                  gravity = android.view.Gravity.CENTER_VERTICAL
+                                  setPadding(dp(62), 0, dp(12), 0)
+                                  minimumHeight = dp(38)
+                                  isFocusable = true
+                                  isClickable = true
+                                  background = android.graphics.drawable.GradientDrawable().apply {
+                                      setColor(android.graphics.Color.TRANSPARENT)
+                                      cornerRadius = dp(8).toFloat()
+                                  }
+                                  setOnFocusChangeListener { view, focused ->
+                                      view.background = android.graphics.drawable.GradientDrawable().apply {
+                                          setColor(if (focused) android.graphics.Color.rgb(65, 67, 72) else android.graphics.Color.TRANSPARENT)
+                                          cornerRadius = dp(8).toFloat()
+                                      }
+                                  }
+                                  setOnClickListener {
+                                      playerView.resizeMode = aspectModes[aspectIndex]
+                                      playerView.requestLayout()
+                                      playerView.post { playerView.requestLayout() }
+                                      menuPopupRef?.dismiss()
+                                      Toast.makeText(this@MainActivity, "Aspect ratio: " + aspectName, Toast.LENGTH_SHORT).show()
+                                  }
+                              }
+                              panel.addView(option)
+                          }
+                      }
                   }
                   val popupContent = android.widget.FrameLayout(this)
                   popupContent.addView(panel, android.widget.FrameLayout.LayoutParams(dp(316), -2,
