@@ -2956,7 +2956,7 @@ jobs:
           line_start = s.rfind("\n", 0, start) + 1
           s = s[:line_start] + replacement + s[end:]
           if "import android.view.ViewGroup" not in s:
-              s = s.replace("import android.view.KeyEvent", "import android.view.KeyEvent\\nimport android.view.ViewGroup", 1)
+              s = s.replace("import android.view.KeyEvent", "import android.view.KeyEvent\nimport android.view.ViewGroup", 1)
           p.write_text(s)
           print("Rebuilt the complete home-screen methods and restored MainActivity scope.")
           PY
