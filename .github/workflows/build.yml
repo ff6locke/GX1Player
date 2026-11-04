@@ -3229,6 +3229,9 @@ jobs:
           print("=== NORMALIZED KOTLIN: lines 1-180 ===")
           for i in range(0, min(180, len(lines))):
               print(f"{i+1}: {lines[i]!r}")
+          print("=== NORMALIZED KOTLIN: lines 580-690 ===")
+          for i in range(579, min(690, len(lines))):
+              print(f"{i+1}: {lines[i]!r}")
           print("=== NORMALIZED KOTLIN: lines 700-820 ===")
           for i in range(699, min(820, len(lines))):
               print(f"{i+1}: {lines[i]!r}")
