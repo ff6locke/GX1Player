@@ -1350,7 +1350,7 @@ jobs:
               "                      isVerticalScrollBarEnabled = true",
               "                      isScrollbarFadingEnabled = false",
               "                      overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS",
-              "                      descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS",
+              "                      descendantFocusability = android.view.ViewGroup.FOCUS_AFTER_DESCENDANTS",
               "                  }",
               "                  menuScroll.addView(panel, android.widget.FrameLayout.LayoutParams(dp(316), -2))",
               "                  popupContent.addView(menuScroll, android.widget.FrameLayout.LayoutParams(dp(316), dp(336),",
