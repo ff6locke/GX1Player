@@ -2953,8 +2953,59 @@ jobs:
           end = s.find("private fun parseExternalSubtitle(", start + 1) if start >= 0 else -1
           if start < 0 or end < 0:
               raise SystemExit("Could not locate home-screen and subtitle parser boundaries")
-          line_start = s.rfind("\n", 0, start) + 1
-          s = s[:line_start] + replacement + s[end:]
+          player_tail = r"""
+              setPlaybackFullscreen(true)
+              if (::homePanel.isInitialized) homePanel.visibility = View.GONE
+              if (::menuButtonRef.isInitialized) menuButtonRef.visibility = View.VISIBLE
+              player = exo
+              loadSecondSubtitleOverlay()
+          }
+
+          private fun buildMediaItem(uri: Uri): MediaItem {
+              val builder = MediaItem.Builder().setUri(uri)
+              if (displayName(uri).endsWith(".mkv", ignoreCase = true)) {
+                  builder.setMimeType(MimeTypes.APPLICATION_MATROSKA)
+              }
+              val subtitleConfigs = listOfNotNull(
+                  subtitle1Uri?.let { subtitleConfiguration(it, "Subtitle 1") }
+              )
+              if (subtitleConfigs.isNotEmpty()) builder.setSubtitleConfigurations(subtitleConfigs)
+              return builder.build()
+          }
+
+          private fun releasePlayer() {
+              subtitle2Cues.clear()
+              if (::subtitle2View.isInitialized) {
+                  subtitle2View.text = ""
+                  subtitle2View.visibility = View.GONE
+              }
+              player?.let {
+                  savePosition(it)
+                  it.release()
+              }
+              player = null
+              playingUri = null
+              if (::playerView.isInitialized) playerView.player = null
+          }
+
+          private fun savePosition(exo: ExoPlayer) {
+              val uri = playingUri ?: return
+              if (exo.playbackState == Player.STATE_IDLE) return
+              val pos = exo.currentPosition
+              val dur = exo.duration
+              val finished = dur != C.TIME_UNSET && dur > 0 && pos >= dur - END_MARGIN_MS
+              val editor = prefs.edit()
+              if (finished || pos < MIN_RESUME_MS) editor.remove(posKey(uri))
+              else editor.putLong(posKey(uri), pos)
+              editor.apply()
+          }
+
+          """
+          if "private fun buildMediaItem(uri: Uri)" not in s:
+              s = s[:start] + player_tail + s[start:]
+              start = s.find("private fun buildHomePanel(): LinearLayout {")
+              end = s.find("private fun parseExternalSubtitle(", start + 1)
+          s = s[:start] + replacement + s[end:]
           if "import android.view.ViewGroup" not in s:
               s = s.replace("import android.view.KeyEvent", "import android.view.KeyEvent\nimport android.view.ViewGroup", 1)
           p.write_text(s)
