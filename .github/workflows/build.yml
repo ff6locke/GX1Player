@@ -1277,8 +1277,19 @@ jobs:
                       }
                       panel.addView(row)
                       if (item.third == "aspect") {
-                          row.isClickable = false
-                          row.isFocusable = false
+                          val aspectContainer = android.widget.LinearLayout(this).apply {
+                              orientation = android.widget.LinearLayout.VERTICAL
+                              visibility = android.view.View.GONE
+                              setPadding(0, dp(2), 0, dp(6))
+                          }
+                          row.isClickable = true
+                          row.isFocusable = true
+                          row.setOnClickListener {
+                              val expanded = aspectContainer.visibility != android.view.View.VISIBLE
+                              aspectContainer.visibility = if (expanded) android.view.View.VISIBLE else android.view.View.GONE
+                              (row.getChildAt(row.childCount - 1) as? android.widget.TextView)?.text = if (expanded) "⌃" else "⌄"
+                          }
+                          (row.getChildAt(row.childCount - 1) as? android.widget.TextView)?.text = "⌄"
                           val aspectModes = intArrayOf(
                               androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT,
                               androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL,
@@ -1316,8 +1327,9 @@ jobs:
                                       Toast.makeText(this@MainActivity, "Aspect ratio: " + aspectName, Toast.LENGTH_SHORT).show()
                                   }
                               }
-                              panel.addView(option)
+                              aspectContainer.addView(option)
                           }
+                          panel.addView(aspectContainer)
                       }
                   }
                   val popupContent = android.widget.FrameLayout(this)
