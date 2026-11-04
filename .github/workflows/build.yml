@@ -2478,7 +2478,12 @@ jobs:
               project.buildscript.repositories {
                   maven { url = uri(mirrorUrl) }
               }
-              project.repositories {
+          }
+          gradle.settingsEvaluated { settings ->
+              settings.pluginManagement.repositories {
+                  maven { url = uri(mirrorUrl) }
+              }
+              settings.dependencyResolutionManagement.repositories {
                   maven { url = uri(mirrorUrl) }
               }
           }
