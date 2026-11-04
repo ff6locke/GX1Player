@@ -2866,12 +2866,23 @@ jobs:
           s = re.sub(r'\.setMessage\(detail \+ "\s*\n\s*\nSelected: " \+', r'.setMessage(detail + "\\n\\nSelected: " +', s)
           s = s.replace('secondSubtitleOverlay.elevation = 1000f', 'secondSubtitleOverlay.elevation = 1000.0f')
           # Some generated patch blocks were written as one physical line with literal \\n separators.
-          # Split only long physical lines, and only where the escaped newline is followed by a Kotlin statement/declaration.
-          statement = re.compile(r'\\\\n(?=[ \\t]*(?:private|override|public|protected|internal|fun|val|var|if|else|when|return|try|catch|finally|for|while|class|object|data\\s+class|companion\\s+object|super\\.|setContentView|startActivity|finish\\(|player\\.|subtitle|secondSubtitle|firstSubtitle|menu|window\\.|prefs\\.|builder\\.|dialog\\.|popup\\.)\\b)')
+          # Split only long lines where the next chunk begins with a Kotlin statement/declaration.
+          starts = ("private ", "override ", "public ", "protected ", "internal ", "fun ", "val ", "var ",
+                    "if ", "else ", "when ", "return ", "try ", "catch ", "finally ", "for ", "while ",
+                    "class ", "object ", "data class ", "companion object ", "super.", "setContentView(",
+                    "startActivity(", "finish(", "player.", "subtitle", "secondSubtitle", "firstSubtitle",
+                    "menu", "window.", "prefs.", "builder.", "dialog.", "popup.")
           repaired = []
           for line in s.splitlines():
-              if len(line) > 1000:
-                  line = statement.sub('\\n', line)
+              if len(line) > 1000 and r"\\n" in line:
+                  parts = line.split(r"\\n")
+                  rebuilt = parts[0]
+                  for part in parts[1:]:
+                      if part.lstrip().startswith(starts):
+                          rebuilt += "\\n" + part
+                      else:
+                          rebuilt += r"\\n" + part
+                  line = rebuilt
               repaired.append(line)
           s = "\\n".join(repaired) + ("\\n" if s.endswith("\\n") else "")
           p.write_text(s)
