@@ -2884,7 +2884,7 @@ jobs:
                           rebuilt += r"\\n" + part
                   line = rebuilt
               repaired.append(line)
-           s = "\n".join(repaired) + ("\n" if s.endswith("\n") else "")
+          s = "\n".join(repaired) + ("\n" if s.endswith("\n") else "")
           p.write_text(s)
           print("Applied targeted Kotlin string-literal repairs and split generated statement separators.")
           PY
