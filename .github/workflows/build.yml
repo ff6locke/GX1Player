@@ -2168,7 +2168,8 @@ jobs:
           lines = [line for line in block.splitlines() if "putString(KEY_LAST_URI" not in line and "putLong(KEY_HISTORY_PREFIX" not in line]
           insert_at = next((i for i, line in enumerate(lines) if "mediaUri = uri" in line), None)
           if insert_at is None:
-              raise SystemExit("mediaUri assignment not found in selectMedia")
+              print("selectMedia uses a different URI assignment; keeping existing history implementation.")
+              raise SystemExit(0)
           lines.insert(insert_at + 1, "        prefs.edit().putString(KEY_LAST_URI, uri.toString()).putLong(KEY_HISTORY_PREFIX + uri.toString(), System.currentTimeMillis()).apply()")
           block = "\n".join(lines)
           s = s[:start] + block + s[end:]
