@@ -2865,86 +2865,9 @@ jobs:
           s = re.sub(r'joinToString\("\s*\n\s*"\)', r'joinToString("\\n")', s)
           s = re.sub(r'\.setMessage\(detail \+ "\s*\n\s*\nSelected: " \+', r'.setMessage(detail + "\\n\\nSelected: " +', s)
           s = s.replace('secondSubtitleOverlay.elevation = 1000f', 'secondSubtitleOverlay.elevation = 1000.0f')
-          # Decode generator newline markers using Kotlin lexical states.
-          out = []
-          i = 0
-          in_string = False
-          in_triple = False
-          in_line_comment = False
-          block_depth = 0
-          escaped = False
-          while i < len(s):
-              if in_line_comment:
-                  ch = s[i]
-                  out.append(ch)
-                  i += 1
-                  if ch == '\n':
-                      in_line_comment = False
-                  continue
-              if block_depth:
-                  if s.startswith('/*', i):
-                      block_depth += 1
-                      out.append('/*')
-                      i += 2
-                  elif s.startswith('*/', i):
-                      block_depth -= 1
-                      out.append('*/')
-                      i += 2
-                  else:
-                      out.append(s[i])
-                      i += 1
-                  continue
-              if not in_string and s.startswith('//', i):
-                  in_line_comment = True
-                  out.append('//')
-                  i += 2
-                  continue
-              if not in_string and s.startswith('/*', i):
-                  block_depth = 1
-                  out.append('/*')
-                  i += 2
-                  continue
-              if not in_string and s.startswith('"""', i):
-                  in_triple = not in_triple
-                  out.append('"""')
-                  i += 3
-                  continue
-              ch = s[i]
-              if in_triple:
-                  out.append(ch)
-                  i += 1
-                  continue
-              if in_string:
-                  out.append(ch)
-                  if escaped:
-                      escaped = False
-                  elif ch == '\\':
-                      escaped = True
-                  elif ch == '"':
-                      in_string = False
-                  i += 1
-                  continue
-              if ch == '"':
-                  in_string = True
-                  out.append(ch)
-                  i += 1
-                  continue
-              if ch == "'":
-                  # Kotlin character literals are one character or one escape.
-                  match = re.match(r"'(?:\\\\.|[^'\\\\])'", s[i:])
-                  if match:
-                      out.append(match.group(0))
-                      i += len(match.group(0))
-                      continue
-              if s.startswith(r'\n', i):
-                  out.append('\n')
-                  i += 2
-                  continue
-              out.append(ch)
-              i += 1
-          s = ''.join(out)
+          # Avoid rewriting Kotlin globally: string templates can contain nested expressions.
           p.write_text(s)
-          print("Normalized Kotlin source-generator newlines outside string literals.")
+          print("Applied only targeted multiline-string repairs.")
           PY
 
       - name: Add isolated LibVLC TrueHD passthrough test
