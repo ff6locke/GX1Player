@@ -1341,7 +1341,7 @@ jobs:
           import re
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
-          pattern = r"popupContent\\.addView\\(panel,\\s*android\\.widget\\.FrameLayout\\.LayoutParams\\(dp\\(316\\),\\s*-2,\\s*android\\.view\\.Gravity\\.TOP\\s+or\\s+android\\.view\\.Gravity\\.CENTER_HORIZONTAL\\)\\)"
+          pattern = r"popupContent[.]addView[(]panel,\\s*android[.]widget[.]FrameLayout[.]LayoutParams[(]dp[(]316[)],\\s*-2,\\s*android[.]view[.]Gravity[.]TOP\\s+or\\s+android[.]view[.]Gravity[.]CENTER_HORIZONTAL[)][)]"
           replacement = """val menuScroll = android.widget.ScrollView(this).apply {
                       isFillViewport = false
                       isVerticalScrollBarEnabled = true
