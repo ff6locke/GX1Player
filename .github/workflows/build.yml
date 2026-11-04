@@ -2857,36 +2857,48 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import re
-          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
-          s = p.read_text()
-          print("SOURCE_PREFIX_REPR", repr(s[:600]))
-          print("SOURCE_PHYSICAL_LINES", [(i + 1, len(line), repr(line[:180])) for i, line in enumerate(s.splitlines()[:8])])
-          # Earlier patch generators inserted real newlines inside Kotlin string literals.
-          s = re.sub(r'joinToString\("\s*\n\s*"\)', r'joinToString("\\n")', s)
-          s = re.sub(r'\.setMessage\(detail \+ "\s*\n\s*\nSelected: " \+', r'.setMessage(detail + "\\n\\nSelected: " +', s)
-          s = s.replace('secondSubtitleOverlay.elevation = 1000f', 'secondSubtitleOverlay.elevation = 1000.0f')
-          # Some generated patch blocks were written as one physical line with literal \\n separators.
-          # Split only long lines where the next chunk begins with a Kotlin statement/declaration.
-          starts = ("private ", "override ", "public ", "protected ", "internal ", "fun ", "val ", "var ",
-                    "if ", "else ", "when ", "return ", "try ", "catch ", "finally ", "for ", "while ",
-                    "class ", "object ", "data class ", "companion object ", "super.", "setContentView(",
-                    "startActivity(", "finish(", "player.", "subtitle", "secondSubtitle", "firstSubtitle",
-                    "menu", "window.", "prefs.", "builder.", "dialog.", "popup.")
-          repaired = []
-          for line in s.splitlines():
-              if len(line) > 1000 and r"\\n" in line:
-                  parts = line.split(r"\\n")
-                  rebuilt = parts[0]
-                  for part in parts[1:]:
-                      if part.lstrip().startswith(starts):
-                          rebuilt += "\\n" + part
-                      else:
-                          rebuilt += r"\\n" + part
-                  line = rebuilt
-              repaired.append(line)
-          s = "\n".join(repaired) + ("\n" if s.endswith("\n") else "")
-          p.write_text(s)
-          print("Applied targeted Kotlin string-literal repairs and split generated statement separators.")
+
+          path = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          source = path.read_text()
+
+          # Repair two Kotlin string literals that may contain accidental physical newlines.
+          source = re.sub(
+              r'joinToString\("\s*\n\s*"\)',
+              r'joinToString("\\n")',
+              source
+          )
+          source = re.sub(
+              r'\.setMessage\(detail \+ "\s*\n\s*\nSelected: " \+',
+              r'.setMessage(detail + "\\n\\nSelected: " +',
+              source
+          )
+          source = source.replace(
+              'secondSubtitleOverlay.elevation = 1000f',
+              'secondSubtitleOverlay.elevation = 1000.0f'
+          )
+
+          # Restore physical line breaks only on very long generated lines.
+          statement_starts = (
+              "private ", "override ", "public ", "protected ", "internal ",
+              "fun ", "val ", "var ", "if ", "else ", "when ", "return ",
+              "try ", "catch ", "finally ", "for ", "while ", "class ",
+              "object ", "data class ", "companion object ", "super.",
+              "setContentView(", "startActivity(", "finish(", "player.",
+              "subtitle", "secondSubtitle", "firstSubtitle", "menu",
+              "window.", "prefs.", "builder.", "dialog.", "popup."
+          )
+          output = []
+          for source_line in source.splitlines():
+              if len(source_line) > 1000 and r"\\n" in source_line:
+                  chunks = source_line.split(r"\\n")
+                  rebuilt = chunks[0]
+                  for chunk in chunks[1:]:
+                      separator = "\\n" if chunk.lstrip().startswith(statement_starts) else r"\\n"
+                      rebuilt += separator + chunk
+                  source_line = rebuilt
+              output.append(source_line)
+          path.write_text("\n".join(output) + ("\n" if source.endswith("\n") else ""))
+          print("Kotlin source normalisation completed.")
           PY
 
       - name: Add isolated LibVLC TrueHD passthrough test
