@@ -2951,6 +2951,132 @@ jobs:
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           echo "Skipping destructive whole-section replacement; preserve existing MainActivity methods."
+      - name: Restore complete TV home screen method boundary
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          start = s.find("private fun buildHomePanel")
+          end = s.find("private fun parseExternalSubtitle", start)
+          if start < 0 or end < 0:
+              raise SystemExit("Could not locate home-panel/parser boundaries")
+          # Replace only the damaged home-panel section; retain the subtitle parser and all later methods.
+          home = r"""private fun buildHomePanel(): LinearLayout {
+              val panel = LinearLayout(this).apply {
+                  orientation = LinearLayout.VERTICAL
+                  setPadding(56, 36, 56, 32)
+                  setBackgroundColor(Color.rgb(10, 14, 22))
+                  gravity = android.view.Gravity.CENTER_VERTICAL
+              }
+              val brand = TextView(this).apply {
+                  text = "GX1 PLAYER"
+                  textSize = 30f
+                  setTextColor(Color.WHITE)
+                  letterSpacing = 0.12f
+                  setTypeface(null, android.graphics.Typeface.BOLD)
+              }
+              panel.addView(brand)
+              val subtitle = TextView(this).apply {
+                  text = "Your movies. Your screen."
+                  textSize = 16f
+                  setTextColor(Color.LTGRAY)
+                  setPadding(0, 6, 0, 28)
+              }
+              panel.addView(subtitle)
+              val section = TextView(this).apply {
+                  text = "LIBRARY"
+                  textSize = 13f
+                  letterSpacing = 0.18f
+                  setTextColor(Color.rgb(255, 152, 0))
+                  setPadding(0, 0, 0, 12)
+              }
+              panel.addView(section)
+              val row = LinearLayout(this).apply {
+                  orientation = LinearLayout.HORIZONTAL
+                  gravity = android.view.Gravity.CENTER_VERTICAL
+              }
+              fun addTile(label: String, detail: String, action: () -> Unit) {
+                  val tile = LinearLayout(this).apply {
+                      orientation = LinearLayout.VERTICAL
+                      gravity = android.view.Gravity.CENTER
+                      isFocusable = true
+                      isFocusableInTouchMode = true
+                      setPadding(22, 20, 22, 20)
+                      background = GradientDrawable().apply {
+                          setColor(Color.rgb(27, 34, 47))
+                          cornerRadius = 18f
+                          setStroke(2, Color.rgb(58, 68, 84))
+                      }
+                      setOnClickListener { action() }
+                      setOnFocusChangeListener { v, focused ->
+                          v.background = GradientDrawable().apply {
+                              setColor(if (focused) Color.rgb(65, 42, 20) else Color.rgb(27, 34, 47))
+                              cornerRadius = 18f
+                              setStroke(if (focused) 4 else 2, if (focused) Color.rgb(255, 145, 0) else Color.rgb(58, 68, 84))
+                          }
+                      }
+                  }
+                  val title = TextView(this).apply {
+                      text = label
+                      textSize = 20f
+                      setTextColor(Color.WHITE)
+                      setTypeface(null, android.graphics.Typeface.BOLD)
+                  }
+                  val hint = TextView(this).apply {
+                      text = detail
+                      textSize = 13f
+                      setTextColor(Color.LTGRAY)
+                      setPadding(0, 8, 0, 0)
+                  }
+                  tile.addView(title)
+                  tile.addView(hint)
+                  row.addView(tile, LinearLayout.LayoutParams(0, 132, 1f).apply {
+                      setMargins(0, 0, 16, 0)
+                  })
+                  if (homeFirstTile == null) homeFirstTile = tile
+              }
+              addTile("Library", "Browse saved folders") { showGX1Library() }
+              addTile("Open video", "Browse files") {
+                  pickVideo.launch(arrayOf("video/*", "audio/*", "application/octet-stream", "application/x-matroska"))
+              }
+              addTile("Resume", "Continue watching") {
+                  val last = prefs.getString(KEY_LAST_URI, null)?.let { Uri.parse(it) }
+                  if (last != null) { selectMedia(last); startPlayer() }
+                  else Toast.makeText(this, "No previous video", Toast.LENGTH_SHORT).show()
+              }
+              addTile("History", "Recently played") { showHistory() }
+              panel.addView(row)
+              val footer = TextView(this).apply {
+                  text = "MENU  ·  Playback options     •     BACK  ·  Player menu"
+                  textSize = 13f
+                  setTextColor(Color.rgb(135, 148, 166))
+                  setPadding(0, 30, 0, 0)
+              }
+              panel.addView(footer)
+              panel.isFocusableInTouchMode = true
+              panel.descendantFocusability = android.view.ViewGroup.FOCUS_AFTER_DESCENDANTS
+              panel.post { homeFirstTile?.requestFocus() }
+              return panel
+          }
+
+          private fun showHome() {
+              if (!::homePanel.isInitialized) return
+              homePanel.visibility = View.VISIBLE
+              playerView.visibility = View.GONE
+              if (::menuButtonRef.isInitialized) menuButtonRef.visibility = View.GONE
+              homePanel.descendantFocusability = android.view.ViewGroup.FOCUS_AFTER_DESCENDANTS
+              homePanel.post { homeFirstTile?.requestFocus() }
+          }
+
+          """
+          s = s[:start] + home + s[end:]
+          p.write_text(s)
+          print("Restored complete buildHomePanel/showHome methods and preserved subtitle parser.")
+          PY
+
       - name: Normalize generated Kotlin strings before compilation
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
