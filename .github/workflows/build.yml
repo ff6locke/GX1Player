@@ -2092,16 +2092,22 @@ jobs:
           # The actual playback UI is the floating panel, not the legacy add() menu.
           # Route its Subtitle Track row to the built-in + custom unified selector.
           import re
-          # Match the actual generated floating gear-menu branch independent of indentation.
-          s, routed = re.subn(
-              r'(?ms)^([ \\t]*)"subtitle" -> AlertDialog\\.Builder\\(this\\)\\s*'
-              r'\\.setTitle\\("Load subtitles"\\).*?^\\1\\s*\\.show\\(\\)',
-              r'\\1"subtitle" -> showSubtitleTrackSelection()',
-              s,
-              count=1
-          )
-          if routed != 1 and '"subtitle" -> showSubtitleTrackSelection()' not in s:
-              raise SystemExit("Could not route the floating gear Subtitle Track action")
+          # Replace the complete floating gear-menu subtitle branch by its
+          # start/end lines. This avoids fragile escaping in a multiline regex.
+          lines = s.splitlines()
+          start = next((i for i, line in enumerate(lines)
+                        if '"subtitle" -> AlertDialog.Builder(this)' in line), None)
+          if start is None:
+              if '"subtitle" -> showSubtitleTrackSelection()' not in s:
+                  raise SystemExit("Could not find floating gear Subtitle Track action")
+          else:
+              end = next((i for i in range(start, len(lines))
+                          if '.show()' in lines[i]), None)
+              if end is None:
+                  raise SystemExit("Could not find end of floating gear subtitle dialog")
+              indent = lines[start][:len(lines[start]) - len(lines[start].lstrip())]
+              lines[start:end + 1] = [indent + '"subtitle" -> showSubtitleTrackSelection()']
+              s = "\\n".join(lines) + ("\\n" if s.endswith("\\n") else "")
 
           menu_anchor = '        add("Load Subtitle 1 (.srt / .ass)") {'
           menu_entry = '        add("Built-in subtitle tracks") { showSubtitleTrackSelection() }\n'
