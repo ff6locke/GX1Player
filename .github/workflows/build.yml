@@ -2689,21 +2689,14 @@ jobs:
               r'addTile\("Open video",\s*"Browse files"\)\s*\{\s*pickVideo\.launch\([^\n]*\)\s*\}',
               'addTile("Open video", "Browse internal or external SD card") { openVideoWithGX1Browser() }',
               s, count=1, flags=re.S)
-          if home_count != 1:
-              raise SystemExit(f"Expected one Open Video home tile to patch, found {home_count}")
+          print("Early home tile match count:", home_count, "(dashboard may be generated later)")
           s, menu_count = re.subn(
               r'add\("Open video file"\)\s*\{\s*pickVideo\.launch\([^\n]*\)\s*\}',
               'add("Open video file") { openVideoWithGX1Browser() }',
               s, count=1, flags=re.S)
-          if menu_count != 1:
-              raise SystemExit(f"Expected one playback-menu Open Video action to patch, found {menu_count}")
+          print("Early playback-menu match count:", menu_count)
           s = s.replace('chooseLibraryLocation() }', 'openVideoWithGX1Browser() }')
-          if 'addTile("Open video", "Browse internal or external SD card") { openVideoWithGX1Browser() }' not in s:
-              raise SystemExit("Open Video home tile was not redirected to GX1 browser")
-          if 'add("Open video file") { openVideoWithGX1Browser() }' not in s:
-              raise SystemExit("Playback menu Open Video was not redirected to GX1 browser")
-          if 'chooseLibraryLocation() }' in s:
-              raise SystemExit("Old system-picker route remains on the player Open Video button")
+          # Final route verification runs after later dashboard generation.
           # Resume the selected browser action after Android grants storage access.
           pending_property = "    private var pendingGX1FileAccessAction: (() -> Unit)? = null\n"
           if "private var pendingGX1FileAccessAction" not in s:
@@ -3399,6 +3392,24 @@ jobs:
               print(f"{i+1}: {lines[i]!r}")
           PY
 
+      - name: Finalize GX1 Open Video routes after home UI generation
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          s, home_n = re.subn(r'addTile\("Open video",\s*"[^"]*"\)\s*\{\s*pickVideo\.launch\(.*?\)\s*\}',
+                             'addTile("Open video", "Browse internal or external SD card") { openVideoWithGX1Browser() }', s, count=1, flags=re.S)
+          s, menu_n = re.subn(r'add\("Open video file"\)\s*\{\s*pickVideo\.launch\(.*?\)\s*\}',
+                             'add("Open video file") { openVideoWithGX1Browser() }', s, count=1, flags=re.S)
+          s = s.replace('chooseLibraryLocation() }', 'openVideoWithGX1Browser() }')
+          if home_n != 1: raise SystemExit(f"Expected one final Open Video home tile, found {home_n}")
+          if menu_n != 1: raise SystemExit(f"Expected one final playback-menu Open Video action, found {menu_n}")
+          p.write_text(s)
+          print("Final GX1 browser routes applied:", home_n, menu_n)
+          PY
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
         env:
