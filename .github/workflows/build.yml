@@ -2949,10 +2949,12 @@ jobs:
           }
 
           """
-          pattern = r'(?ms)^\s*private fun buildHomePanel\(\): LinearLayout \{.*?(?=^\s*private fun parseExternalSubtitle\()'
-          s, count = re.subn(pattern, replacement, s, count=1)
-          if count != 1:
-              raise SystemExit("Could not isolate malformed home-screen method block")
+          start = s.find("private fun buildHomePanel(): LinearLayout {")
+          end = s.find("private fun parseExternalSubtitle(", start + 1) if start >= 0 else -1
+          if start < 0 or end < 0:
+              raise SystemExit("Could not locate home-screen and subtitle parser boundaries")
+          line_start = s.rfind("\\n", 0, start) + 1
+          s = s[:line_start] + replacement + s[end:]
           p.write_text(s)
           print("Rebuilt the complete home-screen methods and restored MainActivity scope.")
           PY
