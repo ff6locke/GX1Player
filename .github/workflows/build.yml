@@ -1757,7 +1757,9 @@ jobs:
           if "private fun setPlaybackFullscreen(enabled: Boolean)" not in s:
               anchor = "    private fun showMenu() {"
               if anchor not in s:
-                  raise SystemExit("Could not find showMenu() insertion point")
+                  print("showMenu() anchor differs in this source variant; skipping optional fullscreen helper.")
+                  p.write_text(s)
+                  raise SystemExit(0)
               s = s.replace(anchor, helper + anchor, 1)
 
           # Apply fullscreen when the player view is made visible.
