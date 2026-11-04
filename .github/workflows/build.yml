@@ -2877,14 +2877,78 @@ jobs:
               'secondSubtitleOverlay.elevation = 1000.0f'
           )
 
-          # Generated Kotlin patches encode source line breaks as two literal
-          # backslashes followed by n. Restore every such delimiter consistently;
-          # heuristic statement matching left many Kotlin expressions malformed.
-          source = source.replace(r"\\n", "\n")
-          path.write_text(source + ("\n" if not source.endswith("\n") else ""))
-          print("Kotlin source normalisation completed.")
-          PY
-      - name: Add isolated LibVLC TrueHD passthrough test
+          # Decode generated line-break markers only outside Kotlin literals.
+          # Keep escaped newline sequences such as "\\n" inside strings intact.
+          out = []
+          i = 0
+          in_string = False
+          in_triple = False
+          in_char = False
+          in_line_comment = False
+          while i < len(source):
+              if in_line_comment:
+                  ch = source[i]
+                  out.append(ch)
+                  if ch == "\\n":
+                      in_line_comment = False
+                  i += 1
+                  continue
+              if in_triple:
+                  if source.startswith('"""', i):
+                      out.append('"""')
+                      i += 3
+                      in_triple = False
+                  else:
+                      out.append(source[i])
+                      i += 1
+                  continue
+              if in_string or in_char:
+                  ch = source[i]
+                  out.append(ch)
+                  if ch == "\\\\" and i + 1 < len(source):
+                      out.append(source[i + 1])
+                      i += 2
+                      continue
+                  if in_string and ch == '"':
+                      in_string = False
+                  elif in_char and ch == "'":
+                      in_char = False
+                  i += 1
+                  continue
+              if source.startswith("//", i):
+                  out.append("//")
+                  i += 2
+                  in_line_comment = True
+                  continue
+              if source.startswith('"""', i):
+                  out.append('"""')
+                  i += 3
+                  in_triple = True
+                  continue
+              if source[i] == '"':
+                  out.append('"')
+                  i += 1
+                  in_string = True
+                  continue
+              if source[i] == "'":
+                  out.append("'")
+                  i += 1
+                  in_char = True
+                  continue
+              if source.startswith(r"\\\\n", i):
+                  out.append("\\n")
+                  i += 3
+                  continue
+              if source.startswith(r"\\n", i):
+                  out.append("\\n")
+                  i += 2
+                  continue
+              out.append(source[i])
+              i += 1
+          normalized = "".join(out)
+          path.write_text(normalized + ("\\n" if not normalized.endswith("\\n") else ""))
+          print("Kotlin source normalization completed with string literals preserved.")
+          PY      - name: Add isolated LibVLC TrueHD passthrough test
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
