@@ -2878,7 +2878,7 @@ jobs:
           )
 
           # Decode generated line-break markers only outside Kotlin literals.
-          # Keep escaped newline sequences such as "\\n" inside strings intact.
+          # Escaped \n sequences inside quoted Kotlin strings must remain untouched.
           out = []
           i = 0
           in_string = False
@@ -2889,7 +2889,7 @@ jobs:
               if in_line_comment:
                   ch = source[i]
                   out.append(ch)
-                  if ch == "\\n":
+                  if ch == "\n":
                       in_line_comment = False
                   i += 1
                   continue
@@ -2905,7 +2905,7 @@ jobs:
               if in_string or in_char:
                   ch = source[i]
                   out.append(ch)
-                  if ch == "\\\\" and i + 1 < len(source):
+                  if ch == "\\" and i + 1 < len(source):
                       out.append(source[i + 1])
                       i += 2
                       continue
@@ -2935,20 +2935,21 @@ jobs:
                   i += 1
                   in_char = True
                   continue
-              if source.startswith(r"\\\\n", i):
-                  out.append("\\n")
+              if source.startswith(r"\\n", i):
+                  out.append("\n")
                   i += 3
                   continue
-              if source.startswith(r"\\n", i):
-                  out.append("\\n")
+              if source.startswith(r"\n", i):
+                  out.append("\n")
                   i += 2
                   continue
               out.append(source[i])
               i += 1
           normalized = "".join(out)
-          path.write_text(normalized + ("\\n" if not normalized.endswith("\\n") else ""))
+          path.write_text(normalized + ("\n" if not normalized.endswith("\n") else ""))
           print("Kotlin source normalization completed with string literals preserved.")
-          PY      - name: Add isolated LibVLC TrueHD passthrough test
+          PY
+      - name: Add isolated LibVLC TrueHD passthrough test
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
