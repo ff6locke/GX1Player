@@ -295,6 +295,33 @@ jobs:
           print("Verified mutually exclusive renderer branches: passthrough On uses PassthroughRenderersFactory; Off uses PcmRenderersFactory.")
           PY
 
+      - name: Wire TrueHD MAT carrier into passthrough playback
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          set -euo pipefail
+          TARGET="app/src/main/java/com/example/gx1player/audio"
+          mkdir -p "$TARGET"
+          cp "$GITHUB_WORKSPACE/app/src/main/java/com/example/gx1player/audio/TrueHdCarrierRenderersFactory.kt" "$TARGET/TrueHdCarrierRenderersFactory.kt"
+          test -s "$TARGET/TrueHdCarrierRenderersFactory.kt"
+          grep -q 'class TrueHdCarrierRenderersFactory' "$TARGET/TrueHdCarrierRenderersFactory.kt"
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          import_line = "import com.example.gx1player.audio.TrueHdCarrierRenderersFactory"
+          if import_line not in s:
+              s = s.replace("package com.example.gx1player", "package com.example.gx1player\n\n" + import_line, 1)
+          old = "PassthroughRenderersFactory(this)"
+          if old not in s:
+              raise SystemExit("Could not find passthrough renderer selection")
+          s = s.replace(old, "TrueHdCarrierRenderersFactory(this)", 1)
+          if "TrueHdCarrierRenderersFactory(this)" not in s:
+              raise SystemExit("TrueHD carrier renderer was not selected")
+          p.write_text(s)
+          print("TrueHD MAT carrier sink is connected only to the passthrough-enabled renderer branch.")
+          PY
+          echo "TrueHD MAT carrier renderer source installed."
+
       - name: Inspect passthrough renderer and audio configuration
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
