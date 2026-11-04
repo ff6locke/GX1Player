@@ -3106,7 +3106,11 @@ jobs:
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           lines = p.read_text().splitlines()
-          for i in range(1350, min(1510, len(lines))):
+          print("=== NORMALIZED KOTLIN: lines 1-180 ===")
+          for i in range(0, min(180, len(lines))):
+              print(f"{i+1}: {lines[i]!r}")
+          print("=== NORMALIZED KOTLIN: lines 700-820 ===")
+          for i in range(699, min(820, len(lines))):
               print(f"{i+1}: {lines[i]!r}")
           PY
 
