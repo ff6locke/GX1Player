@@ -2859,6 +2859,8 @@ jobs:
           import re
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
+          print("SOURCE_PREFIX_REPR", repr(s[:600]))
+          print("SOURCE_PHYSICAL_LINES", [(i + 1, len(line), repr(line[:180])) for i, line in enumerate(s.splitlines()[:8])])
           # Earlier patch generators inserted real newlines inside Kotlin string literals.
           s = re.sub(r'joinToString\("\s*\n\s*"\)', r'joinToString("\\n")', s)
           s = re.sub(r'\.setMessage\(detail \+ "\s*\n\s*\nSelected: " \+', r'.setMessage(detail + "\\n\\nSelected: " +', s)
