@@ -3125,6 +3125,9 @@ jobs:
           print("=== NORMALIZED KOTLIN: lines 1080-1340 ===")
           for i in range(1079, min(1340, len(lines))):
               print(f"{i+1}: {lines[i]!r}")
+          print("=== NORMALIZED KOTLIN: lines 1780-1920 ===")
+          for i in range(1779, min(1920, len(lines))):
+              print(f"{i+1}: {lines[i]!r}")
           PY
 
       - name: Build APK
