@@ -2865,9 +2865,17 @@ jobs:
           s = re.sub(r'joinToString\("\s*\n\s*"\)', r'joinToString("\\n")', s)
           s = re.sub(r'\.setMessage\(detail \+ "\s*\n\s*\nSelected: " \+', r'.setMessage(detail + "\\n\\nSelected: " +', s)
           s = s.replace('secondSubtitleOverlay.elevation = 1000f', 'secondSubtitleOverlay.elevation = 1000.0f')
-          # Avoid rewriting Kotlin globally: string templates can contain nested expressions.
+          # Some generated patch blocks were written as one physical line with literal \\n separators.
+          # Split only long physical lines, and only where the escaped newline is followed by a Kotlin statement/declaration.
+          statement = re.compile(r'\\\\n(?=[ \\t]*(?:private|override|public|protected|internal|fun|val|var|if|else|when|return|try|catch|finally|for|while|class|object|data\\s+class|companion\\s+object|super\\.|setContentView|startActivity|finish\\(|player\\.|subtitle|secondSubtitle|firstSubtitle|menu|window\\.|prefs\\.|builder\\.|dialog\\.|popup\\.)\\b)')
+          repaired = []
+          for line in s.splitlines():
+              if len(line) > 1000:
+                  line = statement.sub('\\n', line)
+              repaired.append(line)
+          s = "\\n".join(repaired) + ("\\n" if s.endswith("\\n") else "")
           p.write_text(s)
-          print("Applied only targeted multiline-string repairs.")
+          print("Applied targeted Kotlin string-literal repairs and split generated statement separators.")
           PY
 
       - name: Add isolated LibVLC TrueHD passthrough test
