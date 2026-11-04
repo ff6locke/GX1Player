@@ -3402,7 +3402,7 @@ jobs:
           s = p.read_text()
           s, home_n = re.subn(r'addTile\("Open video",\s*"[^"]*"\)\s*\{\s*pickVideo\.launch\(.*?\)\s*\}',
                              'addTile("Open video", "Browse internal or external SD card") { openVideoWithGX1Browser() }', s, count=1, flags=re.S)
-          s, menu_n = re.subn(r'add\("Open video file"\)\s*\{\s*pickVideo\.launch\(.*?\)\s*\}',
+          s, menu_n = re.subn(r'add\("Open video file"\)\s*\{\s*(?:pickVideo\.launch\(.*?\)|chooseLibraryLocation\(\)|openVideoWithGX1Browser\(\))\s*\}',
                              'add("Open video file") { openVideoWithGX1Browser() }', s, count=1, flags=re.S)
           s = s.replace('chooseLibraryLocation() }', 'openVideoWithGX1Browser() }')
           if home_n != 1: raise SystemExit(f"Expected one final Open Video home tile, found {home_n}")
