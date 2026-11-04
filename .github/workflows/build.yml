@@ -1929,7 +1929,7 @@ jobs:
                   labels.add("Off")
                   for (group in textGroups) {
                       for (index in 0 until group.length) {
-                          if (!group.isTrackSupported(index)) continue
+                          val supported = group.isTrackSupported(index)
                           val format = group.getTrackFormat(index)
                           val language = format.language
                               ?.takeIf { it.isNotBlank() && it != "und" }
