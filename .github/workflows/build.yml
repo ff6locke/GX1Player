@@ -36,6 +36,15 @@ jobs:
           unzip -oq "$ZIP_FILE" -d .
           test -f "$PROJECT_DIR/settings.gradle.kts"
 
+      - name: Add TrueHD MAT packetizer source
+        run: |
+          TARGET="$PROJECT_DIR/app/src/main/java/com/example/gx1player/audio"
+          mkdir -p "$TARGET"
+          cp app/src/main/java/com/example/gx1player/audio/TrueHdMatPacker.kt "$TARGET/TrueHdMatPacker.kt"
+          test -s "$TARGET/TrueHdMatPacker.kt"
+          grep -q 'class TrueHdMatPacker' "$TARGET/TrueHdMatPacker.kt"
+          echo "Added TrueHD MAT/IEC 61937 packetizer source."
+
       - name: Align Kotlin Gradle plugin with resolved Kotlin libraries
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
