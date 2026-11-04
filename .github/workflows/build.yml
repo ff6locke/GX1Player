@@ -2684,14 +2684,19 @@ jobs:
           s = re.sub(r'addTab\("Change folder", false\)\s*\{[^}]*\}',
                      'addTab("Change folder", false) { chooseGX1LibraryFolder() }', s)
           # Route every Open Video entry point through the GX1 in-app browser.
-          # The earlier broad regex used count=0 (which performs no replacements),
-          # so patch the exact home tile and menu action explicitly and verify them.
-          s = s.replace('''              addTile("Open video", "Browse files") {
-                          pickVideo.launch(arrayOf("video/*", "audio/*", "application/octet-stream", "application/x-matroska"))
-                      }''',
-                        '              addTile("Open video", "Browse internal or external SD card") { openVideoWithGX1Browser() }')
-          s = s.replace('''        add("Open video file") { pickVideo.launch(arrayOf("video/*", "audio/*")) }''',
-                        '        add("Open video file") { openVideoWithGX1Browser() }')
+          # Match whitespace flexibly because the Kotlin source is nested in this workflow's heredoc.
+          s, home_count = re.subn(
+              r'addTile\("Open video",\s*"Browse files"\)\s*\{\s*pickVideo\.launch\([^\n]*\)\s*\}',
+              'addTile("Open video", "Browse internal or external SD card") { openVideoWithGX1Browser() }',
+              s, count=1, flags=re.S)
+          if home_count != 1:
+              raise SystemExit(f"Expected one Open Video home tile to patch, found {home_count}")
+          s, menu_count = re.subn(
+              r'add\("Open video file"\)\s*\{\s*pickVideo\.launch\([^\n]*\)\s*\}',
+              'add("Open video file") { openVideoWithGX1Browser() }',
+              s, count=1, flags=re.S)
+          if menu_count != 1:
+              raise SystemExit(f"Expected one playback-menu Open Video action to patch, found {menu_count}")
           s = s.replace('chooseLibraryLocation() }', 'openVideoWithGX1Browser() }')
           if 'addTile("Open video", "Browse internal or external SD card") { openVideoWithGX1Browser() }' not in s:
               raise SystemExit("Open Video home tile was not redirected to GX1 browser")
