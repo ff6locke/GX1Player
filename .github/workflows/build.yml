@@ -1,5 +1,5 @@
 name: Build GX1 Player APK
-# Re-run after correcting the MKV URI and extractor configuration
+# Re-run after correcting the MKV URI, extractor configuration, and TrueHD carrier imports
 
 on:
   push:
