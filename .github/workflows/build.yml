@@ -260,7 +260,7 @@ jobs:
                   enableAudioOutputPlaybackParams: Boolean
               ): AudioSink {
                   return DefaultAudioSink.Builder()
-                      .setAudioCapabilities(AudioCapabilities.DEFAULT_AUDIO_CAPABILITIES)
+                      .setAudioCapabilities(AudioCapabilities(intArrayOf(android.media.AudioFormat.ENCODING_PCM_16BIT), 8))
                       .setEnableFloatOutput(enableFloatOutput)
                       .setEnableAudioOutputPlaybackParameters(enableAudioOutputPlaybackParams)
                       .build()
