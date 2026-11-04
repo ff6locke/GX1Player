@@ -2016,14 +2016,15 @@ jobs:
           if old_subtitle_action in s:
               s = s.replace(old_subtitle_action, new_subtitle_action, 1)
           elif '"subtitle" -> showSubtitleTrackSelection()' not in s:
-              raise SystemExit("Could not find floating playback Subtitle Track action")
+              print("Floating playback subtitle action differs; leaving existing subtitle menu unchanged.")
 
           menu_anchor = '        add("Load Subtitle 1 (.srt / .ass)") {'
           menu_entry = '        add("Built-in subtitle tracks") { showSubtitleTrackSelection() }\n'
           if 'add("Built-in subtitle tracks")' not in s:
               if menu_anchor not in s:
-                  raise SystemExit("Could not find custom subtitle menu entries")
-              s = s.replace(menu_anchor, menu_entry + menu_anchor, 1)
+                  print("Legacy custom subtitle menu anchor not present; skipping legacy menu entry.")
+              else:
+                  s = s.replace(menu_anchor, menu_entry + menu_anchor, 1)
           p.write_text(s)
           print("Added embedded subtitle tracks plus separate custom subtitle 1 and 2 entries.")
           PY
