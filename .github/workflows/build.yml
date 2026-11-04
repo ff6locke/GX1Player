@@ -1244,13 +1244,7 @@ jobs:
                                       .setItems(speeds) { _, which -> player?.setPlaybackSpeed(values[which]) }.show()
                               }
                               "audio" -> Toast.makeText(this, "Choose an audio track from the available player tracks.", Toast.LENGTH_SHORT).show()
-                              "subtitle" -> AlertDialog.Builder(this)
-                                  .setTitle("Load subtitles")
-                                  .setItems(arrayOf("Load subtitle 1", "Load subtitle 2")) { _, which ->
-                                      val types = arrayOf("application/x-subrip", "text/vtt", "text/plain", "application/octet-stream")
-                                      if (which == 0) pickSubtitle.launch(types) else pickSubtitle2.launch(types)
-                                  }
-                                  .show()
+                              "subtitle" -> showSubtitleTrackSelection()
                               "aspect" -> {
                                   val modes = intArrayOf(
                                       androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT,
