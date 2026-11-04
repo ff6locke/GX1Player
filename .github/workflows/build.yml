@@ -1338,24 +1338,26 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
-          pattern = r"popupContent[.]addView[(]panel,\\s*android[.]widget[.]FrameLayout[.]LayoutParams[(]dp[(]316[)],\\s*-2,\\s*android[.]view[.]Gravity[.]TOP\\s+or\\s+android[.]view[.]Gravity[.]CENTER_HORIZONTAL[)][)]"
-          replacement = """val menuScroll = android.widget.ScrollView(this).apply {
-                      isFillViewport = false
-                      isVerticalScrollBarEnabled = true
-                      isScrollbarFadingEnabled = false
-                      overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
-                      descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
-                  }
-                  menuScroll.addView(panel, android.widget.ScrollView.LayoutParams(dp(316), -2))
-                  popupContent.addView(menuScroll, android.widget.FrameLayout.LayoutParams(dp(316), dp(336),
-                      android.view.Gravity.TOP or android.view.Gravity.CENTER_HORIZONTAL))"""
-          s, count = re.subn(pattern, lambda _: replacement, s, count=1)
-          if count != 1:
-              raise SystemExit("Could not match gear popup panel layout; found " + str(count))
-          p.write_text(s)
+          lines = s.splitlines()
+          i = next((i for i, line in enumerate(lines) if "popupContent.addView(panel," in line), -1)
+          if i < 0 or "FrameLayout.LayoutParams" not in lines[i] or i + 2 >= len(lines):
+              raise SystemExit("Could not find gear popup panel layout")
+          replacement = [
+              "                  val menuScroll = android.widget.ScrollView(this).apply {",
+              "                      isFillViewport = false",
+              "                      isVerticalScrollBarEnabled = true",
+              "                      isScrollbarFadingEnabled = false",
+              "                      overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS",
+              "                      descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS",
+              "                  }",
+              "                  menuScroll.addView(panel, android.widget.ScrollView.LayoutParams(dp(316), -2))",
+              "                  popupContent.addView(menuScroll, android.widget.FrameLayout.LayoutParams(dp(316), dp(336),",
+              "                      android.view.Gravity.TOP or android.view.Gravity.CENTER_HORIZONTAL))"
+          ]
+          lines[i:i+3] = replacement
+          p.write_text("\\n".join(lines) + "\\n")
           print("Gear menu now scrolls vertically and keeps Settings reachable.")
           PY
 
