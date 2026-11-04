@@ -1356,7 +1356,7 @@ jobs:
               "                  popupContent.addView(menuScroll, android.widget.FrameLayout.LayoutParams(dp(316), dp(336),",
               "                      android.view.Gravity.TOP or android.view.Gravity.CENTER_HORIZONTAL))"
           ]
-          lines[i:i+3] = replacement
+          lines[i:i+2] = replacement
           p.write_text("\\n".join(lines) + "\\n")
           print("Gear menu now scrolls vertically and keeps Settings reachable.")
           PY
