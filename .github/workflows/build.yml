@@ -1806,7 +1806,7 @@ jobs:
                   labels.add("Auto (default)")
                   for (group in audioGroups) {
                       for (index in 0 until group.length) {
-                          if (!group.isTrackSupported(index)) continue
+                          val supported = group.isTrackSupported(index)
                           val format = group.getTrackFormat(index)
                           val language = format.language
                               ?.takeIf { it.isNotBlank() && it != "und" }
@@ -1940,7 +1940,8 @@ jobs:
                               language
                           ).distinct().joinToString(" · ")
                           // Never expose internal MIME names such as x-media3-cues in the subtitle list.
-                          labels.add(if (details.isBlank()) "Embedded subtitle ${choices.size + 1}" else details)
+                          val trackName = if (details.isBlank()) "Embedded subtitle ${choices.size + 1}" else details
+                          labels.add(trackName + if (supported) "" else " (unsupported by current decoder)")
                           choices.add(group.mediaTrackGroup to index)
                       }
                   }
@@ -1949,7 +1950,6 @@ jobs:
                       var found = 0
                       loop@ for (group in textGroups) {
                           for (index in 0 until group.length) {
-                              if (!group.isTrackSupported(index)) continue
                               if (group.isTrackSelected(index)) {
                                   found = flat + 1
                                   break@loop
@@ -1976,6 +1976,11 @@ jobs:
                               }
                               which <= choices.size -> {
                                   val (trackGroup, trackIndex) = choices[which - 1]
+                                  val selectedGroup = textGroups.firstOrNull { it.mediaTrackGroup === trackGroup }
+                                  if (selectedGroup != null && !selectedGroup.isTrackSupported(trackIndex)) {
+                                      Toast.makeText(this, "This embedded subtitle format is not supported by the current decoder.", Toast.LENGTH_LONG).show()
+                                      return@setSingleChoiceItems
+                                  }
                                   val params = exo.trackSelectionParameters.buildUpon()
                                       .clearOverridesOfType(androidx.media3.common.C.TRACK_TYPE_TEXT)
                                       .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, false)
