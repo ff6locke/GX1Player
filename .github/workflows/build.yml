@@ -2882,7 +2882,7 @@ jobs:
               "private ", "override ", "public ", "protected ", "internal ",
               "fun ", "val ", "var ", "if ", "else ", "when ", "return ",
               "try ", "catch ", "finally ", "for ", "while ", "class ",
-              "object ", "data class ", "companion object ", "super.",
+              "object ", "data class ", "companion object ", "super.", "}", ")",
               "setContentView(", "startActivity(", "finish(", "player.",
               "subtitle", "secondSubtitle", "firstSubtitle", "menu",
               "window.", "prefs.", "builder.", "dialog.", "popup."
