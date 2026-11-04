@@ -683,7 +683,7 @@ jobs:
                       try { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: Exception) {}
                   }
                   prefs.edit().putString("library_tree_uri", uri.toString()).apply()
-                  showLibraryHub("All")
+                  showGX1Library()
               }
           }
           private fun chooseLibraryLocation() {
@@ -1352,7 +1352,7 @@ jobs:
               "                      overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS",
               "                      descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS",
               "                  }",
-              "                  menuScroll.addView(panel, android.widget.ScrollView.LayoutParams(dp(316), -2))",
+              "                  menuScroll.addView(panel, android.widget.FrameLayout.LayoutParams(dp(316), -2))",
               "                  popupContent.addView(menuScroll, android.widget.FrameLayout.LayoutParams(dp(316), dp(336),",
               "                      android.view.Gravity.TOP or android.view.Gravity.CENTER_HORIZONTAL))"
           ]
@@ -2953,8 +2953,10 @@ jobs:
           end = s.find("private fun parseExternalSubtitle(", start + 1) if start >= 0 else -1
           if start < 0 or end < 0:
               raise SystemExit("Could not locate home-screen and subtitle parser boundaries")
-          line_start = s.rfind("\\n", 0, start) + 1
+          line_start = s.rfind("\n", 0, start) + 1
           s = s[:line_start] + replacement + s[end:]
+          if "import android.view.ViewGroup" not in s:
+              s = s.replace("import android.view.KeyEvent", "import android.view.KeyEvent\\nimport android.view.ViewGroup", 1)
           p.write_text(s)
           print("Rebuilt the complete home-screen methods and restored MainActivity scope.")
           PY
