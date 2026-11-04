@@ -3052,6 +3052,17 @@ jobs:
           print("Added isolated LibVLC test activity, HDMI digital output detection, and menu entry.")
           PY
 
+      - name: Diagnose normalized Kotlin around compiler failure
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          lines = p.read_text().splitlines()
+          for i in range(1270, min(1380, len(lines))):
+              print(f"{i+1}: {lines[i]!r}")
+          PY
+
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
         env:
