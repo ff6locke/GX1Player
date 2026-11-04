@@ -2469,6 +2469,21 @@ jobs:
             echo "BUILD_KIND=debug" >> "$GITHUB_ENV"
           fi
 
+      - name: Add Maven Central mirror for dependency resolution
+        run: |
+          mkdir -p "$HOME/.gradle/init.d"
+          cat > "$HOME/.gradle/init.d/maven-central-mirror.gradle" <<'GRADLE'
+          def mirrorUrl = "https://maven-central.storage-download.googleapis.com/maven2/"
+          gradle.beforeProject { project ->
+              project.buildscript.repositories {
+                  maven { url = uri(mirrorUrl) }
+              }
+              project.repositories {
+                  maven { url = uri(mirrorUrl) }
+              }
+          }
+          GRADLE
+
       - name: Generate Gradle wrapper
         working-directory: ${{ env.PROJECT_DIR }}
         run: gradle wrapper --gradle-version "$GRADLE_VERSION" --no-daemon
