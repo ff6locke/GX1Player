@@ -1914,10 +1914,8 @@ jobs:
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
-          old = """                  val audioGroups = exo.currentTracks.groups.filter {
-                      it.type == androidx.media3.common.C.TRACK_TYPE_AUDIO
-                  }
-                  val choices = mutableListOf<Pair<androidx.media3.common.TrackGroup, Int>>()"""
+          import re
+          pattern = r'(?m)^\s*val audioGroups = exo\.currentTracks\.groups\.filter \{\s*it\.type == androidx\.media3\.common\.C\.TRACK_TYPE_AUDIO\s*\}\s*val choices = mutableListOf<Pair<androidx\.media3\.common\.TrackGroup, Int>>\(\)'
           new = """                  val allGroups = exo.currentTracks.groups
                   val audioGroups = allGroups.filter {
                       it.type == androidx.media3.common.C.TRACK_TYPE_AUDIO
@@ -1946,14 +1944,12 @@ jobs:
                       return
                   }
                   val choices = mutableListOf<Pair<androidx.media3.common.TrackGroup, Int>>()"""
-          if old not in s:
-              raise SystemExit("Could not find audio selector insertion point; refusing to change unrelated code")
-          s = s.replace(old, new, 1)
+          s, n = re.subn(pattern, new, s, count=1)
+          if n != 1:
+              raise SystemExit("Could not locate audio selector with whitespace-tolerant match")
           p.write_text(s)
 
-          # RockTek GX1 is an ARM64 Android TV target. LibVLC ships very large
-          # native libraries for several unrelated CPU architectures; package only
-          # the device ABI to avoid bundling x86 and 32-bit native binaries.
+          # Restrict native packaging to the ARM64 RockTek GX1 target.
           gradle = Path("app/build.gradle.kts")
           g = gradle.read_text()
           if "abiFilters" not in g:
