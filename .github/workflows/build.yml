@@ -2683,8 +2683,22 @@ jobs:
           # Replace the old Android Storage Access Framework folder chooser route.
           s = re.sub(r'addTab\("Change folder", false\)\s*\{[^}]*\}',
                      'addTab("Change folder", false) { chooseGX1LibraryFolder() }', s)
-          # Existing Library entry points must use the GX1 browser, not Android's picker.
-          s = s.replace('chooseLibraryLocation() }', 'chooseGX1LibraryFolder() }') if False else s
+          # Route every Open Video entry point through the GX1 in-app browser.
+          # The earlier broad regex used count=0 (which performs no replacements),
+          # so patch the exact home tile and menu action explicitly and verify them.
+          s = s.replace('''              addTile("Open video", "Browse files") {
+                          pickVideo.launch(arrayOf("video/*", "audio/*", "application/octet-stream", "application/x-matroska"))
+                      }''',
+                        '              addTile("Open video", "Browse internal or external SD card") { openVideoWithGX1Browser() }')
+          s = s.replace('''        add("Open video file") { pickVideo.launch(arrayOf("video/*", "audio/*")) }''',
+                        '        add("Open video file") { openVideoWithGX1Browser() }')
+          s = s.replace('chooseLibraryLocation() }', 'openVideoWithGX1Browser() }')
+          if 'addTile("Open video", "Browse internal or external SD card") { openVideoWithGX1Browser() }' not in s:
+              raise SystemExit("Open Video home tile was not redirected to GX1 browser")
+          if 'add("Open video file") { openVideoWithGX1Browser() }' not in s:
+              raise SystemExit("Playback menu Open Video was not redirected to GX1 browser")
+          if 'chooseLibraryLocation() }' in s:
+              raise SystemExit("Old system-picker route remains on the player Open Video button")
           # Resume the selected browser action after Android grants storage access.
           pending_property = "    private var pendingGX1FileAccessAction: (() -> Unit)? = null\n"
           if "private var pendingGX1FileAccessAction" not in s:
