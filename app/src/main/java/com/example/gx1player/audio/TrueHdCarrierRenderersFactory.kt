@@ -14,7 +14,6 @@ import androidx.media3.exoplayer.audio.AudioTrackAudioOutputProvider
 import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioTrackBufferSizeProvider
 import android.media.AudioDeviceInfo
-import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.AuxEffectInfo
 import androidx.media3.common.C
@@ -22,7 +21,6 @@ import androidx.media3.common.Format
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.util.Clock
-import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.analytics.PlayerId
 import androidx.media3.exoplayer.audio.AudioSink
 import java.nio.ByteBuffer
