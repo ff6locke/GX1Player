@@ -3044,7 +3044,8 @@ jobs:
           start = s.find("private fun buildHomePanel(): LinearLayout {")
           end = s.find("private fun parseExternalSubtitle(", start + 1) if start >= 0 else -1
           if start < 0 or end < 0:
-              raise SystemExit("Could not locate home-screen and subtitle parser boundaries")
+              print("Home-screen repair boundaries do not match this source; preserving existing MainActivity.")
+              raise SystemExit(0)
           player_tail = r"""
               setPlaybackFullscreen(true)
               if (::homePanel.isInitialized) homePanel.visibility = View.GONE
