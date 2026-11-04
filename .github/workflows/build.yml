@@ -2885,12 +2885,19 @@ jobs:
               "object ", "data class ", "companion object ", "super.", "import ", "}", ")",
               "setContentView(", "startActivity(", "finish(", "player.",
               "subtitle", "secondSubtitle", "firstSubtitle", "menu",
-              "window.", "prefs.", "builder.", "dialog.", "popup."
+              "window.", "prefs.", "builder.", "dialog.", "popup.",
+              "orientation", "gravity", "setPadding(", "minimumHeight", "isClickable",
+              "isFocusable", "background", "setColor(", "cornerRadius", "row.addView",
+              "text =", "setTextColor(", "textSize", "layoutParams", "when (",
+              '"speed" ->', '"audio" ->', '"subtitle" ->', '"aspect" ->', '"sleep" ->',
+              '"settings" ->', "AlertDialog.", "Toast.", "android.", "val ", "private val "
           )
           output = []
           for source_line in source.splitlines():
-              if r"\n" in source_line or r"\\n" in source_line:
-                  delimiter = r"\n" if r"\n" in source_line else r"\\n"
+              if r"\\n" in source_line or r"\n" in source_line:
+                  # Prefer the two-backslash encoding used by generated Kotlin blocks.
+                  # Testing the one-backslash form first incorrectly matches inside it.
+                  delimiter = r"\\n" if r"\\n" in source_line else r"\n"
                   chunks = source_line.split(delimiter)
                   rebuilt = chunks[0]
                   for chunk in chunks[1:]:
