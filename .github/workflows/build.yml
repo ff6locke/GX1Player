@@ -4467,9 +4467,13 @@ jobs:
           anchor = "if (playbackOverlay == null)"
           if anchor not in s:
               raise SystemExit("Could not find playback overlay null-check")
-          listener = """playerView.setControllerVisibilityListener { visibility ->
-                      playbackTitle.visibility = visibility
-                  }
+          listener = """playerView.setControllerVisibilityListener(
+                      object : androidx.media3.ui.PlayerView.ControllerVisibilityListener {
+                          override fun onVisibilityChanged(visibility: Int) {
+                              playbackTitle.visibility = visibility
+                          }
+                      }
+                  )
                   """
           if "setControllerVisibilityListener" not in s:
               s = s.replace(anchor, listener + anchor, 1)
