@@ -4252,15 +4252,16 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import re
+          nl = chr(10)
           p = Path("app/build.gradle.kts")
           s = p.read_text()
           if 'abiFilters += setOf("arm64-v8a")' not in s:
-              marker = '        targetSdk = 34\n'
+              marker = "        targetSdk = 34" + nl
               if marker not in s:
                   raise SystemExit("Could not find defaultConfig targetSdk anchor")
-              s = s.replace(marker, marker + '        ndk { abiFilters += setOf("arm64-v8a") }\n', 1)
+              s = s.replace(marker, marker + '        ndk { abiFilters += setOf("arm64-v8a") }' + nl, 1)
           if "isMinifyEnabled = true" not in s:
-              s, n = re.subn(r'(?m)^            isMinifyEnabled = false        working-directory: ${{ env.PROJECT_DIR }}
+              pattern = r'(?m)^            isMinifyEnabled = false        working-directory: ${{ env.PROJECT_DIR }}
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -4294,21 +4295,29 @@ jobs:
           path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/${{ env.BUILD_KIND }}/GX1Player-VLC.apk
           if-no-files-found: error
           retention-days: 30
-, '            isMinifyEnabled = true\n            isShrinkResources = true\n            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")', s, count=1)
-              if n != 1:
+
+              replacement = nl.join([
+                  "            isMinifyEnabled = true",
+                  "            isShrinkResources = true",
+                  '            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")'
+              ])
+              s, count = re.subn(pattern, lambda _: replacement, s, count=1)
+              if count != 1:
                   raise SystemExit("Could not find release minify setting")
-          rules = Path("app/proguard-rules.pro")
-          rules.write_text("""# LibVLC uses JNI and reflection to expose native media functionality.
-          -keep class org.videolan.libvlc.** { *; }
-          -keepclasseswithmembernames class * {
-              native <methods>;
-          }
-          """)
+          Path("app/proguard-rules.pro").write_text(nl.join([
+              "# Preserve LibVLC JNI and reflection wrappers.",
+              "-keep class org.videolan.libvlc.** { *; }",
+              "-keepclasseswithmembernames class * {",
+              "    native <methods>;",
+              "}",
+              ""
+          ]))
           p.write_text(s)
           if 'abiFilters += setOf("arm64-v8a")' not in s or "isShrinkResources = true" not in s:
               raise SystemExit("APK size configuration verification failed")
           print("Release APK targets arm64-v8a only and enables R8/resource shrinking; LibVLC JNI wrapper classes are preserved.")
           PY
+
 
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
