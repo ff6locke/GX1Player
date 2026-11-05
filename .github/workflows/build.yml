@@ -4457,6 +4457,26 @@ jobs:
           print("Filename is now refreshed on the Media3 overlay after playback starts.")
           PY
 
+      - name: Match filename visibility to Media3 controls
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          anchor = "                  homePanel = buildHomePanel()"
+          if anchor not in s:
+              raise SystemExit("Could not find player setup point for title visibility listener")
+          listener = """                  playerView.setControllerVisibilityListener { visibility ->
+                      playbackTitle.visibility = visibility
+                  }
+          """
+          if "setControllerVisibilityListener" not in s:
+              s = s.replace(anchor, listener + anchor, 1)
+          p.write_text(s)
+          print("Playback filename now follows Media3 controller/menu visibility.")
+          PY
+
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
         env:
