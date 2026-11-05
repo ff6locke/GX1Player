@@ -4486,84 +4486,79 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re
 
           engine = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
           e = engine.read_text()
           if "fun addExternalSubtitle(uri: Uri)" not in e:
-              match = re.search(r"^(\\s*)fun play\\(\\)", e, re.M)
-              if not match:
-                  raise SystemExit("Could not locate LibVLC engine play() declaration")
-              indent = match.group(1)
-              method = (
-                  indent + "/** Attach an external subtitle file to the current LibVLC input. */\\n" +
-                  indent + "fun addExternalSubtitle(uri: Uri): Boolean {\\n" +
-                  indent + "    checkActive()\\n" +
-                  indent + "    return mediaPlayer.addSlave(Media.Slave.Type.Subtitle, uri.toString(), false)\\n" +
-                  indent + "}\\n\\n"
-              )
-              e = e[:match.start()] + method + e[match.start():]
+              anchor = "              fun play() {"
+              if anchor not in e:
+                  raise SystemExit("Engine play() anchor missing; available methods: " + ", ".join(x.strip() for x in e.splitlines() if x.strip().startswith("fun ")))
+              method = """              fun addExternalSubtitle(uri: Uri): Boolean {
+                  checkActive()
+                  return mediaPlayer.addSlave(Media.Slave.Type.Subtitle, uri.toString(), false)
+              }
+
+          """
+              e = e.replace(anchor, method + anchor, 1)
               engine.write_text(e)
 
           activity = Path("app/src/main/java/com/example/gx1player/VlcTestActivity.kt")
           t = activity.read_text()
-          import_line = "import androidx.appcompat.app.AlertDialog"
-          result_import = "import androidx.activity.result.contract.ActivityResultContracts"
-          if result_import not in t:
-              if import_line not in t:
-                  raise SystemExit("Could not locate VLC activity AlertDialog import")
-              t = t.replace(import_line, result_import + "\\n" + import_line, 1)
+          imp = "import androidx.appcompat.app.AppCompatActivity"
+          new_imp = "import androidx.activity.result.contract.ActivityResultContracts"
+          if new_imp not in t:
+              if imp not in t:
+                  raise SystemExit("VLC activity import anchor missing")
+              t = t.replace(imp, new_imp + "\\n" + imp, 1)
 
           if "private val loadSubtitle1" not in t:
-              match = re.search(r"^(\\s*)private val ticker = object : Runnable", t, re.M)
-              if not match:
-                  raise SystemExit("Could not locate VLC activity ticker declaration")
-              indent = match.group(1)
-              props = (
-                  indent + "private val loadSubtitle1 = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->\\n" +
-                  indent + "    attachExternalSubtitle(uri, \"Subtitle 1\")\\n" +
-                  indent + "}\\n" +
-                  indent + "private val loadSubtitle2 = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->\\n" +
-                  indent + "    attachExternalSubtitle(uri, \"Subtitle 2\")\\n" +
-                  indent + "}\\n\\n" +
-                  indent + "private fun attachExternalSubtitle(uri: Uri?, slot: String) {\\n" +
-                  indent + "    if (uri == null) return\\n" +
-                  indent + "    runCatching { contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }\\n" +
-                  indent + "    val attached = runCatching { engine?.addExternalSubtitle(uri) == true }.getOrDefault(false)\\n" +
-                  indent + "    status.text = if (attached) \"$slot loaded\" else \"Could not load $slot\"\\n" +
-                  indent + "    Toast.makeText(this, status.text, Toast.LENGTH_LONG).show()\\n" +
-                  indent + "}\\n\\n"
-              )
-              t = t[:match.start()] + props + t[match.start():]
+              anchor = "              private val ticker = object : Runnable {"
+              if anchor not in t:
+                  raise SystemExit("VLC activity ticker anchor missing")
+              props = """              private val loadSubtitle1 = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+                  attachExternalSubtitle(uri, "Subtitle 1")
+              }
+              private val loadSubtitle2 = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+                  attachExternalSubtitle(uri, "Subtitle 2")
+              }
+
+              private fun attachExternalSubtitle(uri: Uri?, slot: String) {
+                  if (uri == null) return
+                  runCatching { contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+                  val attached = runCatching { engine?.addExternalSubtitle(uri) == true }.getOrDefault(false)
+                  status.text = if (attached) "$slot loaded" else "Could not load $slot"
+                  Toast.makeText(this, status.text, Toast.LENGTH_LONG).show()
+              }
+
+          """
+              t = t.replace(anchor, props + anchor, 1)
 
           if 'text = "Load Sub 1"' not in t:
-              row_match = re.search(r"^(\\s*)controls\\.addView\\(row\\)", t, re.M)
-              if not row_match:
-                  raise SystemExit("Could not locate VLC controls.addView(row)")
-              indent = row_match.group(1)
-              extra = (
-                  indent + "val externalSubtitleRow = LinearLayout(this).apply {\\n" +
-                  indent + "    orientation = LinearLayout.HORIZONTAL\\n" +
-                  indent + "    gravity = Gravity.CENTER\\n" +
-                  indent + "}\\n" +
-                  indent + "val loadSub1Button = Button(this).apply {\\n" +
-                  indent + "    text = \"Load Sub 1\"\\n" +
-                  indent + "    isFocusable = true\\n" +
-                  indent + "    setOnClickListener { loadSubtitle1.launch(arrayOf(\"*/*\")) }\\n" +
-                  indent + "}\\n" +
-                  indent + "val loadSub2Button = Button(this).apply {\\n" +
-                  indent + "    text = \"Load Sub 2\"\\n" +
-                  indent + "    isFocusable = true\\n" +
-                  indent + "    setOnClickListener { loadSubtitle2.launch(arrayOf(\"*/*\")) }\\n" +
-                  indent + "}\\n" +
-                  indent + "externalSubtitleRow.addView(loadSub1Button, LinearLayout.LayoutParams(0, -2, 1f))\\n" +
-                  indent + "externalSubtitleRow.addView(loadSub2Button, LinearLayout.LayoutParams(0, -2, 1f))\\n" +
-                  indent + "controls.addView(externalSubtitleRow)\\n"
-              )
-              insert_at = row_match.end()
-              t = t[:insert_at] + "\\n" + extra + t[insert_at:]
+              anchor = "                  controls.addView(row)"
+              if anchor not in t:
+                  raise SystemExit("VLC controls row anchor missing")
+              buttons = """                  val externalSubtitleRow = LinearLayout(this).apply {
+                      orientation = LinearLayout.HORIZONTAL
+                      gravity = Gravity.CENTER
+                  }
+                  val loadSub1Button = Button(this).apply {
+                      text = "Load Sub 1"
+                      isFocusable = true
+                      setOnClickListener { loadSubtitle1.launch(arrayOf("*/*")) }
+                  }
+                  val loadSub2Button = Button(this).apply {
+                      text = "Load Sub 2"
+                      isFocusable = true
+                      setOnClickListener { loadSubtitle2.launch(arrayOf("*/*")) }
+                  }
+                  externalSubtitleRow.addView(loadSub1Button, LinearLayout.LayoutParams(0, -2, 1f))
+                  externalSubtitleRow.addView(loadSub2Button, LinearLayout.LayoutParams(0, -2, 1f))
+                  controls.addView(externalSubtitleRow)
+          """
+              t = t.replace(anchor, anchor + "\\n" + buttons, 1)
+
           activity.write_text(t)
-          print("Added visible Load Sub 1 and Load Sub 2 buttons to the LibVLC screen.")
+          print("Verified: VLC activity now contains both Load Sub 1 and Load Sub 2 buttons.")
           PY
 
       - name: Package 32-bit and 64-bit ARM variants for Android TV boxes
