@@ -3772,6 +3772,96 @@ jobs:
           p.write_text(s)
           print("Added LibVLC embedded audio/SPU track listing and selection methods.")
           PY
+      - name: Connect saved external subtitle slots to LibVLC playback
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          engine = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
+          s = engine.read_text()
+          if "private val externalSubtitleCache" not in s:
+              s = s.replace(
+                  "    private var pendingSeekMs = 0L",
+                  "    private var pendingSeekMs = 0L\n    private val externalSubtitleCache = mutableListOf<java.io.File>()",
+                  1
+              )
+          old_sig = "fun open(uri: Uri, startPositionMs: Long = 0L, digitalOutput: Boolean = true) {"
+          new_sig = "fun open(uri: Uri, startPositionMs: Long = 0L, digitalOutput: Boolean = true, externalSubtitleUris: List<Uri> = emptyList()) {"
+          if old_sig in s:
+              s = s.replace(old_sig, new_sig, 1)
+          elif new_sig not in s:
+              raise SystemExit("Could not locate LibVLC open() signature")
+          marker = """        try {
+              mediaPlayer.media = media
+          } catch (error: Exception) {"""
+          replacement = """        try {
+              mediaPlayer.media = media
+              // LibVLC cannot read Android SAF content:// subtitle URIs as local files.
+              // Copy selected subtitle documents into app cache and attach them before play().
+              externalSubtitleCache.forEach { runCatching { it.delete() } }
+              externalSubtitleCache.clear()
+              externalSubtitleUris.take(2).forEachIndexed { index, subtitleUri ->
+                  val source = appContext.contentResolver.openInputStream(subtitleUri)
+                      ?: throw java.io.IOException("Cannot read external subtitle: $subtitleUri")
+                  val rawName = subtitleUri.lastPathSegment?.substringAfterLast('/') ?: "subtitle.srt"
+                  val extension = rawName.substringAfterLast('.', "srt")
+                      .lowercase().filter { it.isLetterOrDigit() }.take(8).ifBlank { "srt" }
+                  val target = java.io.File(appContext.cacheDir, "gx1-subtitle-${index + 1}.$extension")
+                  source.use { input -> target.outputStream().use { output -> input.copyTo(output) } }
+                  externalSubtitleCache.add(target)
+                  val added = mediaPlayer.addSlave(Media.Slave.Type.Subtitle, target.absolutePath, index == 0)
+                  android.util.Log.i("GX1-VLC", "External subtitle slot ${index + 1} attached=$added file=${target.name}")
+                  if (!added) android.util.Log.w("GX1-VLC", "LibVLC rejected external subtitle slot ${index + 1}")
+              }
+          } catch (error: Exception) {"""
+          if marker not in s:
+              raise SystemExit("Could not locate media assignment in LibVLC open()")
+          s = s.replace(marker, replacement, 1)
+          s = s.replace(
+              "        activeAssetDescriptor = null\n        libVlc.release()",
+              "        activeAssetDescriptor = null\n        externalSubtitleCache.forEach { runCatching { it.delete() } }\n        externalSubtitleCache.clear()\n        libVlc.release()",
+              1
+          )
+          engine.write_text(s)
+
+          activity = Path("app/src/main/java/com/example/gx1player/VlcTestActivity.kt")
+          t = activity.read_text()
+          old_open = "vlcEngine.open(uri, resumeAt, digitalOutput)"
+          new_open = """val externalSubs = listOfNotNull(
+                  intent.getStringExtra("gx1_vlc_subtitle_1")?.let(Uri::parse),
+                  intent.getStringExtra("gx1_vlc_subtitle_2")?.let(Uri::parse)
+              )
+              vlcEngine.open(uri, resumeAt, digitalOutput, externalSubs)"""
+          if old_open in t:
+              t = t.replace(old_open, new_open, 1)
+          elif "intent.getStringExtra(\"gx1_vlc_subtitle_1\")" not in t:
+              raise SystemExit("Could not locate VLC test engine open() call")
+          # HDMI output restart must retain the same two subtitle selections.
+          old_restart = "active.open(currentUri, resume, digitalOutput)"
+          new_restart = """active.open(currentUri, resume, digitalOutput, listOfNotNull(
+                          intent.getStringExtra("gx1_vlc_subtitle_1")?.let(Uri::parse),
+                          intent.getStringExtra("gx1_vlc_subtitle_2")?.let(Uri::parse)
+                      ))"""
+          if old_restart in t:
+              t = t.replace(old_restart, new_restart, 1)
+          activity.write_text(t)
+
+          main = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          m = main.read_text()
+          old_launch = "startActivity(Intent(this, VlcTestActivity::class.java).setData(uri))"
+          new_launch = """val vlcIntent = Intent(this, VlcTestActivity::class.java).setData(uri).apply {
+                  subtitle1Uri?.let { putExtra("gx1_vlc_subtitle_1", it.toString()) }
+                  subtitle2Uri?.let { putExtra("gx1_vlc_subtitle_2", it.toString()) }
+              }
+              startActivity(vlcIntent)"""
+          if old_launch in m:
+              m = m.replace(old_launch, new_launch, 1)
+          elif "gx1_vlc_subtitle_1" not in m:
+              raise SystemExit("Could not locate main-player VLC launch intent")
+          main.write_text(m)
+          print("Connected both saved external subtitle slots to LibVLC as external subtitle tracks.")
+          PY
       - name: Upgrade LibVLC test player with transport and resume controls
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
