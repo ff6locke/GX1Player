@@ -4481,11 +4481,12 @@ jobs:
           print("Playback filename now follows Media3 controller visibility.")
           PY
 
-      - name: Add visible dual external subtitle controls to LibVLC playback
+      - name: Add in-app dual subtitle picker to LibVLC playback
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
           engine = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
           e = engine.read_text()
@@ -4504,38 +4505,112 @@ jobs:
 
           activity = Path("app/src/main/java/com/example/gx1player/VlcTestActivity.kt")
           t = activity.read_text()
-          imp = "import androidx.appcompat.app.AppCompatActivity"
-          new_imp = "import androidx.activity.result.contract.ActivityResultContracts"
-          if new_imp not in t:
-              if imp not in t:
-                  raise SystemExit("VLC activity import anchor missing")
-              t = t.replace(imp, new_imp + chr(10) + imp, 1)
+          t = t.replace("import androidx.activity.result.contract.ActivityResultContracts\\n", "")
+          t = re.sub(r"\\s*private val loadSubtitle1 = registerForActivityResult.*?\\n\\s*}\\n\\s*private val loadSubtitle2 = registerForActivityResult.*?\\n\\s*}\\n\\s*private fun attachExternalSubtitle\\(uri: Uri\\?, slot: String\\) \\{.*?\\n\\s*}\\n", "\\n", t, flags=re.S)
 
-          if "private val loadSubtitle1" not in t:
-              anchor = "    private val ticker = object : Runnable {"
+          if "private fun showExternalSubtitlePicker(slot: Int" not in t:
+              anchor = "    private fun showAudioTracks() {"
               if anchor not in t:
-                  raise SystemExit("VLC activity ticker anchor missing")
-              props = """              private val loadSubtitle1 = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-                  attachExternalSubtitle(uri, "Subtitle 1")
-              }
-              private val loadSubtitle2 = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-                  attachExternalSubtitle(uri, "Subtitle 2")
+                  raise SystemExit("VLC audio menu method anchor missing")
+              picker = r'''
+              private fun subtitleStorageRoots(): List<java.io.File> {
+                  val roots = mutableListOf<java.io.File>()
+                  roots.add(android.os.Environment.getExternalStorageDirectory())
+                  if (android.os.Build.VERSION.SDK_INT >= 24) {
+                      val manager = getSystemService(android.content.Context.STORAGE_SERVICE) as? android.os.storage.StorageManager
+                      manager?.storageVolumes.orEmpty().forEach { volume ->
+                          try {
+                              val root = volume.javaClass.getMethod("getDirectory").invoke(volume) as? java.io.File
+                              if (!volume.isPrimary && volume.state == android.os.Environment.MEDIA_MOUNTED &&
+                                  root != null && root.isDirectory) roots.add(root)
+                          } catch (_: Exception) {}
+                      }
+                  }
+                  return roots.distinctBy { runCatching { it.canonicalPath }.getOrDefault(it.absolutePath) }
+                      .filter { it.isDirectory }
               }
 
-              private fun attachExternalSubtitle(uri: Uri?, slot: String) {
-                  if (uri == null) return
-                  runCatching { contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-                  val attached = runCatching { engine?.addExternalSubtitle(uri) == true }.getOrDefault(false)
-                  status.text = if (attached) "$slot loaded" else "Could not load $slot"
-                  Toast.makeText(this, status.text, Toast.LENGTH_LONG).show()
+              private fun showExternalSubtitlePicker(slot: Int, requestedFolder: java.io.File? = null) {
+                  val roots = subtitleStorageRoots()
+                  if (roots.isEmpty()) {
+                      Toast.makeText(this, "No accessible storage found", Toast.LENGTH_LONG).show()
+                      return
+                  }
+                  if (requestedFolder == null) {
+                      val videoPath = mediaUri?.let { uri ->
+                          if (uri.scheme == "file") uri.path else runCatching {
+                              contentResolver.query(uri, arrayOf(android.provider.MediaStore.MediaColumns.DATA), null, null, null)?.use { c ->
+                                  if (c.moveToFirst()) c.getString(0) else null
+                              }
+                          }.getOrNull()
+                      }
+                      val videoFolder = videoPath?.let { java.io.File(it).parentFile }
+                      val preferred = videoFolder?.takeIf { folder -> roots.any { root ->
+                          runCatching { folder.canonicalPath.startsWith(root.canonicalPath) }.getOrDefault(false)
+                      } }
+                      if (preferred != null) {
+                          showExternalSubtitlePicker(slot, preferred)
+                      } else if (roots.size == 1) {
+                          showExternalSubtitlePicker(slot, roots.first())
+                      } else {
+                          val labels = roots.mapIndexed { index, root ->
+                              (if (index == 0) "Internal storage" else "External storage") + " — " + root.absolutePath
+                          }
+                          AlertDialog.Builder(this).setTitle("Choose subtitle storage")
+                              .setItems(labels.toTypedArray()) { _, which -> showExternalSubtitlePicker(slot, roots[which]) }
+                              .setNegativeButton("Cancel", null).show()
+                      }
+                      return
+                  }
+                  val folder = requestedFolder.canonicalFile
+                  val videoPath = mediaUri?.let { uri ->
+                      if (uri.scheme == "file") uri.path else runCatching {
+                          contentResolver.query(uri, arrayOf(android.provider.MediaStore.MediaColumns.DATA), null, null, null)?.use { c ->
+                              if (c.moveToFirst()) c.getString(0) else null
+                          }
+                      }.getOrNull()
+                  }
+                  val videoBase = videoPath?.let { java.io.File(it).nameWithoutExtension.lowercase(java.util.Locale.ROOT) }
+                  val entries = folder.listFiles()?.filter { file ->
+                      file.isDirectory && !file.name.startsWith(".") ||
+                          file.isFile && file.extension.lowercase(java.util.Locale.ROOT) in setOf("srt", "ass", "ssa", "vtt", "sub")
+                  }?.sortedWith(compareBy<java.io.File>({ !it.isDirectory },
+                      { if (videoBase != null && it.nameWithoutExtension.equals(videoBase, true)) 0 else 1 },
+                      { it.name.lowercase(java.util.Locale.ROOT) })) ?: emptyList()
+                  val labels = mutableListOf<String>()
+                  if (folder.parentFile != null) labels.add("..  Parent folder")
+                  entries.forEach { file ->
+                      val match = !file.isDirectory && videoBase != null && file.nameWithoutExtension.equals(videoBase, true)
+                      labels.add((if (file.isDirectory) "📁  " else if (match) "★  " else "   ") +
+                          file.name + if (match) "  (video name match)" else "")
+                  }
+                  if (labels.isEmpty()) labels.add("(No subtitle files or folders)")
+                  AlertDialog.Builder(this).setTitle("Subtitle $slot\\n" + folder.absolutePath)
+                      .setItems(labels.toTypedArray()) { _, which ->
+                          if (folder.parentFile != null && which == 0) {
+                              showExternalSubtitlePicker(slot, folder.parentFile)
+                          } else {
+                              val index = which - if (folder.parentFile != null) 1 else 0
+                              if (index in entries.indices) {
+                                  val selected = entries[index]
+                                  if (selected.isDirectory) showExternalSubtitlePicker(slot, selected)
+                                  else {
+                                      val loaded = runCatching { engine?.addExternalSubtitle(Uri.fromFile(selected)) == true }.getOrDefault(false)
+                                      status.text = if (loaded) "Subtitle $slot loaded: " + selected.name else "Could not load Subtitle $slot"
+                                      Toast.makeText(this, status.text, Toast.LENGTH_LONG).show()
+                                  }
+                              }
+                          }
+                      }
+                      .setPositiveButton("Choose storage") { _, _ -> showExternalSubtitlePicker(slot) }
+                      .setNegativeButton("Cancel", null).show()
               }
 
-          """
-              t = t.replace(anchor, props + anchor, 1)
+          '''
+              t = t.replace(anchor, picker + anchor, 1)
 
           if 'text = "Load Sub 1"' not in t:
-              import re
-              match = re.search(r'(?m)^(\s*)controls\.addView\(row[^\n]*\)', t)
+              match = re.search(r'(?m)^(\\s*)controls\\.addView\\(row[^\\n]*\\)', t)
               if not match:
                   candidates = [line.strip() for line in t.splitlines() if "controls.addView(" in line]
                   raise SystemExit("VLC controls insertion point missing; candidates: " + repr(candidates))
@@ -4546,12 +4621,12 @@ jobs:
                   val loadSub1Button = Button(this).apply {
                       text = "Load Sub 1"
                       isFocusable = true
-                      setOnClickListener { loadSubtitle1.launch(arrayOf("*/*")) }
+                      setOnClickListener { showExternalSubtitlePicker(1) }
                   }
                   val loadSub2Button = Button(this).apply {
                       text = "Load Sub 2"
                       isFocusable = true
-                      setOnClickListener { loadSubtitle2.launch(arrayOf("*/*")) }
+                      setOnClickListener { showExternalSubtitlePicker(2) }
                   }
                   externalSubtitleRow.addView(loadSub1Button, LinearLayout.LayoutParams(0, -2, 1f))
                   externalSubtitleRow.addView(loadSub2Button, LinearLayout.LayoutParams(0, -2, 1f))
@@ -4559,7 +4634,7 @@ jobs:
               t = t[:match.end()] + chr(10) + buttons + t[match.end():]
 
           activity.write_text(t)
-          print("Both external subtitle controls inserted into the VLC activity.")
+          print("VLC test now uses GX1 Player's in-app storage browser for both external subtitle slots.")
           PY
 
       - name: Package 32-bit and 64-bit ARM variants for Android TV boxes
