@@ -4501,38 +4501,87 @@ jobs:
           print("Requested both 32-bit and 64-bit ARM APK native libraries.")
           PY
 
-      - name: Build APK
+      - name: Build separate 32-bit and 64-bit ARM APKs
         working-directory: ${{ env.PROJECT_DIR }}
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
+          set -euo pipefail
           chmod +x ./gradlew
           if [ "$BUILD_KIND" = "release" ]; then
-            ./gradlew :app:assembleRelease --no-daemon --stacktrace
+            TASK=":app:assembleRelease"
           else
-            ./gradlew :app:assembleDebug --no-daemon --stacktrace
+            TASK=":app:assembleDebug"
           fi
+          APK_DIR="app/build/outputs/apk/${BUILD_KIND}"
+          for ABI in armeabi-v7a arm64-v8a; do
+            echo "===== Building $ABI ====="
+            python3 - "$ABI" <<'PY'
+          from pathlib import Path
+          import re, sys
+          abi = sys.argv[1]
+          p = Path("app/build.gradle.kts")
+          s = p.read_text()
+          # Remove all previous ABI filters, including the old one-line and multiline patches.
+          s = re.sub(r'(?m)^\\s*ndk\\s*\\{\\s*abiFilters\\s*\\+=\\s*setOf\\([^\\n]*\\)\\s*\\}\\s*\\n?', '', s)
+          s = re.sub(r'(?m)^\\s*abiFilters\\s*\\+=\\s*setOf\\([^\\n]*\\)\\s*\\n?', '', s)
+          marker = "    defaultConfig {"
+          if marker not in s:
+              raise SystemExit("Could not find defaultConfig")
+          block = f'    defaultConfig {{\\n        ndk {{ abiFilters += setOf("{abi}") }}'
+          s = s.replace(marker, block, 1)
+          p.write_text(s)
+          print(f"Configured exactly one ABI: {abi}")
+          PY
+            rm -rf "$APK_DIR"
+            ./gradlew "$TASK" --no-daemon --stacktrace
+            mapfile -t APK_FILES < <(find "$APK_DIR" -maxdepth 1 -type f -name '*.apk' | sort)
+            if [ "${#APK_FILES[@]}" -ne 1 ]; then
+              echo "Expected one APK for $ABI; found ${#APK_FILES[@]}"
+              printf '%s\\n' "${APK_FILES[@]}"
+              exit 1
+            fi
+            if [ "$ABI" = "armeabi-v7a" ]; then
+              cp "${APK_FILES[0]}" "$GITHUB_WORKSPACE/GX1Player-VLC-32bit.apk"
+            else
+              cp "${APK_FILES[0]}" "$GITHUB_WORKSPACE/GX1Player-VLC-64bit.apk"
+            fi
+          done
+          ls -lh "$GITHUB_WORKSPACE"/GX1Player-VLC-*.apk
 
-      - name: Name VLC APK
-        working-directory: ${{ env.PROJECT_DIR }}
+      - name: Verify APK architectures
         run: |
           set -e
-          APK_DIR="app/build/outputs/apk/${BUILD_KIND}"
-          mapfile -t APK_FILES < <(find "$APK_DIR" -maxdepth 1 -type f -name '*.apk' ! -name 'GX1Player-VLC.apk' | sort)
-          if [ "${#APK_FILES[@]}" -ne 1 ]; then
-            echo "Expected exactly one APK to rename; found ${#APK_FILES[@]}"
-            printf '%s\\n' "${APK_FILES[@]}"
+          for APK in GX1Player-VLC-32bit.apk GX1Player-VLC-64bit.apk; do
+            test -s "$APK"
+            echo "===== $APK ====="
+            unzip -l "$APK" | grep -E 'lib/(armeabi-v7a|arm64-v8a)/.*libvlc(jni)?\\.so'
+          done
+          unzip -l GX1Player-VLC-32bit.apk | grep -q 'lib/armeabi-v7a/libvlc.so'
+          if unzip -l GX1Player-VLC-32bit.apk | grep -q 'lib/arm64-v8a/libvlc.so'; then
+            echo "32-bit APK unexpectedly contains ARM64 libraries"
             exit 1
           fi
-          cp "${APK_FILES[0]}" "$APK_DIR/GX1Player-VLC.apk"
-          ls -lh "$APK_DIR/GX1Player-VLC.apk"
+          unzip -l GX1Player-VLC-64bit.apk | grep -q 'lib/arm64-v8a/libvlc.so'
+          if unzip -l GX1Player-VLC-64bit.apk | grep -q 'lib/armeabi-v7a/libvlc.so'; then
+            echo "64-bit APK unexpectedly contains ARMv7 libraries"
+            exit 1
+          fi
 
-      - name: Upload APK
+      - name: Upload 32-bit APK
         uses: actions/upload-artifact@v4
         with:
-          name: gx1-player-VLC-${{ env.BUILD_KIND }}-b${{ github.run_number }}
-          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/${{ env.BUILD_KIND }}/GX1Player-VLC.apk
+          name: gx1-player-VLC-32bit-b${{ github.run_number }}
+          path: GX1Player-VLC-32bit.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload 64-bit APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: gx1-player-VLC-64bit-b${{ github.run_number }}
+          path: GX1Player-VLC-64bit.apk
           if-no-files-found: error
           retention-days: 30
