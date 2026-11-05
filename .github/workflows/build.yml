@@ -413,6 +413,27 @@ jobs:
                       FrameLayout.LayoutParams.MATCH_PARENT,
                       FrameLayout.LayoutParams.MATCH_PARENT
                   ))
+                  // Show the current media filename at the top of the video screen.
+                  val playbackTitle = android.widget.TextView(this).apply {
+                      tag = "gx1_playback_title"
+                      setTextColor(Color.WHITE)
+                      textSize = 16f
+                      typeface = android.graphics.Typeface.DEFAULT_BOLD
+                      maxLines = 1
+                      ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
+                      gravity = Gravity.CENTER
+                      setPadding(18, 8, 18, 8)
+                      background = android.graphics.drawable.GradientDrawable().apply {
+                          setColor(0x99000000.toInt())
+                          cornerRadius = 10f
+                      }
+                      visibility = android.view.View.GONE
+                  }
+                  root.addView(playbackTitle, FrameLayout.LayoutParams(
+                      FrameLayout.LayoutParams.WRAP_CONTENT,
+                      FrameLayout.LayoutParams.WRAP_CONTENT,
+                      Gravity.TOP or Gravity.CENTER_HORIZONTAL
+                  ).apply { topMargin = (18 * resources.displayMetrics.density).toInt() })
                   homePanel = buildHomePanel()
                   root.addView(homePanel, FrameLayout.LayoutParams(
                       FrameLayout.LayoutParams.MATCH_PARENT,
@@ -553,6 +574,12 @@ jobs:
                   r'    private fun selectMedia\(uri: Uri\) \{.*?\n    \}',
                   '''    private fun selectMedia(uri: Uri) {
                   mediaUri = uri
+                  if (::rootLayout.isInitialized) {
+                      rootLayout.findViewWithTag<android.widget.TextView>("gx1_playback_title")?.apply {
+                          text = displayName(uri)
+                          visibility = android.view.View.VISIBLE
+                      }
+                  }
                   prefs.edit().putString(KEY_LAST_URI, uri.toString()).apply()
                   subtitleUri = prefs.getString(subKey(uri), null)?.let { Uri.parse(it) }
               }''',
@@ -1204,22 +1231,6 @@ jobs:
                       }
                       elevation = dp(18).toFloat()
                   }
-                  val currentMediaName = mediaUri?.let { displayName(it) }?.takeIf { it.isNotBlank() } ?: "No media selected"
-                  panel.addView(android.widget.TextView(this).apply {
-                      text = currentMediaName
-                      setTextColor(android.graphics.Color.WHITE)
-                      textSize = 15f
-                      typeface = android.graphics.Typeface.DEFAULT_BOLD
-                      maxLines = 2
-                      ellipsize = android.text.TextUtils.TruncateAt.END
-                      gravity = android.view.Gravity.CENTER_VERTICAL
-                      setPadding(dp(12), dp(8), dp(12), dp(12))
-                  }, android.widget.LinearLayout.LayoutParams(-1, -2))
-                  panel.addView(android.view.View(this).apply {
-                      setBackgroundColor(android.graphics.Color.rgb(82, 84, 88))
-                  }, android.widget.LinearLayout.LayoutParams(-1, dp(1)).apply {
-                      setMargins(dp(8), 0, dp(8), dp(6))
-                  })
                   val rows = listOf(
                       Triple("◉", "Playback Speed", "speed"),
                       Triple("♫", "Audio Track", "audio"),
