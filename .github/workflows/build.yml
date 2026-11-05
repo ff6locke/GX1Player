@@ -4481,6 +4481,26 @@ jobs:
           print("Playback filename now follows Media3 controller visibility.")
           PY
 
+      - name: Package 32-bit and 64-bit ARM variants for Android TV boxes
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/build.gradle.kts")
+          s = p.read_text()
+          if 'abiFilters += setOf("armeabi-v7a", "arm64-v8a")' not in s:
+              marker = "    defaultConfig {"
+              if marker not in s:
+                  raise SystemExit("Could not find defaultConfig for ABI compatibility patch")
+              s = s.replace(marker, marker + '''
+                  ndk {
+                      abiFilters += setOf("armeabi-v7a", "arm64-v8a")
+                  }
+              ''', 1)
+          p.write_text(s)
+          print("Requested both 32-bit and 64-bit ARM APK native libraries.")
+          PY
+
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
         env:
