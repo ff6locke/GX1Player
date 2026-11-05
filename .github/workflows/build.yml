@@ -3479,6 +3479,161 @@ jobs:
           p.write_text(s)
           print("Final GX1 browser routes applied:", home_n, menu_n)
           PY
+      - name: Add reusable LibVLC playback engine foundation
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          mkdir -p app/src/main/java/com/example/gx1player/playback
+          cat > app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt <<'EOF'
+          package com.example.gx1player.playback
+
+          import android.content.Context
+          import android.net.Uri
+          import org.videolan.libvlc.LibVLC
+          import org.videolan.libvlc.Media
+          import org.videolan.libvlc.MediaPlayer
+          import org.videolan.libvlc.util.VLCVideoLayout
+
+          /**
+           * Lifecycle-safe LibVLC playback core for GX1Player.
+           *
+           * This class deliberately owns LibVLC resources and the video surface as
+           * one unit. MainActivity integration is a separate migration step so the
+           * existing Media3 UI is not silently broken by a half-completed swap.
+           */
+          class Gx1LibVlcEngine(
+              context: Context,
+              private val onStateChanged: (State) -> Unit = {}
+          ) {
+              data class State(
+                  val playing: Boolean = false,
+                  val opening: Boolean = false,
+                  val ended: Boolean = false,
+                  val error: String? = null,
+                  val timeMs: Long = 0L,
+                  val lengthMs: Long = 0L
+              )
+
+              private val appContext = context.applicationContext
+              private var released = false
+              private val libVlc = LibVLC(appContext, arrayListOf(
+                  "--aout=android_audiotrack",
+                  "--audio-time-stretch",
+                  "--no-video-title-show"
+              ))
+              private val mediaPlayer = MediaPlayer(libVlc)
+              private var attachedLayout: VLCVideoLayout? = null
+              private var currentMedia: Media? = null
+
+              init {
+                  mediaPlayer.setEventListener { event ->
+                      when (event.type) {
+                          MediaPlayer.Event.Opening -> publish(opening = true, error = null)
+                          MediaPlayer.Event.Playing -> publish(playing = true, opening = false, ended = false)
+                          MediaPlayer.Event.Paused -> publish(playing = false)
+                          MediaPlayer.Event.Stopped -> publish(playing = false, opening = false)
+                          MediaPlayer.Event.EndReached -> publish(playing = false, opening = false, ended = true)
+                          MediaPlayer.Event.EncounteredError -> publish(
+                              playing = false, opening = false,
+                              error = "LibVLC encountered a playback error"
+                          )
+                          MediaPlayer.Event.TimeChanged,
+                          MediaPlayer.Event.PositionChanged,
+                          MediaPlayer.Event.LengthChanged -> publish()
+                      }
+                  }
+              }
+
+              fun attach(layout: VLCVideoLayout) {
+                  check(!released) { "LibVLC engine has been released" }
+                  if (attachedLayout === layout) return
+                  attachedLayout?.let { runCatching { mediaPlayer.detachViews() } }
+                  mediaPlayer.attachViews(layout, null, false, false)
+                  attachedLayout = layout
+              }
+
+              fun open(uri: Uri, startPositionMs: Long = 0L, digitalOutput: Boolean = true) {
+                  check(!released) { "LibVLC engine has been released" }
+                  require(uri.scheme == "content" || uri.scheme == "file" || uri.scheme == "http" || uri.scheme == "https") {
+                      "Unsupported media URI scheme: ${uri.scheme}"
+                  }
+                  runCatching { mediaPlayer.stop() }
+                  currentMedia?.release()
+                  val media = Media(libVlc, uri)
+                  currentMedia = media
+                  mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)
+                  mediaPlayer.media = media
+                  media.release()
+                  if (startPositionMs > 0L) {
+                      mediaPlayer.setEventListener { event ->
+                          if (event.type == MediaPlayer.Event.Playing) {
+                              mediaPlayer.setTime(startPositionMs)
+                          }
+                          handleEvent(event)
+                      }
+                  }
+                  mediaPlayer.play()
+                  publish(opening = true, error = null)
+              }
+
+              private fun handleEvent(event: MediaPlayer.Event) {
+                  when (event.type) {
+                      MediaPlayer.Event.Opening -> publish(opening = true, error = null)
+                      MediaPlayer.Event.Playing -> publish(playing = true, opening = false, ended = false)
+                      MediaPlayer.Event.Paused -> publish(playing = false)
+                      MediaPlayer.Event.Stopped -> publish(playing = false, opening = false)
+                      MediaPlayer.Event.EndReached -> publish(playing = false, opening = false, ended = true)
+                      MediaPlayer.Event.EncounteredError -> publish(
+                          playing = false, opening = false, error = "LibVLC encountered a playback error"
+                      )
+                      MediaPlayer.Event.TimeChanged,
+                      MediaPlayer.Event.PositionChanged,
+                      MediaPlayer.Event.LengthChanged -> publish()
+                  }
+              }
+
+              fun play() { checkActive(); if (!mediaPlayer.isPlaying) mediaPlayer.play() }
+              fun pause() { checkActive(); if (mediaPlayer.isPlaying) mediaPlayer.pause() }
+              fun togglePlayback() { checkActive(); if (mediaPlayer.isPlaying) pause() else play() }
+              fun seekTo(positionMs: Long) { checkActive(); mediaPlayer.setTime(positionMs.coerceAtLeast(0L)) }
+              fun setRate(rate: Float) { checkActive(); mediaPlayer.setRate(rate.coerceIn(0.25f, 4.0f)) }
+              fun currentTimeMs(): Long = if (released) 0L else mediaPlayer.time.coerceAtLeast(0L)
+              fun durationMs(): Long = if (released) 0L else mediaPlayer.length.coerceAtLeast(0L)
+              fun isPlaying(): Boolean = !released && mediaPlayer.isPlaying
+
+              private fun checkActive() { check(!released) { "LibVLC engine has been released" } }
+
+              private fun publish(
+                  playing: Boolean = mediaPlayer.isPlaying,
+                  opening: Boolean = false,
+                  ended: Boolean = false,
+                  error: String? = null
+              ) {
+                  if (released) return
+                  onStateChanged(State(
+                      playing = playing,
+                      opening = opening,
+                      ended = ended,
+                      error = error,
+                      timeMs = mediaPlayer.time.coerceAtLeast(0L),
+                      lengthMs = mediaPlayer.length.coerceAtLeast(0L)
+                  ))
+              }
+
+              fun release() {
+                  if (released) return
+                  released = true
+                  runCatching { mediaPlayer.stop() }
+                  runCatching { mediaPlayer.setEventListener(null) }
+                  runCatching { mediaPlayer.detachViews() }
+                  currentMedia?.release()
+                  currentMedia = null
+                  attachedLayout = null
+                  mediaPlayer.release()
+                  libVlc.release()
+              }
+          }
+          EOF
+          echo "Added reusable LibVLC engine core; existing Media3 UI remains unchanged pending integration."
       - name: Export generated project source for LibVLC migration review
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
