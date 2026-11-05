@@ -3479,6 +3479,38 @@ jobs:
           p.write_text(s)
           print("Final GX1 browser routes applied:", home_n, menu_n)
           PY
+      - name: Export generated project source for LibVLC migration review
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import zipfile
+          root = Path(".")
+          targets = [
+              Path("app/src/main/java/com/example/gx1player/MainActivity.kt"),
+              Path("app/build.gradle.kts"),
+              Path("app/src/main/AndroidManifest.xml"),
+              Path("app/src/main/java/com/example/gx1player"),
+          ]
+          with zipfile.ZipFile("/tmp/gx1-generated-source.zip", "w", zipfile.ZIP_DEFLATED) as z:
+              seen = set()
+              for target in targets:
+                  paths = [target] if target.is_file() else sorted(target.rglob("*.kt")) if target.exists() else []
+                  for path in paths:
+                      if path.is_file() and path not in seen:
+                          z.write(path, path.as_posix())
+                          seen.add(path)
+          print("Exported generated Kotlin source files:", len(seen))
+          PY
+
+      - name: Upload generated source for migration review
+        uses: actions/upload-artifact@v4
+        with:
+          name: gx1-generated-source-review
+          path: /tmp/gx1-generated-source.zip
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
         env:
