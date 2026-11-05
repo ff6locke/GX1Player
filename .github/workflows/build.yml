@@ -3493,13 +3493,7 @@ jobs:
           import org.videolan.libvlc.MediaPlayer
           import org.videolan.libvlc.util.VLCVideoLayout
 
-          /**
-           * Lifecycle-safe LibVLC playback core for GX1Player.
-           *
-           * This class deliberately owns LibVLC resources and the video surface as
-           * one unit. MainActivity integration is a separate migration step so the
-           * existing Media3 UI is not silently broken by a half-completed swap.
-           */
+          /** Owns the LibVLC instance, player and attached video surface. */
           class Gx1LibVlcEngine(
               context: Context,
               private val onStateChanged: (State) -> Unit = {}
@@ -3513,22 +3507,26 @@ jobs:
                   val lengthMs: Long = 0L
               )
 
-              private val appContext = context.applicationContext
-              private var released = false
-              private val libVlc = LibVLC(appContext, arrayListOf(
+              private val libVlc = LibVLC(context.applicationContext, arrayListOf(
                   "--aout=android_audiotrack",
                   "--audio-time-stretch",
                   "--no-video-title-show"
               ))
               private val mediaPlayer = MediaPlayer(libVlc)
               private var attachedLayout: VLCVideoLayout? = null
-              private var currentMedia: Media? = null
+              private var released = false
+              private var pendingSeekMs = 0L
 
               init {
                   mediaPlayer.setEventListener { event ->
                       when (event.type) {
                           MediaPlayer.Event.Opening -> publish(opening = true, error = null)
-                          MediaPlayer.Event.Playing -> publish(playing = true, opening = false, ended = false)
+                          MediaPlayer.Event.Playing -> {
+                              val seek = pendingSeekMs
+                              pendingSeekMs = 0L
+                              if (seek > 0L) mediaPlayer.setTime(seek)
+                              publish(playing = true, opening = false, ended = false, error = null)
+                          }
                           MediaPlayer.Event.Paused -> publish(playing = false)
                           MediaPlayer.Event.Stopped -> publish(playing = false, opening = false)
                           MediaPlayer.Event.EndReached -> publish(playing = false, opening = false, ended = true)
@@ -3544,51 +3542,29 @@ jobs:
               }
 
               fun attach(layout: VLCVideoLayout) {
-                  check(!released) { "LibVLC engine has been released" }
+                  checkActive()
                   if (attachedLayout === layout) return
-                  attachedLayout?.let { runCatching { mediaPlayer.detachViews() } }
+                  if (attachedLayout != null) runCatching { mediaPlayer.detachViews() }
                   mediaPlayer.attachViews(layout, null, false, false)
                   attachedLayout = layout
               }
 
               fun open(uri: Uri, startPositionMs: Long = 0L, digitalOutput: Boolean = true) {
-                  check(!released) { "LibVLC engine has been released" }
-                  require(uri.scheme == "content" || uri.scheme == "file" || uri.scheme == "http" || uri.scheme == "https") {
+                  checkActive()
+                  require(uri.scheme in setOf("content", "file", "http", "https")) {
                       "Unsupported media URI scheme: ${uri.scheme}"
                   }
                   runCatching { mediaPlayer.stop() }
-                  currentMedia?.release()
-                  val media = Media(libVlc, uri)
-                  currentMedia = media
+                  pendingSeekMs = startPositionMs.coerceAtLeast(0L)
                   mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)
-                  mediaPlayer.media = media
-                  media.release()
-                  if (startPositionMs > 0L) {
-                      mediaPlayer.setEventListener { event ->
-                          if (event.type == MediaPlayer.Event.Playing) {
-                              mediaPlayer.setTime(startPositionMs)
-                          }
-                          handleEvent(event)
-                      }
+                  val media = Media(libVlc, uri)
+                  try {
+                      mediaPlayer.media = media
+                  } finally {
+                      media.release()
                   }
                   mediaPlayer.play()
                   publish(opening = true, error = null)
-              }
-
-              private fun handleEvent(event: MediaPlayer.Event) {
-                  when (event.type) {
-                      MediaPlayer.Event.Opening -> publish(opening = true, error = null)
-                      MediaPlayer.Event.Playing -> publish(playing = true, opening = false, ended = false)
-                      MediaPlayer.Event.Paused -> publish(playing = false)
-                      MediaPlayer.Event.Stopped -> publish(playing = false, opening = false)
-                      MediaPlayer.Event.EndReached -> publish(playing = false, opening = false, ended = true)
-                      MediaPlayer.Event.EncounteredError -> publish(
-                          playing = false, opening = false, error = "LibVLC encountered a playback error"
-                      )
-                      MediaPlayer.Event.TimeChanged,
-                      MediaPlayer.Event.PositionChanged,
-                      MediaPlayer.Event.LengthChanged -> publish()
-                  }
               }
 
               fun play() { checkActive(); if (!mediaPlayer.isPlaying) mediaPlayer.play() }
@@ -3625,8 +3601,6 @@ jobs:
                   runCatching { mediaPlayer.stop() }
                   runCatching { mediaPlayer.setEventListener(null) }
                   runCatching { mediaPlayer.detachViews() }
-                  currentMedia?.release()
-                  currentMedia = null
                   attachedLayout = null
                   mediaPlayer.release()
                   libVlc.release()
