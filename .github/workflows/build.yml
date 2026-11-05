@@ -4480,11 +4480,11 @@ jobs:
               raise SystemExit("Could not find end of startPlayer()")
           body = s[start.end():end]
           if "updatePlaybackTitle()" not in body:
-          anchor = "playerView.player = exo"
-          if anchor not in body:
-              raise SystemExit("startPlayer() does not contain expected player attachment")
-          body = body.replace(anchor, anchor + "\\n        updatePlaybackTitle()\\n        playerView.post { updatePlaybackTitle() }", 1)
-          s = s[:start.end()] + body + s[end:]
+              anchor = "playerView.player = exo"
+              if anchor not in body:
+                  raise SystemExit("startPlayer() does not contain expected player attachment")
+              body = body.replace(anchor, anchor + "\n        updatePlaybackTitle()\n        playerView.post { updatePlaybackTitle() }", 1)
+              s = s[:start.end()] + body + s[end:]
 
           p.write_text(s)
           print("Playback filename is refreshed after media selection and again when the video surface becomes visible.")
