@@ -4534,9 +4534,11 @@ jobs:
               t = t.replace(anchor, props + anchor, 1)
 
           if 'text = "Load Sub 1"' not in t:
-              anchor = "                  controls.addView(row)"
-              if anchor not in t:
-                  raise SystemExit("VLC controls row anchor missing")
+              import re
+              match = re.search(r'(?m)^(\\s*)controls\\.addView\\(row[^\\n]*\\)', t)
+              if not match:
+                  candidates = [line.strip() for line in t.splitlines() if "controls.addView(" in line]
+                  raise SystemExit("VLC controls insertion point missing; candidates: " + repr(candidates))
               buttons = """                  val externalSubtitleRow = LinearLayout(this).apply {
                       orientation = LinearLayout.HORIZONTAL
                       gravity = Gravity.CENTER
@@ -4554,7 +4556,7 @@ jobs:
                   externalSubtitleRow.addView(loadSub1Button, LinearLayout.LayoutParams(0, -2, 1f))
                   externalSubtitleRow.addView(loadSub2Button, LinearLayout.LayoutParams(0, -2, 1f))
                   controls.addView(externalSubtitleRow)"""
-              t = t.replace(anchor, anchor + chr(10) + buttons, 1)
+              t = t[:match.end()] + chr(10) + buttons + t[match.end():]
 
           activity.write_text(t)
           print("Both external subtitle controls inserted into the VLC activity.")
