@@ -4230,23 +4230,23 @@ jobs:
           old = """return mediaPlayer.getAudioTracks()?.map { Track(it.id, it.name ?: "Unknown audio") } ?: emptyList()"""
           new = """val descriptions = mediaPlayer.getAudioTracks()?.toList().orEmpty()
                   val media = mediaPlayer.media
-                  val metadata = mutableMapOf<Int, Media.AudioTrack>()
+                  val metadata = mutableMapOf<Int, Any>()
                   if (media != null) {
                       for (index in 0 until media.trackCount) {
                           val item = media.getTrack(index)
-                          if (item is Media.AudioTrack) metadata[item.id] = item
+                          if (item != null && item.javaClass.simpleName.contains("AudioTrack")) metadata[item.id] = item
                       }
                   }
                   return descriptions.map { item ->
                       val info = metadata[item.id]
+                  fun read(name: String): Any? = info?.let { track -> runCatching { track.javaClass.getField(name).get(track) }.getOrNull() }
                       Track(
                           id = item.id,
                           name = item.name ?: "",
-                          codec = info?.codec ?: "",
-                          channels = info?.channels ?: 0,
-                          language = info?.language ?: "",
-                          description = info?.description ?: "",
-                          bitrate = info?.bitrate ?: 0
+                          codec = read("codec")?.toString() ?: "",
+                          channels = (read("channels") as? Number)?.toInt() ?: 0,
+                          language = read("language")?.toString() ?: "",
+                          description = read("description")?.toString() ?: ""
                       )
                   }"""
           if old in s:
@@ -4283,7 +4283,7 @@ jobs:
                       }
                       val language = track.language.takeIf { it.isNotBlank() && it != "und" }
                       val parts = listOfNotNull(format.takeIf { it.isNotBlank() }, channels.takeIf { it.isNotBlank() }, language)
-                      val fallback = track.name.takeIf { it.isNotBlank() && !it.matches(Regex("(?i)track\\s*\\d+")) }
+                      val fallback = track.name.takeIf { it.isNotBlank() && !it.matches(Regex("(?i)track *[0-9]+")) }
                       (if (parts.isNotEmpty()) parts.joinToString(" · ") else fallback ?: "Audio ${index + 1}") +
                           if (track.id == selected) "  ✓" else ""
                   }.toTypedArray()"""
