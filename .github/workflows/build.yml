@@ -4225,7 +4225,7 @@ jobs:
               s = s.replace("import org.videolan.libvlc.LibVLC", "import org.videolan.libvlc.LibVLC\nimport org.videolan.libvlc.Media", 1)
           s = s.replace(
               "data class Track(val id: Int, val name: String)",
-              "data class Track(val id: Int, val name: String, val codec: String = \"\", val channels: Int = 0, val language: String = \"\", val description: String = \"\", val bitrate: Int = 0)"
+              "data class Track(val id: Int, val name: String, val codec: String = \"\", val channels: Int = 0, val language: String = \"\", val description: String = \"\", val bitrate: Int = 0, val sampleRate: Int = 0)"
           )
           old = """return mediaPlayer.getAudioTracks()?.map { Track(it.id, it.name ?: "Unknown audio") } ?: emptyList()"""
           new = """val descriptions = mediaPlayer.getAudioTracks()?.toList().orEmpty()
@@ -4239,14 +4239,24 @@ jobs:
                   }
                   return descriptions.map { item ->
                       val info = metadata[item.id]
-                  fun read(name: String): Any? = info?.let { track -> runCatching { track.javaClass.getField(name).get(track) }.getOrNull() }
+                  fun read(name: String): Any? = info?.let { track ->
+                          var type: Class<*>? = track.javaClass
+                          while (type != null) {
+                              val value = runCatching { type.getDeclaredField(name).apply { isAccessible = true }.get(track) }.getOrNull()
+                              if (value != null) return@let value
+                              type = type.superclass
+                          }
+                          null
+                      }
                       Track(
                           id = item.id,
                           name = item.name ?: "",
                           codec = read("codec")?.toString() ?: "",
                           channels = (read("channels") as? Number)?.toInt() ?: 0,
                           language = read("language")?.toString() ?: "",
-                          description = read("description")?.toString() ?: ""
+                          description = read("description")?.toString() ?: "",
+                          bitrate = (read("bitrate") as? Number)?.toInt() ?: 0,
+                          sampleRate = (read("rate") as? Number)?.toInt() ?: 0
                       )
                   }"""
           if old in s:
@@ -4281,8 +4291,13 @@ jobs:
                           1 -> "Mono"
                           else -> if (track.channels > 0) "${track.channels}ch" else ""
                       }
-                      val language = track.language.takeIf { it.isNotBlank() && it != "und" }
-                      val parts = listOfNotNull(format.takeIf { it.isNotBlank() }, channels.takeIf { it.isNotBlank() }, language)
+                      val language = track.language.takeIf { it.isNotBlank() && it != "und" }?.let { code ->
+                          val locale = java.util.Locale.forLanguageTag(code)
+                          locale.getDisplayLanguage(java.util.Locale.ENGLISH).takeIf { it.isNotBlank() && it != code } ?: code
+                      }
+                      val title = track.description.takeIf { it.isNotBlank() && !it.equals(track.language, true) }
+                      val sampleRate = if (track.sampleRate > 0) ((track.sampleRate / 10.0).toInt() / 100.0).toString() + " kHz" else ""
+                      val parts = listOfNotNull(title, format.takeIf { it.isNotBlank() }, language, channels.takeIf { it.isNotBlank() }, sampleRate.takeIf { it.isNotBlank() })
                       val fallback = track.name.takeIf { it.isNotBlank() && !it.matches(Regex("(?i)track *[0-9]+")) }
                       (if (parts.isNotEmpty()) parts.joinToString(" · ") else fallback ?: "Audio ${index + 1}") +
                           if (track.id == selected) "  ✓" else ""
