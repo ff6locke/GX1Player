@@ -4464,13 +4464,13 @@ jobs:
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
-          anchor = "                  if (playbackOverlay == null) {"
+          anchor = "if (playbackOverlay == null)"
           if anchor not in s:
-              raise SystemExit("Could not find playback overlay insertion point")
-          listener = """                  playerView.setControllerVisibilityListener { visibility ->
+              raise SystemExit("Could not find playback overlay null-check")
+          listener = """playerView.setControllerVisibilityListener { visibility ->
                       playbackTitle.visibility = visibility
                   }
-          """
+                  """
           if "setControllerVisibilityListener" not in s:
               s = s.replace(anchor, listener + anchor, 1)
           p.write_text(s)
