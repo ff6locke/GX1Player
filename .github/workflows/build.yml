@@ -4525,12 +4525,12 @@ jobs:
           p = Path("app/build.gradle.kts")
           s = p.read_text()
           # Remove all previous ABI filters, including the old one-line and multiline patches.
-          s = re.sub(r'(?m)^\\s*ndk\\s*\\{\\s*abiFilters\\s*\\+=\\s*setOf\\([^\\n]*\\)\\s*\\}\\s*\\n?', '', s)
-          s = re.sub(r'(?m)^\\s*abiFilters\\s*\\+=\\s*setOf\\([^\\n]*\\)\\s*\\n?', '', s)
+          s = re.sub(r'(?m)^\s*ndk\s*\{\s*abiFilters\s*\+=\s*setOf\([^\n]*\)\s*\}\s*\n?', '', s)
+          s = re.sub(r'(?m)^\s*abiFilters\s*\+=\s*setOf\([^\n]*\)\s*\n?', '', s)
           marker = "    defaultConfig {"
           if marker not in s:
               raise SystemExit("Could not find defaultConfig")
-          block = f'    defaultConfig {{\\n        ndk {{ abiFilters += setOf("{abi}") }}'
+          block = f'    defaultConfig {{\n        ndk {{ abiFilters += setOf("{abi}") }}'
           s = s.replace(marker, block, 1)
           p.write_text(s)
           print(f"Configured exactly one ABI: {abi}")
