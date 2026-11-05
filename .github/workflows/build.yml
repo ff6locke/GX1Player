@@ -4492,7 +4492,7 @@ jobs:
           if "fun addExternalSubtitle(uri: Uri)" not in e:
               anchor = "              fun play() {"
               if anchor not in e:
-                  raise SystemExit("Engine play() anchor missing; available methods: " + ", ".join(x.strip() for x in e.splitlines() if x.strip().startswith("fun ")))
+                  raise SystemExit("Engine play() anchor missing")
               method = """              fun addExternalSubtitle(uri: Uri): Boolean {
                   checkActive()
                   return mediaPlayer.addSlave(Media.Slave.Type.Subtitle, uri.toString(), false)
@@ -4509,7 +4509,7 @@ jobs:
           if new_imp not in t:
               if imp not in t:
                   raise SystemExit("VLC activity import anchor missing")
-              t = t.replace(imp, new_imp + "\\n" + imp, 1)
+              t = t.replace(imp, new_imp + chr(10) + imp, 1)
 
           if "private val loadSubtitle1" not in t:
               anchor = "              private val ticker = object : Runnable {"
@@ -4553,12 +4553,11 @@ jobs:
                   }
                   externalSubtitleRow.addView(loadSub1Button, LinearLayout.LayoutParams(0, -2, 1f))
                   externalSubtitleRow.addView(loadSub2Button, LinearLayout.LayoutParams(0, -2, 1f))
-                  controls.addView(externalSubtitleRow)
-          """
-              t = t.replace(anchor, anchor + "\\n" + buttons, 1)
+                  controls.addView(externalSubtitleRow)"""
+              t = t.replace(anchor, anchor + chr(10) + buttons, 1)
 
           activity.write_text(t)
-          print("Verified: VLC activity now contains both Load Sub 1 and Load Sub 2 buttons.")
+          print("Both external subtitle controls inserted into the VLC activity.")
           PY
 
       - name: Package 32-bit and 64-bit ARM variants for Android TV boxes
