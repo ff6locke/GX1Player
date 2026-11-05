@@ -3534,9 +3534,12 @@ jobs:
                   val lengthMs: Long = 0L
               )
 
+              // Keep LibVLC's platform-selected audio output and decoder defaults,
+              // matching the regular VLC app instead of forcing a specific Android output.
+              // Verbose logging is enabled temporarily to diagnose files that VLC app plays
+              // but this embedded player cannot open.
               private val libVlc = LibVLC(context.applicationContext, arrayListOf(
-                  "--aout=android_audiotrack",
-                  "--audio-time-stretch",
+                  "-vvv",
                   "--no-video-title-show"
               ))
               private val mediaPlayer = MediaPlayer(libVlc)
