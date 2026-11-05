@@ -4495,7 +4495,7 @@ jobs:
                   raise SystemExit("Engine play() declaration missing")
               method = """    fun addExternalSubtitle(uri: Uri): Boolean {
                   checkActive()
-                  return mediaPlayer.addSlave(Media.Slave.Type.Subtitle, uri.toString(), false)
+                  return mediaPlayer.addSlave(0, uri.toString(), false)
               }
 
           """
