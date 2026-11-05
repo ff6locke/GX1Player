@@ -3944,6 +3944,233 @@ jobs:
           print("History now records both media selection and player start; home History list includes saved entries and last-played fallback.")
           PY
 
+      - name: Upgrade LibVLC player controls and embedded track selection
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          cat > app/src/main/java/com/example/gx1player/VlcTestActivity.kt <<'KOTLIN'
+          package com.example.gx1player
+
+          import android.net.Uri
+          import android.os.Bundle
+          import android.os.Handler
+          import android.os.Looper
+          import android.view.Gravity
+          import android.view.View
+          import android.view.WindowManager
+          import android.widget.Button
+          import android.widget.FrameLayout
+          import android.widget.LinearLayout
+          import android.widget.SeekBar
+          import android.widget.TextView
+          import android.widget.Toast
+          import androidx.appcompat.app.AlertDialog
+          import androidx.appcompat.app.AppCompatActivity
+          import com.example.gx1player.playback.Gx1LibVlcEngine
+
+          /** Full-screen LibVLC playback route used to validate the VLC engine on GX1 hardware. */
+          class VlcTestActivity : AppCompatActivity() {
+              private var engine: Gx1LibVlcEngine? = null
+              private lateinit var status: TextView
+              private lateinit var position: TextView
+              private lateinit var seek: SeekBar
+              private lateinit var playButton: Button
+              private var dragging = false
+              private var mediaUri: Uri? = null
+              private val handler = Handler(Looper.getMainLooper())
+              private val prefs by lazy { getSharedPreferences("gx1_player", MODE_PRIVATE) }
+
+              private val ticker = object : Runnable {
+                  override fun run() {
+                      val active = engine
+                      if (active != null && !dragging) {
+                          val duration = active.durationMs()
+                          val current = active.currentTimeMs()
+                          seek.max = 1000
+                          seek.progress = if (duration > 0L) {
+                              ((current * 1000L) / duration).toInt().coerceIn(0, 1000)
+                          } else 0
+                          position.text = formatTime(current) + " / " + formatTime(duration)
+                          playButton.text = if (active.isPlaying()) "Pause" else "Play"
+                      }
+                      handler.postDelayed(this, 500L)
+                  }
+              }
+
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                  @Suppress("DEPRECATION")
+                  window.decorView.systemUiVisibility = (View.SYSTEM_UI_FLAG_FULLSCREEN or
+                      View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY)
+
+                  val uri = intent.data
+                  if (uri == null) {
+                      Toast.makeText(this, "No video selected for VLC playback", Toast.LENGTH_LONG).show()
+                      finish()
+                      return
+                  }
+                  mediaUri = uri
+                  val resumeAt = prefs.getLong("pos|" + uri.toString(), 0L)
+
+                  val root = FrameLayout(this).apply { setBackgroundColor(android.graphics.Color.BLACK) }
+                  val video = org.videolan.libvlc.util.VLCVideoLayout(this)
+                  root.addView(video, FrameLayout.LayoutParams(-1, -1))
+
+                  val controls = LinearLayout(this).apply {
+                      orientation = LinearLayout.VERTICAL
+                      setPadding(18, 12, 18, 12)
+                      setBackgroundColor(0x99000000.toInt())
+                  }
+                  status = TextView(this).apply {
+                      text = "VLC opening media…"
+                      setTextColor(android.graphics.Color.WHITE)
+                      textSize = 14f
+                  }
+                  position = TextView(this).apply {
+                      text = "00:00 / 00:00"
+                      setTextColor(android.graphics.Color.WHITE)
+                      textSize = 13f
+                  }
+                  seek = SeekBar(this).apply {
+                      isFocusable = true
+                      setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                          override fun onStartTrackingTouch(bar: SeekBar?) { dragging = true }
+                          override fun onStopTrackingTouch(bar: SeekBar?) {
+                              val duration = engine?.durationMs() ?: 0L
+                              if (duration > 0L) engine?.seekTo(duration * seek.progress / 1000L)
+                              dragging = false
+                          }
+                          override fun onProgressChanged(bar: SeekBar?, progress: Int, fromUser: Boolean) {}
+                      })
+                  }
+
+                  val row = LinearLayout(this).apply {
+                      orientation = LinearLayout.HORIZONTAL
+                      gravity = Gravity.CENTER
+                  }
+                  playButton = Button(this).apply {
+                      text = "Pause"
+                      setOnClickListener { engine?.togglePlayback() }
+                  }
+                  val audioButton = Button(this).apply {
+                      text = "Audio"
+                      setOnClickListener { showAudioTracks() }
+                  }
+                  val subtitleButton = Button(this).apply {
+                      text = "Subtitle"
+                      setOnClickListener { showSubtitleTracks() }
+                  }
+                  val backButton = Button(this).apply {
+                      text = "Back"
+                      setOnClickListener { finish() }
+                  }
+                  row.addView(playButton, LinearLayout.LayoutParams(0, -2, 1f))
+                  row.addView(audioButton, LinearLayout.LayoutParams(0, -2, 1f))
+                  row.addView(subtitleButton, LinearLayout.LayoutParams(0, -2, 1f))
+                  row.addView(backButton, LinearLayout.LayoutParams(0, -2, 1f))
+                  controls.addView(status)
+                  controls.addView(position)
+                  controls.addView(seek)
+                  controls.addView(row)
+                  root.addView(controls, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
+                  setContentView(root)
+
+                  try {
+                      val vlcEngine = Gx1LibVlcEngine(this) { state ->
+                          runOnUiThread {
+                              status.text = when {
+                                  state.error != null -> state.error
+                                  state.opening -> "VLC opening media…"
+                                  state.ended -> "Playback ended"
+                                  state.playing -> "VLC playing"
+                                  else -> "Paused"
+                              }
+                          }
+                      }
+                      engine = vlcEngine
+                      vlcEngine.attach(video)
+                      vlcEngine.open(uri, resumeAt, true)
+                      handler.post(ticker)
+                  } catch (error: Exception) {
+                      Toast.makeText(this, "VLC playback error: " + (error.message ?: "unknown"), Toast.LENGTH_LONG).show()
+                      finish()
+                  }
+              }
+
+              private fun showAudioTracks() {
+                  val tracks = runCatching { engine?.audioTracks().orEmpty() }.getOrDefault(emptyList())
+                  if (tracks.isEmpty()) {
+                      Toast.makeText(this, "VLC has not exposed audio tracks yet. Wait for playback, then try again.", Toast.LENGTH_LONG).show()
+                      return
+                  }
+                  val selected = engine?.selectedAudioTrackId() ?: -1
+                  val labels = tracks.map { it.name + if (it.id == selected) "  ✓" else "" }.toTypedArray()
+                  AlertDialog.Builder(this)
+                      .setTitle("VLC audio track")
+                      .setItems(labels) { _, which ->
+                          val ok = engine?.selectAudioTrack(tracks[which].id) == true
+                          Toast.makeText(this, if (ok) "Audio track selected" else "VLC could not select this audio track", Toast.LENGTH_SHORT).show()
+                      }
+                      .setNegativeButton("Close", null)
+                      .show()
+              }
+
+              private fun showSubtitleTracks() {
+                  val tracks = runCatching { engine?.subtitleTracks().orEmpty() }.getOrDefault(emptyList())
+                  val selected = engine?.selectedSubtitleTrackId() ?: -1
+                  val labels = mutableListOf("Off")
+                  labels.addAll(tracks.map { it.name + if (it.id == selected) "  ✓" else "" })
+                  AlertDialog.Builder(this)
+                      .setTitle("VLC embedded subtitles")
+                      .setItems(labels.toTypedArray()) { _, which ->
+                          val id = if (which == 0) -1 else tracks[which - 1].id
+                          val ok = engine?.selectSubtitleTrack(id) == true
+                          Toast.makeText(this, if (ok) "Subtitle selection updated" else "VLC could not select this subtitle", Toast.LENGTH_SHORT).show()
+                      }
+                      .setNegativeButton("Close", null)
+                      .show()
+              }
+
+              override fun onStop() {
+                  val active = engine
+                  val uri = mediaUri
+                  if (active != null && uri != null) {
+                      val current = active.currentTimeMs()
+                      val duration = active.durationMs()
+                      val edit = prefs.edit()
+                      if ((duration > 0L && current >= duration - 10000L) || current < 5000L) {
+                          edit.remove("pos|" + uri.toString())
+                      } else {
+                          edit.putLong("pos|" + uri.toString(), current)
+                      }
+                      edit.apply()
+                  }
+                  handler.removeCallbacks(ticker)
+                  engine?.release()
+                  engine = null
+                  super.onStop()
+              }
+
+              private fun formatTime(ms: Long): String {
+                  val total = ms / 1000L
+                  val hours = total / 3600L
+                  val minutes = (total % 3600L) / 60L
+                  val seconds = total % 60L
+                  return if (hours > 0L) "%d:%02d:%02d".format(hours, minutes, seconds)
+                      else "%02d:%02d".format(minutes, seconds)
+              }
+          }
+          KOTLIN
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          s = s.replace('Triple("VLC", "LibVLC TrueHD test", "vlc_test")',
+                        'Triple("VLC", "Play current video with VLC", "vlc_test")')
+          p.write_text(s)
+          print("Updated VLC menu label and LibVLC playback screen with embedded audio/subtitle selectors.")
+          PY
+
       - name: Export generated project source for LibVLC migration review
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
