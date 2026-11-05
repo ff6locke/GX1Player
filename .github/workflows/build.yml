@@ -4451,8 +4451,8 @@ jobs:
                       }
                   }
           """
-          if "playerView.findViewWithTag<android.widget.TextView>(\\"gx1_playback_title\\")" not in s:
-              s = s.replace(anchor, anchor + "\\n" + refresh.rstrip(), 1)
+          if 'playerView.findViewWithTag<android.widget.TextView>("gx1_playback_title")' not in s:
+              s = s.replace(anchor, anchor + "\n" + refresh.rstrip(), 1)
           p.write_text(s)
           print("Filename is now refreshed on the Media3 overlay after playback starts.")
           PY
