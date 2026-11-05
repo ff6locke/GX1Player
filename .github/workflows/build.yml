@@ -3635,6 +3635,61 @@ jobs:
           }
           EOF
           echo "Added reusable LibVLC engine core; existing Media3 UI remains unchanged pending integration."
+
+      - name: Add LibVLC embedded track inventory and selection API
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
+          s = p.read_text()
+          if "data class Track(" not in s:
+              marker = "    private fun checkActive() {"
+              if marker not in s:
+                  raise SystemExit("Could not locate LibVLC engine API insertion point")
+              api = '''    data class Track(val id: Int, val name: String)
+
+              /** Returns the embedded audio tracks currently exposed by LibVLC. */
+              fun audioTracks(): List<Track> {
+                  checkActive()
+                  return mediaPlayer.getAudioTracks()?.map { Track(it.id, it.name ?: "Unknown audio") } ?: emptyList()
+              }
+
+              fun selectedAudioTrackId(): Int {
+                  checkActive()
+                  return mediaPlayer.getAudioTrack()
+              }
+
+              fun selectAudioTrack(id: Int): Boolean {
+                  checkActive()
+                  return mediaPlayer.setAudioTrack(id)
+              }
+
+              /** Returns embedded subtitle (SPU) tracks currently exposed by LibVLC. */
+              fun subtitleTracks(): List<Track> {
+                  checkActive()
+                  return mediaPlayer.getSpuTracks()?.map { Track(it.id, it.name ?: "Unknown subtitle") } ?: emptyList()
+              }
+
+              fun selectedSubtitleTrackId(): Int {
+                  checkActive()
+                  return mediaPlayer.getSpuTrack()
+              }
+
+              fun selectSubtitleTrack(id: Int): Boolean {
+                  checkActive()
+                  return mediaPlayer.setSpuTrack(id)
+              }
+
+          '''
+              s = s.replace(marker, api + marker, 1)
+          required = ["fun audioTracks()", "fun selectAudioTrack(id: Int)", "fun subtitleTracks()", "fun selectSubtitleTrack(id: Int)"]
+          missing = [item for item in required if item not in s]
+          if missing:
+              raise SystemExit("LibVLC track API verification failed: " + ", ".join(missing))
+          p.write_text(s)
+          print("Added LibVLC embedded audio/SPU track listing and selection methods.")
+          PY
       - name: Upgrade LibVLC test player with transport and resume controls
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
