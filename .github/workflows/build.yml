@@ -4481,6 +4481,75 @@ jobs:
           print("Playback filename now follows Media3 controller visibility.")
           PY
 
+      - name: Add dual external subtitle loading to LibVLC playback
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          engine = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
+          s = engine.read_text()
+          marker = "              private fun checkActive() {"
+          api = """              /** Adds an external subtitle while LibVLC is playing. */
+              fun addExternalSubtitle(uri: Uri): Boolean {
+                  checkActive()
+                  return mediaPlayer.addSlave(Media.Slave.Type.Subtitle, uri, false)
+              }
+
+          """
+          if "fun addExternalSubtitle(uri: Uri)" not in s:
+              if marker not in s: raise SystemExit("LibVLC engine insertion point missing")
+              s = s.replace(marker, api + marker, 1)
+          engine.write_text(s)
+
+          activity = Path("app/src/main/java/com/example/gx1player/VlcTestActivity.kt")
+          t = activity.read_text()
+          imp = "import androidx.activity.result.contract.ActivityResultContracts"
+          if imp not in t:
+              anchor = "import androidx.appcompat.app.AppCompatActivity"
+              if anchor not in t: raise SystemExit("VLC activity import anchor missing")
+              t = t.replace(anchor, anchor + "\\n" + imp, 1)
+          prop = """              private val subtitle1Picker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+                  attachExternalSubtitle(uri, "Subtitle 1")
+              }
+              private val subtitle2Picker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+                  attachExternalSubtitle(uri, "Subtitle 2")
+              }
+
+              private fun attachExternalSubtitle(uri: Uri?, slot: String) {
+                  if (uri == null) return
+                  runCatching { contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+                  val ok = runCatching { engine?.addExternalSubtitle(uri) == true }.getOrDefault(false)
+                  status.text = if (ok) "$slot added to VLC" else "VLC could not load $slot"
+                  Toast.makeText(this, status.text, Toast.LENGTH_SHORT).show()
+              }
+
+          """
+          if "private val subtitle1Picker" not in t:
+              anchor = "              private fun showAudioTracks() {"
+              if anchor not in t: raise SystemExit("VLC track menu insertion point missing")
+              t = t.replace(anchor, prop + anchor, 1)
+          buttons = """                  val subtitle1Button = Button(this).apply {
+                      text = "Sub 1"
+                      setOnClickListener { subtitle1Picker.launch(arrayOf("text/*", "application/x-subrip", "application/octet-stream")) }
+                  }
+                  val subtitle2Button = Button(this).apply {
+                      text = "Sub 2"
+                      setOnClickListener { subtitle2Picker.launch(arrayOf("text/*", "application/x-subrip", "application/octet-stream")) }
+                  }
+          """
+          if 'text = "Sub 1"' not in t:
+              anchor = '                  val outputButton = Button(this).apply {'
+              if anchor not in t: raise SystemExit("VLC controls insertion point missing")
+              t = t.replace(anchor, buttons + anchor, 1)
+              anchor = "                  row.addView(subtitleButton, LinearLayout.LayoutParams(0, -2, 1f))"
+              if anchor not in t: raise SystemExit("VLC row insertion point missing")
+              t = t.replace(anchor, anchor + """
+                  row.addView(subtitle1Button, LinearLayout.LayoutParams(0, -2, 1f))
+                  row.addView(subtitle2Button, LinearLayout.LayoutParams(0, -2, 1f))""", 1)
+          activity.write_text(t)
+          print("Added two independent external subtitle pickers to the LibVLC playback route.")
+          PY
+
       - name: Package 32-bit and 64-bit ARM variants for Android TV boxes
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
