@@ -4642,81 +4642,59 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
           p = Path("app/src/main/java/com/example/gx1player/VlcTestActivity.kt")
           s = p.read_text()
-          s = s.replace(
-              "import android.view.Gravity",
-              "import android.view.Gravity\nimport android.view.KeyEvent",
-              1
-          )
-          s = s.replace(
-              "              private var dragging = false",
-              """              private var dragging = false
-              private var controlsPanel: View? = null
-              private var controlsVisible = true
-              private val autoHideControls = Runnable {
-                  controlsPanel?.visibility = View.GONE
-                  controlsVisible = false
-              }""",
-              1
-          )
-          anchor = "              override fun onCreate(savedInstanceState: Bundle?) {"
-          methods = """              private fun showControls() {
-                  val panel = controlsPanel ?: return
-                  panel.visibility = View.VISIBLE
-                  controlsVisible = true
-                  handler.removeCallbacks(autoHideControls)
-                  handler.postDelayed(autoHideControls, 5000L)
-              }
-
-              private fun hideControls() {
-                  handler.removeCallbacks(autoHideControls)
-                  controlsPanel?.visibility = View.GONE
-                  controlsVisible = false
-              }
-
-              override fun onBackPressed() {
-                  if (controlsVisible) hideControls() else finish()
-              }
-
-              override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-                  if (event.action == KeyEvent.ACTION_DOWN &&
-                      event.keyCode != KeyEvent.KEYCODE_BACK &&
-                      event.keyCode != KeyEvent.KEYCODE_ESCAPE) {
-                      showControls()
-                  }
-                  return super.dispatchKeyEvent(event)
-              }
-
-          """
+          if "import android.view.KeyEvent" not in s:
+              s = s.replace("import android.view.Gravity", "import android.view.Gravity\nimport android.view.KeyEvent", 1)
+          if "private var controlsPanel: View? = null" not in s:
+              s, n = re.subn(
+                  r'(?m)^(\s*private var dragging = false)$',
+                  r'\1\n    private var controlsPanel: View? = null\n    private var controlsVisible = true\n    private val autoHideControls = Runnable {\n        controlsPanel?.visibility = View.GONE\n        controlsVisible = false\n    }',
+                  s, count=1)
+              if n != 1: raise SystemExit("Could not find VLC dragging state")
           if "private fun showControls()" not in s:
-              if anchor not in s:
-                  raise SystemExit("Could not find VLC onCreate anchor")
-              s = s.replace(anchor, methods + anchor, 1)
-          s = s.replace(
-              "                  root.addView(controls, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))",
-              """                  controlsPanel = controls
-                  root.addView(controls, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
-                  video.setOnClickListener {
-                      if (controlsVisible) hideControls() else showControls()
+              match = re.search(r'(?m)^\s*override fun onCreate\(savedInstanceState: Bundle\?\) \{', s)
+              if not match: raise SystemExit("Could not find VLC onCreate anchor")
+              indent = re.match(r'\s*', match.group()).group()
+              methods = """private fun showControls() {
+                      val panel = controlsPanel ?: return
+                      panel.visibility = View.VISIBLE
+                      controlsVisible = true
+                      handler.removeCallbacks(autoHideControls)
+                      handler.postDelayed(autoHideControls, 5000L)
                   }
-                  root.setOnClickListener {
-                      if (controlsVisible) hideControls() else showControls()
-                  }""",
-              1
-          )
-          s = s.replace(
-              "                      handler.post(ticker)",
-              "                      handler.post(ticker)\n                      showControls()",
-              1
-          )
-          s = s.replace(
-              "                  handler.removeCallbacks(ticker)",
-              "                  handler.removeCallbacks(ticker)\n                  handler.removeCallbacks(autoHideControls)",
-              1
-          )
-          if "private fun showControls()" not in s or "controlsPanel = controls" not in s:
-              raise SystemExit("VLC hideable-controls patch did not apply completely")
+
+                  private fun hideControls() {
+                      handler.removeCallbacks(autoHideControls)
+                      controlsPanel?.visibility = View.GONE
+                      controlsVisible = false
+                  }
+
+                  override fun onBackPressed() {
+                      if (controlsVisible) hideControls() else finish()
+                  }
+
+                  override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+                      if (event.action == KeyEvent.ACTION_DOWN &&
+                          event.keyCode != KeyEvent.KEYCODE_BACK &&
+                          event.keyCode != KeyEvent.KEYCODE_ESCAPE) showControls()
+                      return super.dispatchKeyEvent(event)
+                  }
+
+              """
+              s = s[:match.start()] + indent + methods.replace("\n", "\n" + indent) + s[match.start():]
+          if "controlsPanel = controls" not in s:
+              pattern = r'(?m)^(\s*)root\.addView\(controls, FrameLayout\.LayoutParams\(-1, -2, Gravity\.BOTTOM\)\)'
+              repl = r'\1controlsPanel = controls\n\1root.addView(controls, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))\n\1video.setOnClickListener { if (controlsVisible) hideControls() else showControls() }'
+              s, n = re.subn(pattern, repl, s, count=1)
+              if n != 1: raise SystemExit("Could not find VLC controls panel insertion point")
+          if "showControls()" not in s[s.find("engine = vlcEngine"):s.find("override fun onStop()")]:
+              s, n = re.subn(r'(?m)^(\s*)handler\.post\(ticker\)$', r'\1handler.post(ticker)\n\1showControls()', s, count=1)
+              if n != 1: raise SystemExit("Could not find VLC ticker start")
+          if "handler.removeCallbacks(autoHideControls)" not in s[s.find("override fun onStop()"):]:
+              s, n = re.subn(r'(?m)^(\s*)handler\.removeCallbacks\(ticker\)$', r'\1handler.removeCallbacks(ticker)\n\1handler.removeCallbacks(autoHideControls)', s, count=1)
+              if n != 1: raise SystemExit("Could not find VLC ticker cleanup")
           p.write_text(s)
           print("VLC controls now auto-hide after 5 seconds; tap video or press Back to hide/show. Back hides controls first and exits on the next press.")
           PY
