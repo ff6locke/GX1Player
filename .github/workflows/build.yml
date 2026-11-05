@@ -3944,6 +3944,36 @@ jobs:
           print("History now records both media selection and player start; home History list includes saved entries and last-played fallback.")
           PY
 
+      - name: Add in-app LibVLC playback validation route
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          anchor = '        add("Home") { showHome() }\n'
+          action = '''        add("Play current video with LibVLC (test)") {
+                    val uri = mediaUri
+                    if (uri == null) {
+                        Toast.makeText(this, "Select a video first", Toast.LENGTH_SHORT).show()
+                    } else {
+                        val intent = Intent(this, VlcTestActivity::class.java).setData(uri)
+                        startActivity(intent)
+                    }
+                }
+'''
+          if action.strip() not in s:
+              if anchor not in s:
+                  raise SystemExit("Could not locate playback menu Home action; refusing to patch a different menu")
+              s = s.replace(anchor, anchor + action, 1)
+          if 'add("Play current video with LibVLC (test)")' not in s:
+              raise SystemExit("LibVLC validation menu item was not inserted")
+          if 'Intent(this, VlcTestActivity::class.java).setData(uri)' not in s:
+              raise SystemExit("LibVLC menu route verification failed")
+          p.write_text(s)
+          print("Added a direct in-app route to open the selected file in the standalone LibVLC player.")
+          PY
+
       - name: Export generated project source for LibVLC migration review
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
