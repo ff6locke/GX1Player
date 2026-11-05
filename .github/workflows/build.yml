@@ -3608,6 +3608,207 @@ jobs:
           }
           EOF
           echo "Added reusable LibVLC engine core; existing Media3 UI remains unchanged pending integration."
+      - name: Upgrade LibVLC test player with transport and resume controls
+        working-directory: \${{ env.PROJECT_DIR }}
+        run: |
+          cat > app/src/main/java/com/example/gx1player/VlcTestActivity.kt <<'EOF'
+          package com.example.gx1player
+
+          import android.net.Uri
+          import android.os.Bundle
+          import android.os.Handler
+          import android.os.Looper
+          import android.view.Gravity
+          import android.view.View
+          import android.view.WindowManager
+          import android.widget.Button
+          import android.widget.FrameLayout
+          import android.widget.LinearLayout
+          import android.widget.SeekBar
+          import android.widget.TextView
+          import android.widget.Toast
+          import androidx.appcompat.app.AppCompatActivity
+          import org.videolan.libvlc.LibVLC
+          import org.videolan.libvlc.Media
+          import org.videolan.libvlc.MediaPlayer
+          import org.videolan.libvlc.util.VLCVideoLayout
+
+          /** Standalone LibVLC validation screen; the production Media3 screen is not replaced yet. */
+          class VlcTestActivity : AppCompatActivity() {
+              private var libVlc: LibVLC? = null
+              private var player: MediaPlayer? = null
+              private var video: VLCVideoLayout? = null
+              private lateinit var status: TextView
+              private lateinit var position: TextView
+              private lateinit var seek: SeekBar
+              private var dragging = false
+              private var digitalOutput = true
+              private val handler = Handler(Looper.getMainLooper())
+              private val prefs by lazy { getSharedPreferences("gx1_player", MODE_PRIVATE) }
+              private var mediaUri: Uri? = null
+
+              private val ticker = object : Runnable {
+                  override fun run() {
+                      val mp = player
+                      if (mp != null && !dragging) {
+                          val duration = mp.length.coerceAtLeast(0L)
+                          val current = mp.time.coerceAtLeast(0L)
+                          seek.max = 1000
+                          seek.progress = if (duration > 0) ((current * 1000L) / duration).toInt().coerceIn(0, 1000) else 0
+                          position.text = formatTime(current) + " / " + formatTime(duration)
+                      }
+                      handler.postDelayed(this, 500L)
+                  }
+              }
+
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                  window.decorView.systemUiVisibility = (View.SYSTEM_UI_FLAG_FULLSCREEN or
+                      View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY)
+                  val uri = intent.data ?: run {
+                      Toast.makeText(this, "No video selected for LibVLC", Toast.LENGTH_LONG).show()
+                      finish()
+                      return
+                  }
+                  mediaUri = uri
+                  val resumeAt = prefs.getLong("pos|" + uri.toString(), 0L)
+                  val root = FrameLayout(this).apply { setBackgroundColor(android.graphics.Color.BLACK) }
+                  val videoView = VLCVideoLayout(this)
+                  video = videoView
+                  root.addView(videoView, FrameLayout.LayoutParams(-1, -1))
+                  val controls = LinearLayout(this).apply {
+                      orientation = LinearLayout.VERTICAL
+                      setPadding(16, 10, 16, 10)
+                      setBackgroundColor(0x99000000.toInt())
+                  }
+                  status = TextView(this).apply {
+                      text = "LibVLC playback test"
+                      setTextColor(-1)
+                      textSize = 14f
+                  }
+                  position = TextView(this).apply {
+                      text = "00:00 / 00:00"
+                      setTextColor(-1)
+                      textSize = 13f
+                  }
+                  seek = SeekBar(this).apply {
+                      isFocusable = true
+                      setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                          override fun onStartTrackingTouch(bar: SeekBar?) { dragging = true }
+                          override fun onStopTrackingTouch(bar: SeekBar?) {
+                              val mp = player
+                              if (mp != null && mp.length > 0L) mp.time = (mp.length * seek.progress / 1000L)
+                              dragging = false
+                          }
+                          override fun onProgressChanged(bar: SeekBar?, progress: Int, fromUser: Boolean) {}
+                      })
+                  }
+                  val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
+                  val playButton = Button(this).apply {
+                      text = "Pause"
+                      setOnClickListener {
+                          val mp = player ?: return@setOnClickListener
+                          if (mp.isPlaying) { mp.pause(); text = "Play" }
+                          else { mp.play(); text = "Pause" }
+                      }
+                  }
+                  val outputButton = Button(this).apply {
+                      text = "Digital output: ON"
+                      setOnClickListener {
+                          digitalOutput = !digitalOutput
+                          val ok = player?.setAudioDigitalOutputEnabled(digitalOutput) ?: false
+                          text = "Digital output: " + if (digitalOutput) "ON" else "OFF"
+                          status.text = "Digital output " + if (ok) "updated" else "setting not accepted"
+                      }
+                  }
+                  val closeButton = Button(this).apply {
+                      text = "Back"
+                      setOnClickListener { finish() }
+                  }
+                  row.addView(playButton, LinearLayout.LayoutParams(0, -2, 1f))
+                  row.addView(outputButton, LinearLayout.LayoutParams(0, -2, 1.4f))
+                  row.addView(closeButton, LinearLayout.LayoutParams(0, -2, 1f))
+                  controls.addView(status)
+                  controls.addView(position)
+                  controls.addView(seek)
+                  controls.addView(row)
+                  root.addView(controls, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
+                  setContentView(root)
+
+                  try {
+                      val vlc = LibVLC(this, arrayListOf("--aout=android_audiotrack", "--no-video-title-show"))
+                      libVlc = vlc
+                      val mp = MediaPlayer(vlc)
+                      player = mp
+                      mp.attachViews(videoView, null, false, false)
+                      mp.setAudioDigitalOutputEnabled(digitalOutput)
+                      mp.setEventListener { event ->
+                          runOnUiThread {
+                              when (event.type) {
+                                  MediaPlayer.Event.Opening -> status.text = "LibVLC opening media…"
+                                  MediaPlayer.Event.Playing -> status.text = "LibVLC playing"
+                                  MediaPlayer.Event.Paused -> status.text = "Paused"
+                                  MediaPlayer.Event.EndReached -> status.text = "Playback ended"
+                                  MediaPlayer.Event.EncounteredError -> status.text = "LibVLC playback error"
+                              }
+                          }
+                      }
+                      val media = Media(vlc, uri)
+                      try { mp.media = media } finally { media.release() }
+                      mp.play()
+                      if (resumeAt > 0L) {
+                          mp.setEventListener { event ->
+                              if (event.type == MediaPlayer.Event.Playing) {
+                                  mp.time = resumeAt
+                                  runOnUiThread { status.text = "Resumed at " + formatTime(resumeAt) }
+                              }
+                          }
+                      }
+                      handler.post(ticker)
+                  } catch (e: Exception) {
+                      Toast.makeText(this, "LibVLC error: " + (e.message ?: "unknown"), Toast.LENGTH_LONG).show()
+                      finish()
+                  }
+              }
+
+              override fun onStop() {
+                  val mp = player
+                  val uri = mediaUri
+                  if (mp != null && uri != null) {
+                      val current = mp.time.coerceAtLeast(0L)
+                      val duration = mp.length
+                      val edit = prefs.edit()
+                      if (duration > 0L && current >= duration - 10000L || current < 5000L) {
+                          edit.remove("pos|" + uri.toString())
+                      } else {
+                          edit.putLong("pos|" + uri.toString(), current)
+                      }
+                      edit.apply()
+                  }
+                  handler.removeCallbacks(ticker)
+                  player?.let {
+                      runCatching { it.stop() }
+                      runCatching { it.setEventListener(null) }
+                      runCatching { it.detachViews() }
+                      runCatching { it.release() }
+                  }
+                  player = null
+                  libVlc?.release()
+                  libVlc = null
+                  video = null
+                  super.onStop()
+              }
+
+              private fun formatTime(ms: Long): String {
+                  val total = ms / 1000L
+                  val h = total / 3600L
+                  val m = (total % 3600L) / 60L
+                  val s = total % 60L
+                  return if (h > 0L) "%d:%02d:%02d".format(h, m, s) else "%02d:%02d".format(m, s)
+              }
+          }
+          EOF
       - name: Export generated project source for LibVLC migration review
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
