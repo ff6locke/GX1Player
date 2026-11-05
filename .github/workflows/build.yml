@@ -3743,11 +3743,17 @@ jobs:
                       player = mp
                       mp.attachViews(videoView, null, false, false)
                       mp.setAudioDigitalOutputEnabled(digitalOutput)
+                      var resumeApplied = false
                       mp.setEventListener { event ->
+                          if (event.type == MediaPlayer.Event.Playing && resumeAt > 0L && !resumeApplied) {
+                              resumeApplied = true
+                              mp.time = resumeAt
+                          }
                           runOnUiThread {
                               when (event.type) {
                                   MediaPlayer.Event.Opening -> status.text = "LibVLC opening media…"
-                                  MediaPlayer.Event.Playing -> status.text = "LibVLC playing"
+                                  MediaPlayer.Event.Playing -> status.text =
+                                      if (resumeApplied) "LibVLC playing — resume restored" else "LibVLC playing"
                                   MediaPlayer.Event.Paused -> status.text = "Paused"
                                   MediaPlayer.Event.EndReached -> status.text = "Playback ended"
                                   MediaPlayer.Event.EncounteredError -> status.text = "LibVLC playback error"
@@ -3757,14 +3763,6 @@ jobs:
                       val media = Media(vlc, uri)
                       try { mp.media = media } finally { media.release() }
                       mp.play()
-                      if (resumeAt > 0L) {
-                          mp.setEventListener { event ->
-                              if (event.type == MediaPlayer.Event.Playing) {
-                                  mp.time = resumeAt
-                                  runOnUiThread { status.text = "Resumed at " + formatTime(resumeAt) }
-                              }
-                          }
-                      }
                       handler.post(ticker)
                   } catch (e: Exception) {
                       Toast.makeText(this, "LibVLC error: " + (e.message ?: "unknown"), Toast.LENGTH_LONG).show()
@@ -3855,10 +3853,24 @@ jobs:
             ./gradlew :app:assembleDebug --no-daemon --stacktrace
           fi
 
+      - name: Name VLC APK
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          set -e
+          APK_DIR="app/build/outputs/apk/${BUILD_KIND}"
+          mapfile -t APK_FILES < <(find "$APK_DIR" -maxdepth 1 -type f -name '*.apk' ! -name 'GX1Player-VLC.apk' | sort)
+          if [ "${#APK_FILES[@]}" -ne 1 ]; then
+            echo "Expected exactly one APK to rename; found ${#APK_FILES[@]}"
+            printf '%s\\n' "${APK_FILES[@]}"
+            exit 1
+          fi
+          cp "${APK_FILES[0]}" "$APK_DIR/GX1Player-VLC.apk"
+          ls -lh "$APK_DIR/GX1Player-VLC.apk"
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: gx1-player-${{ env.BUILD_KIND }}-b${{ github.run_number }}
-          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/${{ env.BUILD_KIND }}/*.apk
+          name: gx1-player-VLC-${{ env.BUILD_KIND }}-b${{ github.run_number }}
+          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/${{ env.BUILD_KIND }}/GX1Player-VLC.apk
           if-no-files-found: error
           retention-days: 30
