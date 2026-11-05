@@ -4557,7 +4557,7 @@ jobs:
           for APK in GX1Player-VLC-32bit.apk GX1Player-VLC-64bit.apk; do
             test -s "$APK"
             echo "===== $APK ====="
-            unzip -l "$APK" | grep -E 'lib/(armeabi-v7a|arm64-v8a)/.*libvlc(jni)?\\.so'
+            unzip -l "$APK" | grep -E 'lib/(armeabi-v7a|arm64-v8a)/.*libvlc(jni)?[.]so'
           done
           unzip -l GX1Player-VLC-32bit.apk | grep -q 'lib/armeabi-v7a/libvlc.so'
           if unzip -l GX1Player-VLC-32bit.apk | grep -q 'lib/arm64-v8a/libvlc.so'; then
