@@ -2657,7 +2657,24 @@ jobs:
                   val cut = dir.absolutePath.indexOf(marker)
                   if (cut > 0) java.io.File(dir.absolutePath.substring(0, cut)) else null
               }
-              return (listOf(internal) + external).distinctBy { it.absolutePath }.filter { it.exists() }
+              // USB OTG volumes are not consistently returned by getExternalFilesDirs()
+              // (notably on Samsung phones). Ask StorageManager for mounted volume roots too.
+              val mountedVolumes = if (Build.VERSION.SDK_INT >= 24) {
+                  try {
+                      val manager = getSystemService(android.content.Context.STORAGE_SERVICE) as? android.os.storage.StorageManager
+                      manager?.storageVolumes.orEmpty().mapNotNull { volume ->
+                          try {
+                              val state = volume.state
+                              val isPrimary = volume.isPrimary
+                              val root = volume.javaClass.getMethod("getDirectory").invoke(volume) as? java.io.File
+                              if (!isPrimary && state == Environment.MEDIA_MOUNTED && root?.isDirectory == true) root else null
+                          } catch (_: Exception) { null }
+                      }
+                  } catch (_: Exception) { emptyList() }
+              } else emptyList()
+              return (listOf(internal) + external + mountedVolumes)
+                  .distinctBy { it.canonicalPath }
+                  .filter { it.exists() && it.isDirectory }
           }
 
           private fun chooseGX1LibraryFolder() {
