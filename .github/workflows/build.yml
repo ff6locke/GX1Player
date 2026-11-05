@@ -3976,6 +3976,8 @@ jobs:
               private lateinit var playButton: Button
               private var dragging = false
               private var mediaUri: Uri? = null
+              private var digitalOutput = true
+              private lateinit var outputButton: Button
               private val handler = Handler(Looper.getMainLooper())
               private val prefs by lazy { getSharedPreferences("gx1_player", MODE_PRIVATE) }
 
@@ -4060,6 +4062,20 @@ jobs:
                       text = "Subtitle"
                       setOnClickListener { showSubtitleTracks() }
                   }
+                  outputButton = Button(this).apply {
+                      text = "HDMI: ON"
+                      setOnClickListener {
+                          val active = engine
+                          val currentUri = mediaUri
+                          if (active != null && currentUri != null) {
+                              val resume = active.currentTimeMs()
+                              digitalOutput = !digitalOutput
+                              text = if (digitalOutput) "HDMI: ON" else "HDMI: OFF"
+                              status.text = "Restarting VLC (HDMI output " + if (digitalOutput) "ON" else "OFF" + ")…"
+                              active.open(currentUri, resume, digitalOutput)
+                          }
+                      }
+                  }
                   val backButton = Button(this).apply {
                       text = "Back"
                       setOnClickListener { finish() }
@@ -4067,6 +4083,7 @@ jobs:
                   row.addView(playButton, LinearLayout.LayoutParams(0, -2, 1f))
                   row.addView(audioButton, LinearLayout.LayoutParams(0, -2, 1f))
                   row.addView(subtitleButton, LinearLayout.LayoutParams(0, -2, 1f))
+                  row.addView(outputButton, LinearLayout.LayoutParams(0, -2, 1f))
                   row.addView(backButton, LinearLayout.LayoutParams(0, -2, 1f))
                   controls.addView(status)
                   controls.addView(position)
@@ -4089,7 +4106,7 @@ jobs:
                       }
                       engine = vlcEngine
                       vlcEngine.attach(video)
-                      vlcEngine.open(uri, resumeAt, true)
+                      vlcEngine.open(uri, resumeAt, digitalOutput)
                       handler.post(ticker)
                   } catch (error: Exception) {
                       Toast.makeText(this, "VLC playback error: " + (error.message ?: "unknown"), Toast.LENGTH_LONG).show()
