@@ -3609,7 +3609,7 @@ jobs:
           EOF
           echo "Added reusable LibVLC engine core; existing Media3 UI remains unchanged pending integration."
       - name: Upgrade LibVLC test player with transport and resume controls
-        working-directory: \${{ env.PROJECT_DIR }}
+        working-directory: ${{ env.PROJECT_DIR }}
         run: |
           cat > app/src/main/java/com/example/gx1player/VlcTestActivity.kt <<'EOF'
           package com.example.gx1player
