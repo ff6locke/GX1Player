@@ -3834,6 +3834,94 @@ jobs:
               }
           }
           EOF
+      - name: Repair playback history persistence and home history list
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          if "KEY_HISTORY_PREFIX" not in s:
+              raise SystemExit("History key constant is missing; refusing to create a disconnected history store")
+
+          recorder = """    private fun recordPlaybackHistory(uri: Uri) {
+                  val key = KEY_HISTORY_PREFIX + uri.toString()
+                  prefs.edit()
+                      .putString(KEY_LAST_URI, uri.toString())
+                      .putLong(key, System.currentTimeMillis())
+                      .apply()
+              }
+
+          """
+          if "private fun recordPlaybackHistory(uri: Uri)" not in s:
+              anchor = "    private fun selectMedia(uri: Uri) {"
+              if anchor not in s:
+                  raise SystemExit("Could not find selectMedia() for history repair")
+              s = s.replace(anchor, recorder + anchor, 1)
+
+          pattern = r"(    private fun selectMedia\(uri: Uri\) \{)(.*?)(\n    \})"
+          m = re.search(pattern, s, re.S)
+          if not m:
+              raise SystemExit("Could not parse selectMedia()")
+          body = m.group(2)
+          body = re.sub(r"^\s*recordPlaybackHistory\(uri\)\s*$", "", body, flags=re.M)
+          body = re.sub(r"^\s*prefs\.edit\(\)\.putString\(KEY_LAST_URI, uri\.toString\(\)\).*?$", "", body, flags=re.M)
+          body = re.sub(r"^\s*prefs\.edit\(\)\.putString\(KEY_LAST_URI, uri\.toString\(\)\)\.putLong\(KEY_HISTORY_PREFIX.*?$", "", body, flags=re.M)
+          if "mediaUri = uri" not in body:
+              raise SystemExit("selectMedia() no longer assigns mediaUri")
+          body = body.replace("mediaUri = uri", "mediaUri = uri\n        recordPlaybackHistory(uri)", 1)
+          s = s[:m.start(2)] + body + s[m.end(2):]
+
+          # Also record when playback is started through any route that bypasses selectMedia().
+          start = re.search(r"    private fun startPlayer\s*\([^)]*\)\s*\{", s)
+          if start:
+              after = start.end()
+              if "recordPlaybackHistory" not in s[after:after+350]:
+                  s = s[:after] + "\n        mediaUri?.let { recordPlaybackHistory(it) }" + s[after:]
+
+          history = """    private fun showHistory() {
+                  val saved = prefs.all.entries
+                      .filter { it.key.startsWith(KEY_HISTORY_PREFIX) && it.value is Long }
+                      .sortedByDescending { it.value as Long }
+                      .mapNotNull { entry ->
+                          val raw = entry.key.removePrefix(KEY_HISTORY_PREFIX)
+                          runCatching { Uri.parse(raw) }.getOrNull()?.takeIf { raw.isNotBlank() }
+                      }
+                  val last = prefs.getString(KEY_LAST_URI, null)?.let { runCatching { Uri.parse(it) }.getOrNull() }
+                  val entries = (saved + listOfNotNull(last)).distinctBy { it.toString() }
+                  if (entries.isEmpty()) {
+                      Toast.makeText(this, "No playback history yet", Toast.LENGTH_SHORT).show()
+                      return
+                  }
+                  AlertDialog.Builder(this)
+                      .setTitle("History")
+                      .setItems(entries.map { displayName(it) }.toTypedArray()) { _, which ->
+                          val uri = entries[which]
+                          recordPlaybackHistory(uri)
+                          selectMedia(uri)
+                          startPlayer()
+                      }
+                      .setNegativeButton("Close", null)
+                      .show()
+              }
+
+          """
+          if "private fun showHistory()" in s:
+              s, n = re.subn(r"    private fun showHistory\(\) \{.*?\n    \}", history.rstrip(), s, count=1, flags=re.S)
+              if n != 1:
+                  raise SystemExit("Could not replace showHistory()")
+          else:
+              anchor = "    private fun togglePassthrough() {"
+              if anchor not in s:
+                  raise SystemExit("Could not insert showHistory()")
+              s = s.replace(anchor, history + anchor, 1)
+
+          p.write_text(s)
+          print("History now records both media selection and player start; home History list includes saved entries and last-played fallback.")
+          PY
+
       - name: Export generated project source for LibVLC migration review
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
