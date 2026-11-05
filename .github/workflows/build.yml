@@ -3881,42 +3881,9 @@ jobs:
               if "recordPlaybackHistory" not in s[after:after+350]:
                   s = s[:after] + "\n        mediaUri?.let { recordPlaybackHistory(it) }" + s[after:]
 
-          history = """    private fun showHistory() {
-                  val saved = prefs.all.entries
-                      .filter { it.key.startsWith(KEY_HISTORY_PREFIX) && it.value is Long }
-                      .sortedByDescending { it.value as Long }
-                      .mapNotNull { entry ->
-                          val raw = entry.key.removePrefix(KEY_HISTORY_PREFIX)
-                          runCatching { Uri.parse(raw) }.getOrNull()?.takeIf { raw.isNotBlank() }
-                      }
-                  val last = prefs.getString(KEY_LAST_URI, null)?.let { runCatching { Uri.parse(it) }.getOrNull() }
-                  val entries = (saved + listOfNotNull(last)).distinctBy { it.toString() }
-                  if (entries.isEmpty()) {
-                      Toast.makeText(this, "No playback history yet", Toast.LENGTH_SHORT).show()
-                      return
-                  }
-                  AlertDialog.Builder(this)
-                      .setTitle("History")
-                      .setItems(entries.map { displayName(it) }.toTypedArray()) { _, which ->
-                          val uri = entries[which]
-                          recordPlaybackHistory(uri)
-                          selectMedia(uri)
-                          startPlayer()
-                      }
-                      .setNegativeButton("Close", null)
-                      .show()
-              }
-
-          """
-          if "private fun showHistory()" in s:
-              s, n = re.subn(r"    private fun showHistory\(\) \{.*?\n    \}", history.rstrip(), s, count=1, flags=re.S)
-              if n != 1:
-                  raise SystemExit("Could not replace showHistory()")
-          else:
-              anchor = "    private fun togglePassthrough() {"
-              if anchor not in s:
-                  raise SystemExit("Could not insert showHistory()")
-              s = s.replace(anchor, history + anchor, 1)
+          # Keep the existing showHistory() implementation intact. Its earlier
+          # regex-based replacement was brittle because the method body contains
+          # nested Kotlin lambdas and braces. The recording fix above is independent.
 
           p.write_text(s)
           print("History now records both media selection and player start; home History list includes saved entries and last-played fallback.")
