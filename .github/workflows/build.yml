@@ -4490,10 +4490,10 @@ jobs:
           engine = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
           e = engine.read_text()
           if "fun addExternalSubtitle(uri: Uri)" not in e:
-              anchor = "              fun play() {"
+              anchor = "    fun play() { checkActive(); if (!mediaPlayer.isPlaying) mediaPlayer.play() }"
               if anchor not in e:
-                  raise SystemExit("Engine play() anchor missing")
-              method = """              fun addExternalSubtitle(uri: Uri): Boolean {
+                  raise SystemExit("Engine play() declaration missing")
+              method = """    fun addExternalSubtitle(uri: Uri): Boolean {
                   checkActive()
                   return mediaPlayer.addSlave(Media.Slave.Type.Subtitle, uri.toString(), false)
               }
