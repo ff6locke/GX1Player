@@ -3301,6 +3301,7 @@ jobs:
 
           import android.net.Uri
           import android.os.Bundle
+          import android.util.Log
           import android.view.View
           import android.widget.FrameLayout
           import android.widget.TextView
@@ -3351,24 +3352,50 @@ jobs:
                   setContentView(root)
 
                   try {
-                      val vlc = LibVLC(this, arrayListOf("--aout=android_audiotrack"))
+                      Log.i("GX1-VLC", "Starting LibVLC test for URI scheme=${uri.scheme}, type=${contentResolver.getType(uri)}")
+                      val vlc = LibVLC(this, arrayListOf(
+                          "--aout=android_audiotrack",
+                          "-vvv",
+                          "--no-video-title-show"
+                      ))
                       libVLC = vlc
                       val mp = MediaPlayer(vlc)
                       vlcPlayer = mp
                       mp.attachViews(video, null, false, false)
+                      mp.setEventListener { event ->
+                          Log.i("GX1-VLC", "LibVLC event type=${event.type}")
+                          runOnUiThread {
+                              when (event.type) {
+                                  MediaPlayer.Event.Opening -> hint.text = "LibVLC: opening media…"
+                                  MediaPlayer.Event.Playing -> hint.text = "LibVLC: playing"
+                                  MediaPlayer.Event.Paused -> hint.text = "LibVLC: paused"
+                                  MediaPlayer.Event.EndReached -> hint.text = "LibVLC: playback ended"
+                                  MediaPlayer.Event.EncounteredError -> {
+                                      hint.text = "LibVLC playback error — see GX1-VLC log"
+                                      Log.e("GX1-VLC", "LibVLC EncounteredError for URI=$uri")
+                                      Toast.makeText(this, "LibVLC could not open/play this media. Diagnostic log captured.", Toast.LENGTH_LONG).show()
+                                  }
+                              }
+                          }
+                      }
+                      val media = Media(vlc, uri)
+                      try {
+                          mp.media = media
+                      } finally {
+                          media.release()
+                      }
                       val digitalOutputEnabled = mp.setAudioDigitalOutputEnabled(true)
+                      Log.i("GX1-VLC", "Digital output setting accepted=$digitalOutputEnabled")
                       Toast.makeText(
                           this,
                           "LibVLC HDMI digital output: " + if (digitalOutputEnabled) "enabled" else "not enabled",
                           Toast.LENGTH_LONG
                       ).show()
-                      val media = Media(vlc, uri)
-                      mp.media = media
-                      media.release()
                       mp.play()
                   } catch (e: Exception) {
-                      Toast.makeText(this, "LibVLC test error: ${e.message}", Toast.LENGTH_LONG).show()
-                      finish()
+                      Log.e("GX1-VLC", "LibVLC startup exception for URI=$uri", e)
+                      Toast.makeText(this, "LibVLC test error: ${e.javaClass.simpleName}: ${e.message}", Toast.LENGTH_LONG).show()
+                      hint.text = "LibVLC startup error: ${e.javaClass.simpleName}"
                   }
               }
 
