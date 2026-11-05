@@ -4464,9 +4464,9 @@ jobs:
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
-          anchor = "                  homePanel = buildHomePanel()"
+          anchor = "                  if (playbackOverlay == null) {"
           if anchor not in s:
-              raise SystemExit("Could not find player setup point for title visibility listener")
+              raise SystemExit("Could not find playback overlay insertion point")
           listener = """                  playerView.setControllerVisibilityListener { visibility ->
                       playbackTitle.visibility = visibility
                   }
@@ -4474,7 +4474,7 @@ jobs:
           if "setControllerVisibilityListener" not in s:
               s = s.replace(anchor, listener + anchor, 1)
           p.write_text(s)
-          print("Playback filename now follows Media3 controller/menu visibility.")
+          print("Playback filename now follows Media3 controller visibility.")
           PY
 
       - name: Build APK
