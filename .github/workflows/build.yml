@@ -3978,7 +3978,7 @@ jobs:
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
           s = p.read_text()
           if "import org.videolan.libvlc.Media" not in s:
-              s = s.replace("import org.videolan.libvlc.LibVLC", "import org.videolan.libvlc.LibVLC\\nimport org.videolan.libvlc.Media", 1)
+              s = s.replace("import org.videolan.libvlc.LibVLC", "import org.videolan.libvlc.LibVLC\nimport org.videolan.libvlc.Media", 1)
           s = s.replace(
               "data class Track(val id: Int, val name: String)",
               "data class Track(val id: Int, val name: String, val codec: String = \"\", val channels: Int = 0, val language: String = \"\", val description: String = \"\", val bitrate: Int = 0)"
