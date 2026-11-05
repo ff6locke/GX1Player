@@ -4432,11 +4432,30 @@ jobs:
           print("Configured ARM64-only APK with R8 and resource shrinking.")
           PY
 
-      - name: Verify playback filename overlay
+      - name: Refresh filename overlay when playback starts
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          grep -q 'gx1_playback_title' app/src/main/java/com/example/gx1player/MainActivity.kt
-          echo "Existing playback filename overlay from the Build 388 baseline is present."
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          anchor = "        exo.playWhenReady = true"
+          if anchor not in s:
+              raise SystemExit("Could not find playback start point (exo.playWhenReady)")
+          refresh = """        playerView.post {
+                      playerView.findViewWithTag<android.widget.TextView>("gx1_playback_title")?.apply {
+                          text = displayName(uri)
+                          visibility = android.view.View.VISIBLE
+                          bringToFront()
+                          invalidate()
+                      }
+                  }
+          """
+          if "playerView.findViewWithTag<android.widget.TextView>(\\"gx1_playback_title\\")" not in s:
+              s = s.replace(anchor, anchor + "\\n" + refresh.rstrip(), 1)
+          p.write_text(s)
+          print("Filename is now refreshed on the Media3 overlay after playback starts.")
+          PY
 
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
