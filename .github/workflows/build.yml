@@ -4432,63 +4432,12 @@ jobs:
           print("Configured ARM64-only APK with R8 and resource shrinking.")
           PY
 
-      - name: Repair playback filename overlay visibility
+      - name: Verify playback filename overlay
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
-          s = p.read_text()
-          if 'tag = "gx1_playback_title"' not in s:
-              raise SystemExit("Playback title view was not created; refusing to build a no-op fix")
+          grep -q 'gx1_playback_title' app/src/main/java/com/example/gx1player/MainActivity.kt
+          echo "Existing playback filename overlay from the Build 388 baseline is present."
 
-          helper = """    private fun updatePlaybackTitle() {
-                  val uri = mediaUri ?: return
-                  if (!::playerView.isInitialized) return
-                  val title = playerView.findViewWithTag<android.widget.TextView>("gx1_playback_title") ?: return
-                  title.text = displayName(uri)
-                  title.visibility = android.view.View.VISIBLE
-                  title.bringToFront()
-                  title.elevation = 1000f
-                  title.invalidate()
-              }
-
-          """
-          if "private fun updatePlaybackTitle()" not in s:
-              anchor = "    private fun selectMedia(uri: Uri) {"
-              if anchor not in s:
-                  raise SystemExit("Could not find selectMedia() for filename overlay repair")
-              s = s.replace(anchor, helper + anchor, 1)
-
-          pattern = r"(    private fun selectMedia\(uri: Uri\) \{)(.*?)(\n    \})"
-          m = re.search(pattern, s, re.S)
-          if not m:
-              raise SystemExit("Could not parse selectMedia()")
-          body = m.group(2)
-          if "updatePlaybackTitle()" not in body:
-              if "mediaUri = uri" not in body:
-                  raise SystemExit("selectMedia() no longer assigns mediaUri")
-              body = body.replace("mediaUri = uri", "mediaUri = uri\n        updatePlaybackTitle()", 1)
-              s = s[:m.start(2)] + body + s[m.end(2):]
-
-          start = re.search(r"    private fun startPlayer\s*\([^)]*\)\s*\{", s)
-          if not start:
-              raise SystemExit("Could not find startPlayer() for filename overlay repair")
-          end = s.find("\n    }", start.end())
-          if end < 0:
-              raise SystemExit("Could not find end of startPlayer()")
-          body = s[start.end():end]
-          if "updatePlaybackTitle()" not in body:
-              anchor = "playerView.player = exo"
-              if anchor not in body:
-                  raise SystemExit("startPlayer() does not contain expected player attachment")
-              body = body.replace(anchor, anchor + "\n        updatePlaybackTitle()\n        playerView.post { updatePlaybackTitle() }", 1)
-              s = s[:start.end()] + body + s[end:]
-
-          p.write_text(s)
-          print("Playback filename is refreshed after media selection and again when the video surface becomes visible.")
-          PY
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
         env:
