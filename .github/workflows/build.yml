@@ -3793,8 +3793,8 @@ jobs:
           elif new_sig not in s:
               raise SystemExit("Could not locate LibVLC open() signature")
           marker = """        try {
-              mediaPlayer.media = media
-          } catch (error: Exception) {"""
+            mediaPlayer.media = media
+        } catch (error: Exception) {"""
           replacement = """        try {
               mediaPlayer.media = media
               // LibVLC cannot read Android SAF content:// subtitle URIs as local files.
