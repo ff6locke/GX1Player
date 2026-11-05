@@ -3514,6 +3514,7 @@ jobs:
           package com.example.gx1player.playback
 
           import android.content.Context
+          import android.content.res.AssetFileDescriptor
           import android.net.Uri
           import org.videolan.libvlc.LibVLC
           import org.videolan.libvlc.Media
@@ -3538,11 +3539,13 @@ jobs:
               // matching the regular VLC app instead of forcing a specific Android output.
               // Verbose logging is enabled temporarily to diagnose files that VLC app plays
               // but this embedded player cannot open.
-              private val libVlc = LibVLC(context.applicationContext, arrayListOf(
+              private val appContext = context.applicationContext
+              private val libVlc = LibVLC(appContext, arrayListOf(
                   "-vvv",
                   "--no-video-title-show"
               ))
               private val mediaPlayer = MediaPlayer(libVlc)
+              private var activeAssetDescriptor: AssetFileDescriptor? = null
               private var attachedLayout: VLCVideoLayout? = null
               private var released = false
               private var pendingSeekMs = 0L
@@ -3585,14 +3588,32 @@ jobs:
                       "Unsupported media URI scheme: ${uri.scheme}"
                   }
                   runCatching { mediaPlayer.stop() }
+                  activeAssetDescriptor?.let { runCatching { it.close() } }
+                  activeAssetDescriptor = null
                   pendingSeekMs = startPositionMs.coerceAtLeast(0L)
                   mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)
-                  val media = Media(libVlc, uri)
+
+                  // SAF content:// URIs are not ordinary filesystem paths. Give native
+                  // LibVLC the provider's open file descriptor instead of passing the
+                  // content URI as an MRL, and keep the descriptor alive during playback.
+                  val media = if (uri.scheme == "content") {
+                      val afd = appContext.contentResolver.openAssetFileDescriptor(uri, "r")
+                          ?: throw java.io.IOException("Could not open selected media provider descriptor")
+                      activeAssetDescriptor = afd
+                      Media(libVlc, afd)
+                  } else {
+                      Media(libVlc, uri)
+                  }
                   try {
                       mediaPlayer.media = media
-                  } finally {
+                  } catch (error: Exception) {
+                      activeAssetDescriptor?.let { runCatching { it.close() } }
+                      activeAssetDescriptor = null
                       media.release()
+                      throw error
                   }
+                  media.release()
+                  android.util.Log.i("GX1-VLC", "Opened media using ${uri.scheme} source; digitalOutput=$digitalOutput")
                   mediaPlayer.play()
                   publish(opening = true, error = null)
               }
@@ -3633,6 +3654,8 @@ jobs:
                   runCatching { mediaPlayer.detachViews() }
                   attachedLayout = null
                   mediaPlayer.release()
+                  activeAssetDescriptor?.let { runCatching { it.close() } }
+                  activeAssetDescriptor = null
                   libVlc.release()
               }
           }
