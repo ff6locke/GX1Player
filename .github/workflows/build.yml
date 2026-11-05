@@ -4637,6 +4637,90 @@ jobs:
           print("VLC test now uses GX1 Player's in-app storage browser for both external subtitle slots.")
           PY
 
+      - name: Add hideable auto-dismissing VLC playback controls
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/VlcTestActivity.kt")
+          s = p.read_text()
+          s = s.replace(
+              "import android.view.Gravity",
+              "import android.view.Gravity\nimport android.view.KeyEvent",
+              1
+          )
+          s = s.replace(
+              "              private var dragging = false",
+              """              private var dragging = false
+              private var controlsPanel: View? = null
+              private var controlsVisible = true
+              private val autoHideControls = Runnable {
+                  controlsPanel?.visibility = View.GONE
+                  controlsVisible = false
+              }""",
+              1
+          )
+          anchor = "              override fun onCreate(savedInstanceState: Bundle?) {"
+          methods = """              private fun showControls() {
+                  val panel = controlsPanel ?: return
+                  panel.visibility = View.VISIBLE
+                  controlsVisible = true
+                  handler.removeCallbacks(autoHideControls)
+                  handler.postDelayed(autoHideControls, 5000L)
+              }
+
+              private fun hideControls() {
+                  handler.removeCallbacks(autoHideControls)
+                  controlsPanel?.visibility = View.GONE
+                  controlsVisible = false
+              }
+
+              override fun onBackPressed() {
+                  if (controlsVisible) hideControls() else finish()
+              }
+
+              override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+                  if (event.action == KeyEvent.ACTION_DOWN &&
+                      event.keyCode != KeyEvent.KEYCODE_BACK &&
+                      event.keyCode != KeyEvent.KEYCODE_ESCAPE) {
+                      showControls()
+                  }
+                  return super.dispatchKeyEvent(event)
+              }
+
+          """
+          if "private fun showControls()" not in s:
+              if anchor not in s:
+                  raise SystemExit("Could not find VLC onCreate anchor")
+              s = s.replace(anchor, methods + anchor, 1)
+          s = s.replace(
+              "                  root.addView(controls, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))",
+              """                  controlsPanel = controls
+                  root.addView(controls, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
+                  video.setOnClickListener {
+                      if (controlsVisible) hideControls() else showControls()
+                  }
+                  root.setOnClickListener {
+                      if (controlsVisible) hideControls() else showControls()
+                  }""",
+              1
+          )
+          s = s.replace(
+              "                      handler.post(ticker)",
+              "                      handler.post(ticker)\n                      showControls()",
+              1
+          )
+          s = s.replace(
+              "                  handler.removeCallbacks(ticker)",
+              "                  handler.removeCallbacks(ticker)\n                  handler.removeCallbacks(autoHideControls)",
+              1
+          )
+          if "private fun showControls()" not in s or "controlsPanel = controls" not in s:
+              raise SystemExit("VLC hideable-controls patch did not apply completely")
+          p.write_text(s)
+          print("VLC controls now auto-hide after 5 seconds; tap video or press Back to hide/show. Back hides controls first and exits on the next press.")
+          PY
+
       - name: Package 32-bit and 64-bit ARM variants for Android TV boxes
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
