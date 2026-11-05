@@ -4535,7 +4535,7 @@ jobs:
 
           if 'text = "Load Sub 1"' not in t:
               import re
-              match = re.search(r'(?m)^(\\s*)controls\\.addView\\(row[^\\n]*\\)', t)
+              match = re.search(r'(?m)^(\s*)controls\.addView\(row[^\n]*\)', t)
               if not match:
                   candidates = [line.strip() for line in t.splitlines() if "controls.addView(" in line]
                   raise SystemExit("VLC controls insertion point missing; candidates: " + repr(candidates))
