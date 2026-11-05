@@ -2287,17 +2287,21 @@ jobs:
           # Add an explicit repeat mode chooser.
           marker = '"aspect" -> {'
           repeat = '''"repeat" -> {
-                                  val modes = intArrayOf(Player.REPEAT_MODE_OFF, Player.REPEAT_MODE_ONE, Player.REPEAT_MODE_ALL)
-                                  val names = arrayOf("Off", "Repeat current video", "Repeat all")
-                                  val current = modes.indexOf(player?.repeatMode ?: Player.REPEAT_MODE_OFF).coerceAtLeast(0)
-                                  AlertDialog.Builder(this).setTitle("Repeat")
-                                      .setSingleChoiceItems(names, current) { dialog, which ->
-                                          player?.repeatMode = modes[which]
-                                          Toast.makeText(this, "Repeat: " + names[which], Toast.LENGTH_SHORT).show()
-                                          dialog.dismiss()
-                                      }.setNegativeButton("Cancel", null).show()
-                              }
-                              '''
+                                   val currentMode = player?.repeatMode ?: Player.REPEAT_MODE_OFF
+                                   val nextMode = when (currentMode) {
+                                       Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ONE
+                                       Player.REPEAT_MODE_ONE -> Player.REPEAT_MODE_ALL
+                                       else -> Player.REPEAT_MODE_OFF
+                                   }
+                                   player?.repeatMode = nextMode
+                                   val repeatLabel = when (nextMode) {
+                                       Player.REPEAT_MODE_ONE -> "Repeat current video"
+                                       Player.REPEAT_MODE_ALL -> "Repeat all"
+                                       else -> "Off"
+                                   }
+                                   Toast.makeText(this, "Repeat: " + repeatLabel, Toast.LENGTH_SHORT).show()
+                               }
+                               '''
           if '"repeat" -> {' not in s:
               if marker not in s:
                   raise SystemExit("Could not find action switch insertion point")
