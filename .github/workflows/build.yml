@@ -429,11 +429,19 @@ jobs:
                       }
                       visibility = android.view.View.GONE
                   }
-                  root.addView(playbackTitle, FrameLayout.LayoutParams(
+                  // Attach to Media3's dedicated overlay layer so it renders above
+                  // the video surface (a SurfaceView can cover sibling views in the root).
+                  val playbackOverlay = playerView.findViewById<FrameLayout>(
+                      androidx.media3.ui.R.id.exo_overlay
+                  )
+                  playbackOverlay?.addView(playbackTitle, FrameLayout.LayoutParams(
                       FrameLayout.LayoutParams.WRAP_CONTENT,
                       FrameLayout.LayoutParams.WRAP_CONTENT,
                       Gravity.TOP or Gravity.CENTER_HORIZONTAL
                   ).apply { topMargin = (18 * resources.displayMetrics.density).toInt() })
+                  if (playbackOverlay == null) {
+                      android.util.Log.e("GX1Player", "Media3 exo_overlay was not found; playback title cannot be displayed")
+                  }
                   homePanel = buildHomePanel()
                   root.addView(homePanel, FrameLayout.LayoutParams(
                       FrameLayout.LayoutParams.MATCH_PARENT,
