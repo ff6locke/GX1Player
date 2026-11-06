@@ -5281,6 +5281,16 @@ jobs:
                           mainVlcEngine?.currentTimeMs() ?: super.getCurrentPosition()
                       override fun getDuration(): Long =
                           mainVlcEngine?.durationMs()?.takeIf { it > 0L } ?: super.getDuration()
+                      // Media3's hidden clock may mark transport streams as unseekable.
+                      // Use LibVLC's real duration/seek support so the controller timeline stays visible.
+                      override fun isCurrentMediaItemSeekable(): Boolean =
+                          (mainVlcEngine?.durationMs() ?: 0L) > 0L
+                      override fun isCommandAvailable(command: Int): Boolean =
+                          if (command == Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM ||
+                              command == Player.COMMAND_SEEK_BACK ||
+                              command == Player.COMMAND_SEEK_FORWARD) {
+                              (mainVlcEngine?.durationMs() ?: 0L) > 0L
+                          } else super.isCommandAvailable(command)
                       override fun isPlaying(): Boolean =
                           mainVlcEngine?.isPlaying() ?: super.isPlaying()
                       override fun getPlayWhenReady(): Boolean =
