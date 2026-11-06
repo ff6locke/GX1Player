@@ -4787,9 +4787,13 @@ jobs:
               '''
               if anchor not in s: raise SystemExit("audio menu anchor missing")
               s=s.replace(anchor,methods+anchor,1)
-          old='val loaded = runCatching { engine?.addExternalSubtitle(Uri.fromFile(selected)) == true }.getOrDefault(false)\n                                      status.text = if (loaded) "Subtitle $slot loaded: " + selected.name else "Could not load Subtitle $slot"\n                                      Toast.makeText(this, status.text, Toast.LENGTH_LONG).show()'
-          if old in s: s=s.replace(old,'loadVlcSubtitle(slot, selected)',1)
-          elif "loadVlcSubtitle(slot, selected)" not in s: raise SystemExit("subtitle picker selection anchor missing")
+          import re
+          s, n = re.subn(
+              r'val loaded = runCatching \{ engine\?\.addExternalSubtitle\(Uri\.fromFile\(selected\)\) == true \}\.getOrDefault\(false\)\s*status\.text = if \(loaded\).*?Toast\.makeText\(this, status\.text, Toast\.LENGTH_LONG\)\.show\(\)',
+              'loadVlcSubtitle(slot, selected)',
+              s, count=1, flags=re.S)
+          if n != 1 and "loadVlcSubtitle(slot, selected)" not in s:
+              raise SystemExit("Subtitle picker selection code not found by robust pattern")
           start=s.find("    private fun showSubtitleTracks() {"); end=s.find("    override fun onStop()",start)
           if start<0 or end<0: raise SystemExit("subtitle dialog anchors missing")
           dialog="""    private fun showSubtitleTracks() {
