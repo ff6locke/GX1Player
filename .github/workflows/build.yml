@@ -6119,11 +6119,12 @@ jobs:
           if start < 0:
               raise SystemExit("Main LibVLC startup method missing")
           if "gx1MainPlaybackTitle?.apply" not in s[start:start + 12000]:
-              tail = s[start:]
-              m = re.search(r"(?m)^(\\s*)mainVlcLayout\\.visibility = View\\.VISIBLE", tail)
-              if not m:
+              marker = "mainVlcLayout.visibility = View.VISIBLE"
+              pos = s.find(marker, start)
+              if pos < 0:
                   raise SystemExit("Main LibVLC visibility anchor missing")
-              indent = m.group(1)
+              line_start = s.rfind("\\n", start, pos) + 1
+              indent = s[line_start:pos]
               code = """gx1MainPlaybackTitle?.apply {
                   text = java.io.File(uri.path ?: uri.lastPathSegment.orEmpty()).name
                       .ifBlank { uri.lastPathSegment ?: "Video" }
@@ -6132,8 +6133,7 @@ jobs:
               }
           """
               insertion = "".join(indent + line if line.strip() else line for line in code.splitlines(True))
-              absolute = start + m.start()
-              s = s[:absolute] + insertion + s[absolute:]
+              s = s[:line_start] + insertion + s[line_start:]
 
           release_anchor = "if (::mainVlcLayout.isInitialized) mainVlcLayout.visibility = View.GONE"
           if release_anchor not in s:
