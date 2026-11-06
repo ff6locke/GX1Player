@@ -5481,7 +5481,7 @@ jobs:
           if "private val mainVlcAutoSubtitleFiles" not in s:
               if field not in s:
                   raise SystemExit("Main LibVLC engine field missing")
-              s = s.replace(field, field + "\\n    private val mainVlcAutoSubtitleFiles = mutableSetOf<String>()", 1)
+              s = s.replace(field, field + "\n    private val mainVlcAutoSubtitleFiles = mutableSetOf<String>()", 1)
 
           method = r'''    private fun autoLoadMainVlcSubtitles(engine: Gx1LibVlcEngine) {
                   val video = currentVideoFile() ?: return
@@ -5520,7 +5520,7 @@ jobs:
               s = s.replace(anchor, method + anchor, 1)
 
           start = s.find("    private fun startMainLibVlc(uri: Uri) {")
-          end = s.find("\\n    private fun buildMediaItem(uri: Uri): MediaItem {", start)
+          end = s.find("\n    private fun buildMediaItem(uri: Uri): MediaItem {", start)
           if start < 0 or end < 0:
               raise SystemExit("Main LibVLC startup method boundaries missing")
           block = s[start:end]
@@ -5530,8 +5530,8 @@ jobs:
                   raise SystemExit("Main LibVLC open call missing")
               block = block.replace(
                   open_line,
-                  open_line + "\\n                  mainVlcAutoSubtitleFiles.clear()" +
-                  "\\n                  subtitleUiHandler.postDelayed({ autoLoadMainVlcSubtitles(engine) }, 1200L)",
+                  open_line + "\n                  mainVlcAutoSubtitleFiles.clear()" +
+                  "\n                  subtitleUiHandler.postDelayed({ autoLoadMainVlcSubtitles(engine) }, 1200L)",
                   1
               )
               s = s[:start] + block + s[end:]
