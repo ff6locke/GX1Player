@@ -4767,7 +4767,7 @@ jobs:
                                   val l=tm.find(lines[i].substring(0,a)); val r=tm.find(lines[i].substring(a+3))
                                   if(l!=null && r!=null) {
                                       val st=ms(l.value); val en=ms(r.value); i++; val text=StringBuilder()
-                                      while(i<lines.size && lines[i].isNotBlank()) { if(text.isNotEmpty()) text.append('\\n'); text.append(lines[i].trim()); i++ }
+                                      while(i<lines.size && lines[i].isNotBlank()) { if(text.isNotEmpty()) text.append('\n'); text.append(lines[i].trim()); i++ }
                                       if(en>st && text.isNotBlank()) cues.add(VlcCue(st,en,text.toString()))
                                   }
                               }
