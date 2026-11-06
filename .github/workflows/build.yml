@@ -4758,17 +4758,56 @@ jobs:
               anchor = "    private var mediaUri: Uri? = null"
               if anchor not in s: raise SystemExit("mediaUri field missing for dynamic subtitle state")
               s = s.replace(anchor, dynamic_fields + "\n" + anchor, 1)
-          auto_method = """    private fun autoLoadMatchingSubtitles() {
+          auto_method = """    private fun resolveVideoPath(uri: Uri): String? {
+                  if (uri.scheme.equals("file", true)) return uri.path
+                  val direct = runCatching {
+                      contentResolver.query(uri, arrayOf(android.provider.MediaStore.MediaColumns.DATA), null, null, null)?.use { c ->
+                          if (c.moveToFirst()) c.getString(0) else null
+                      }
+                  }.getOrNull()
+                  if (!direct.isNullOrBlank()) return direct
+
+                  // ACTION_OPEN_DOCUMENT often returns a document URI rather than a MediaStore URI.
+                  val documentId = runCatching {
+                      if (android.provider.DocumentsContract.isDocumentUri(this, uri))
+                          android.provider.DocumentsContract.getDocumentId(uri)
+                      else null
+                  }.getOrNull() ?: return null
+                  when (uri.authority) {
+                      "com.android.providers.media.documents" -> {
+                          val parts = documentId.split(":", limit = 2)
+                          if (parts.size == 2 && parts[0] == "video") {
+                              return runCatching {
+                                  contentResolver.query(
+                                      android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                                      arrayOf(android.provider.MediaStore.MediaColumns.DATA),
+                                      android.provider.MediaStore.MediaColumns._ID + "=?",
+                                      arrayOf(parts[1]), null
+                                  )?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+                              }.getOrNull()
+                          }
+                      }
+                      "com.android.externalstorage.documents" -> {
+                          val parts = documentId.split(":", limit = 2)
+                          if (parts.size == 2) {
+                              val root = if (parts[0].equals("primary", true))
+                                  android.os.Environment.getExternalStorageDirectory()
+                              else java.io.File("/storage/" + parts[0])
+                              val candidate = java.io.File(root, parts[1])
+                              if (candidate.exists()) return candidate.absolutePath
+                          }
+                      }
+                  }
+                  return null
+              }
+
+              private fun autoLoadMatchingSubtitles() {
                   val uri = mediaUri
                   if (uri == null) {
                       status.text = "External subtitles: video URI unavailable"
                       return
                   }
-                  val path = if (uri.scheme.equals("file", true)) uri.path else runCatching {
-                      contentResolver.query(uri, arrayOf(android.provider.MediaStore.MediaColumns.DATA), null, null, null)?.use { c ->
-                          if (c.moveToFirst()) c.getString(0) else null
-                      }
-                  }.getOrNull()
+                  val path = resolveVideoPath(uri)
                   if (path.isNullOrBlank()) {
                       status.text = "External subtitles: cannot resolve video file path (" + uri.scheme + ")"
                       return
