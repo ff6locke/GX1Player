@@ -5989,10 +5989,10 @@ jobs:
                       else showSubtitleTrackSelection()
                   }
               }
-              val params = parent.generateDefaultLayoutParams().apply {
-                  width = (36 * density).toInt()
-                  height = (36 * density).toInt()
-              }
+              val params = android.view.ViewGroup.LayoutParams(
+                  (36 * density).toInt(),
+                  (36 * density).toInt()
+              )
               parent.addView(button, parent.indexOfChild(elapsed), params)
           }
 
