@@ -5064,7 +5064,7 @@ jobs:
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT
         ))
-          '''
+'''
               root_new = root_anchor + '''        mainVlcLayout = VLCVideoLayout(this).apply {
               setBackgroundColor(Color.BLACK)
               visibility = View.GONE
