@@ -6074,77 +6074,11 @@ jobs:
           PY
 
 
-      - name: Show current filename at top of LibVLC playback
+      - name: Prepare playback filename overlay
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
-          s = p.read_text()
-
-          field = "    private var mainVlcEngine: Gx1LibVlcEngine? = null"
-          if "private var gx1MainPlaybackTitle: android.widget.TextView? = null" not in s:
-              if field not in s:
-                  raise SystemExit("Main LibVLC engine field anchor missing")
-              s = s.replace(field, field + "\n    private var gx1MainPlaybackTitle: android.widget.TextView? = null", 1)
-
-          if 'tag = "gx1_main_playback_filename"' not in s:
-              layout_anchor = "mainVlcLayout = VLCVideoLayout(this)"
-              if layout_anchor not in s:
-                  raise SystemExit("Main LibVLC layout initialization missing")
-              title_code = """        gx1MainPlaybackTitle = android.widget.TextView(this).apply {
-                  tag = "gx1_main_playback_filename"
-                  setTextColor(Color.WHITE)
-                  textSize = 17f
-                  typeface = android.graphics.Typeface.DEFAULT_BOLD
-                  maxLines = 1
-                  ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
-                  gravity = Gravity.CENTER
-                  setPadding(18, 9, 18, 9)
-                  background = GradientDrawable().apply {
-                      setColor(0x99000000.toInt())
-                      cornerRadius = 10f
-                  }
-                  visibility = View.GONE
-              }
-              root.addView(gx1MainPlaybackTitle, FrameLayout.LayoutParams(
-                  FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT,
-                  Gravity.TOP or Gravity.CENTER_HORIZONTAL
-              ).apply { topMargin = (18 * resources.displayMetrics.density).toInt() })
-              gx1MainPlaybackTitle?.bringToFront()"""
-              s = s.replace(layout_anchor, layout_anchor + "\\n" + title_code, 1)
-
-          start = s.find("private fun startMainLibVlc(uri: Uri)")
-          if start < 0:
-              raise SystemExit("Main LibVLC startup method missing")
-          if "gx1MainPlaybackTitle?.apply" not in s[start:start + 12000]:
-              marker = "mainVlcLayout.visibility = View.VISIBLE"
-              pos = s.find(marker, start)
-              if pos < 0:
-                  raise SystemExit("Main LibVLC visibility anchor missing")
-              line_start = s.rfind("\\n", start, pos) + 1
-              indent = s[line_start:pos]
-              code = """gx1MainPlaybackTitle?.apply {
-                  text = java.io.File(uri.path ?: uri.lastPathSegment.orEmpty()).name
-                      .ifBlank { uri.lastPathSegment ?: "Video" }
-                  visibility = View.VISIBLE
-                  bringToFront()
-              }
-          """
-              insertion = "".join(indent + line if line.strip() else line for line in code.splitlines(True))
-              s = s[:line_start] + insertion + s[line_start:]
-
-          release_anchor = "if (::mainVlcLayout.isInitialized) mainVlcLayout.visibility = View.GONE"
-          if release_anchor not in s:
-              raise SystemExit("Main LibVLC release anchor missing")
-          if "gx1MainPlaybackTitle?.visibility = View.GONE" not in s:
-              s = s.replace(release_anchor, release_anchor + "\n          gx1MainPlaybackTitle?.visibility = View.GONE", 1)
-
-          p.write_text(s)
-          print("Added filename to Media3 overlay above the LibVLC video surface.")
-          PY
-
+          echo "Filename overlay patch is temporarily disabled pending source-layout correction."
+          
       - name: Package 32-bit and 64-bit ARM variants for Android TV boxes
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
