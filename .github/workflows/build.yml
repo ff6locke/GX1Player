@@ -5791,12 +5791,14 @@ jobs:
                   subtitleUiHandler.postDelayed({ autoLoadMainVlcSubtitles(engine) }, 1200L)"""
               s = s.replace(open_line, open_line + addition, 1)
           if "subtitleUiHandler.removeCallbacks(mainVlcSubtitleTicker)" not in s:
-              anchor = "          mainVlcEngine = null"
-              # Only add to releasePlayer, not to unrelated fallback blocks.
+              # Insert cleanup before the engine reset inside releasePlayer; tolerate indentation changes.
               release = s.find("    private fun releasePlayer()")
-              idx = s.find(anchor, release)
-              if release < 0 or idx < 0: raise SystemExit("Main VLC release anchor missing")
-              s = s[:idx] + "          subtitleUiHandler.removeCallbacks(mainVlcSubtitleTicker)\n" + s[idx:]
+              release_end = s.find("// ---------- resume ----------", release)
+              block = s[release:release_end] if release >= 0 and release_end >= 0 else ""
+              line = next((ln for ln in block.splitlines(True) if "mainVlcEngine = null" in ln), None)
+              if line is None: raise SystemExit("Main VLC engine reset inside releasePlayer missing")
+              idx = s.find(line, release)
+              s = s[:idx] + line[:len(line)-len(line.lstrip())] + "subtitleUiHandler.removeCallbacks(mainVlcSubtitleTicker)\n" + s[idx:]
 
           p.write_text(s)
           print("Main player now uses VLC Test-style external subtitle checkboxes and simultaneous ASS/SRT overlays.")
