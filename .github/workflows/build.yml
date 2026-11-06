@@ -5109,7 +5109,7 @@ jobs:
               val resumeAt = prefs.getLong(posKey(uri), 0L)
               // M2TS duration can arrive after the Media3 controller is attached.
               // Rebind once when LibVLC reports it so the seekbar is recalculated.
-              var vlcTimelineBound = false
+              vlcTimelineBound = false
               try {
                   playerView.player = null
                   playerView.visibility = View.GONE
@@ -5197,7 +5197,7 @@ jobs:
                        'ForwardingPlayer and timeline imports')
           if 'private var mainVlcControllerClock: ExoPlayer? = null' not in s:
               s = once('private var mainVlcEngine: Gx1LibVlcEngine? = null',
-                       'private var mainVlcEngine: Gx1LibVlcEngine? = null\n    private var mainVlcControllerClock: ExoPlayer? = null\n    private var mainVlcControllerPlayer: Player? = null',
+                       'private var mainVlcEngine: Gx1LibVlcEngine? = null\n    private var mainVlcControllerClock: ExoPlayer? = null\n    private var mainVlcControllerPlayer: Player? = null\n    private var vlcTimelineBound = false',
                        'VLC controller fields')
 
           s = s.replace('root.addView(mainVlcLayout, FrameLayout.LayoutParams(-1, -1))', '''val vlcContentFrame = playerView.findViewById<android.widget.FrameLayout>(
