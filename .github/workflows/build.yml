@@ -891,26 +891,9 @@ jobs:
           for imp in ["import android.graphics.drawable.GradientDrawable", "import android.view.View", "import android.widget.LinearLayout", "import android.widget.TextView"]:
               if imp not in s:
                   s = s.replace("import android.view.KeyEvent", "import android.view.KeyEvent\n" + imp, 1)
-          fields = """    private data class VlcCue(val start: Long, val end: Long, val text: String)
-              private data class VlcSubtitle(val name: String, val cues: MutableList<VlcCue>, var enabled: Boolean = true)
-              private val vlcSubtitles = mutableListOf<VlcSubtitle>()
-              private lateinit var vlcSubtitleView: TextView
-              private val vlcSubtitleTicker = object : Runnable {
-                  override fun run() {
-                      if (::vlcSubtitleView.isInitialized) {
-                          val now = engine?.currentTimeMs() ?: 0L
-                          val active = vlcSubtitles.filter { it.enabled }.flatMap { sub ->
-                              sub.cues.filter { now >= it.start && now < it.end }.map { it.text }
-                          }
-                          vlcSubtitleView.text = active.joinToString("\\n")
-                          vlcSubtitleView.visibility = if (active.isEmpty()) View.GONE else View.VISIBLE
-                      }
-                      handler.postDelayed(this, 100L)
-                  }
-              }
-          """
+          # VLC subtitle state belongs only in VlcTestActivity, not MainActivity.
           if "private lateinit var rootLayout: FrameLayout" not in s:
-              s = s.replace("    private lateinit var playerView: PlayerView", fields + "    private lateinit var playerView: PlayerView", 1)
+              s = s.replace("    private lateinit var playerView: PlayerView", "    private lateinit var playerView: PlayerView", 1)
           home_methods = r'''
           private fun buildHomePanel(): LinearLayout {
               val panel = LinearLayout(this).apply {
