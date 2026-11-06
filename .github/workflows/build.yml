@@ -5054,10 +5054,30 @@ jobs:
               if anchor not in s: raise SystemExit('player field anchor missing')
               s = s.replace(anchor, anchor + '\\n' + fields, 1)
           if 'mainVlcLayout = VLCVideoLayout(this)' not in s:
-              anchor = '''        root.addView(playerView, FrameLayout.LayoutParams(
-              FrameLayout.LayoutParams.MATCH_PARENT,
-              FrameLayout.LayoutParams.MATCH_PARENT
-          ))'''
+              extra = '''        mainVlcLayout = VLCVideoLayout(this).apply {
+                      setBackgroundColor(Color.BLACK)
+                      visibility = View.GONE
+                  }
+                  root.addView(mainVlcLayout, FrameLayout.LayoutParams(-1, -1))
+                  mainVlcBar = LinearLayout(this).apply {
+                      orientation = LinearLayout.HORIZONTAL
+                      gravity = Gravity.CENTER
+                      setPadding(8, 6, 8, 6)
+                      background = android.graphics.drawable.GradientDrawable().apply { setColor(0xB0000000.toInt()); cornerRadius = 12f }
+                      visibility = View.GONE
+                  }
+                  fun addVlcControl(label: String, action: () -> Unit) {
+                      mainVlcBar.addView(Button(this).apply { text = label; isFocusable = true; setOnClickListener { action() } },
+                          LinearLayout.LayoutParams(0, -2, 1f))
+                  }
+                  addVlcControl("-10s") { mainVlcEngine?.seekTo((mainVlcEngine?.currentTimeMs() ?: 0L) - 10_000L) }
+                  addVlcControl("Play/Pause") { mainVlcEngine?.togglePlayback() }
+                  addVlcControl("+10s") { mainVlcEngine?.seekTo((mainVlcEngine?.currentTimeMs() ?: 0L) + 10_000L) }
+                  addVlcControl("Menu") { showMenu() }
+                  root.addView(mainVlcBar, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM).apply { setMargins(18, 0, 18, 24) })
+          '''
+          if newAnchor not in s: raise SystemExit('stable playback title anchor missing')
+          s = s.replace(newAnchor, extra + newAnchor, 1)
               extra = anchor + '''
                   mainVlcLayout = VLCVideoLayout(this).apply {
                       setBackgroundColor(Color.BLACK)
