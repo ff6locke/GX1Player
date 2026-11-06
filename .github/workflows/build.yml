@@ -6090,9 +6090,9 @@ jobs:
               s = s.replace(field, field + "\n    private var gx1MainPlaybackTitle: android.widget.TextView? = null", 1)
 
           if 'tag = "gx1_main_playback_filename"' not in s:
-              layout_anchor = "root.addView(mainVlcLayout, FrameLayout.LayoutParams(-1, -1))"
+              layout_anchor = "mainVlcLayout = VLCVideoLayout(this)"
               if layout_anchor not in s:
-                  raise SystemExit("Main LibVLC root video-layer anchor missing")
+                  raise SystemExit("Main LibVLC layout initialization missing")
               title_code = """        gx1MainPlaybackTitle = android.widget.TextView(this).apply {
                   tag = "gx1_main_playback_filename"
                   setTextColor(Color.WHITE)
@@ -6111,7 +6111,8 @@ jobs:
               root.addView(gx1MainPlaybackTitle, FrameLayout.LayoutParams(
                   FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT,
                   Gravity.TOP or Gravity.CENTER_HORIZONTAL
-              ).apply { topMargin = (18 * resources.displayMetrics.density).toInt() })"""
+              ).apply { topMargin = (18 * resources.displayMetrics.density).toInt() })
+              gx1MainPlaybackTitle?.bringToFront()"""
               s = s.replace(layout_anchor, layout_anchor + "\\n" + title_code, 1)
 
           start = s.find("private fun startMainLibVlc(uri: Uri)")
@@ -6128,6 +6129,7 @@ jobs:
                   text = java.io.File(uri.path ?: uri.lastPathSegment.orEmpty()).name
                       .ifBlank { uri.lastPathSegment ?: "Video" }
                   visibility = View.VISIBLE
+                  bringToFront()
               }
           """
               insertion = "".join(indent + line if line.strip() else line for line in code.splitlines(True))
