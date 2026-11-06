@@ -5774,7 +5774,7 @@ jobs:
                   if (!firstValidExternalEnabled) {
                       engine.subtitleTracks().firstOrNull()?.let { engine.selectSubtitleTrack(it.id) }
                   }
-                  Toast.makeText(this, "Found " + mainVlcExternalSubtitles.size + " same-name subtitle(s)", Toast.LENGTH_SHORT).show()
+                  // Silent automatic subtitle discovery; do not show a notification.
               }
 
           '''
