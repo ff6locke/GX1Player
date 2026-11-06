@@ -891,11 +891,23 @@ jobs:
           for imp in ["import android.graphics.drawable.GradientDrawable", "import android.view.View", "import android.widget.LinearLayout", "import android.widget.TextView"]:
               if imp not in s:
                   s = s.replace("import android.view.KeyEvent", "import android.view.KeyEvent\n" + imp, 1)
-          fields = """    private lateinit var rootLayout: FrameLayout
-          private lateinit var homePanel: LinearLayout
-          private var homeFirstTile: View? = null
-          private lateinit var menuButtonRef: Button
-
+          fields = """    private data class VlcCue(val start: Long, val end: Long, val text: String)
+              private data class VlcSubtitle(val name: String, val cues: MutableList<VlcCue>, var enabled: Boolean = true)
+              private val vlcSubtitles = mutableListOf<VlcSubtitle>()
+              private lateinit var vlcSubtitleView: TextView
+              private val vlcSubtitleTicker = object : Runnable {
+                  override fun run() {
+                      if (::vlcSubtitleView.isInitialized) {
+                          val now = engine?.currentTimeMs() ?: 0L
+                          val active = vlcSubtitles.filter { it.enabled }.flatMap { sub ->
+                              sub.cues.filter { now >= it.start && now < it.end }.map { it.text }
+                          }
+                          vlcSubtitleView.text = active.joinToString("\\n")
+                          vlcSubtitleView.visibility = if (active.isEmpty()) View.GONE else View.VISIBLE
+                      }
+                      handler.postDelayed(this, 100L)
+                  }
+              }
           """
           if "private lateinit var rootLayout: FrameLayout" not in s:
               s = s.replace("    private lateinit var playerView: PlayerView", fields + "    private lateinit var playerView: PlayerView", 1)
@@ -4737,19 +4749,13 @@ jobs:
                   val video = path?.let { java.io.File(it) } ?: return
                   val folder = video.parentFile?.takeIf { it.isDirectory } ?: return
                   val base = video.nameWithoutExtension
-                  fun find(suffix: String): java.io.File? {
-                      val extensions = listOf("ass", "ssa", "srt", "vtt", "sub")
-                      return extensions.asSequence().map { java.io.File(folder, "$base.$suffix.$it") }
-                          .firstOrNull { it.isFile && it.canRead() }
-                  }
-                  val first = find("1") ?: listOf("ass", "ssa", "srt", "vtt", "sub")
-                      .asSequence().map { java.io.File(folder, "$base.$it") }.firstOrNull { it.isFile && it.canRead() }
-                  val second = find("2")
-                  if (first != null) loadVlcSubtitle(1, first)
-                  if (second != null) loadVlcSubtitle(2, second)
-                  if (first == null && second == null) {
-                      status.text = "No matching external subtitles found"
-                  }
+                  val extensions = setOf("ass", "ssa", "srt")
+                  val matches = folder.listFiles()?.filter { file ->
+                      file.isFile && file.canRead() && file.name.startsWith(base, ignoreCase = true) && file.extension.lowercase() in extensions
+                  }?.sortedBy { it.name.lowercase() }.orEmpty()
+                  vlcSubtitles.clear()
+                  matches.forEach { loadVlcSubtitle(1, it) }
+                  if (matches.isEmpty()) status.text = "No matching external subtitles found"
               }
 
           """
@@ -4846,10 +4852,11 @@ jobs:
                           }
                       }
                       if(cues.isEmpty()) throw IllegalArgumentException("No subtitle cues found")
-                      vlcCues[slot-1].clear(); vlcCues[slot-1].addAll(cues.sortedBy { it.start })
-                      vlcNames[slot-1]=file.name; vlcEnabled[slot-1]=true
-                      status.text="Subtitle " + slot + " loaded: " + file.name
-                      Toast.makeText(this,"Subtitle " + slot + " loaded",Toast.LENGTH_SHORT).show()
+                      val existing = vlcSubtitles.indexOfFirst { it.name.equals(file.name, true) }
+                      val loaded = VlcSubtitle(file.name, cues.sortedBy { it.start }.toMutableList(), true)
+                      if (existing >= 0) vlcSubtitles[existing] = loaded else vlcSubtitles.add(loaded)
+                      status.text = "Subtitle loaded: " + file.name
+                      Toast.makeText(this, "Subtitle loaded: " + file.name, Toast.LENGTH_SHORT).show()
                   } catch(e:Exception) {
                       Toast.makeText(this,"Subtitle " + slot + " error: " + (e.message ?: "invalid file"),Toast.LENGTH_LONG).show()
                   }
@@ -4868,35 +4875,55 @@ jobs:
           start=s.find("    private fun showSubtitleTracks() {"); end=s.find("    override fun onStop()",start)
           if start<0 or end<0: raise SystemExit("subtitle dialog anchors missing")
           dialog="""    private fun showSubtitleTracks() {
-                  val embedded=runCatching { engine?.subtitleTracks().orEmpty() }.getOrDefault(emptyList())
-                  val labels=mutableListOf<String>(); val checked=mutableListOf<Boolean>(); val kinds=mutableListOf<Pair<String,Int>>()
-                  for(slot in 1..2) { val i=slot-1; val n=vlcNames[i]; if(n!=null) { labels.add("Subtitle " + slot + " — " + n); checked.add(vlcEnabled[i]); kinds.add("custom" to i) } }
-                  val selected=engine?.selectedSubtitleTrackId() ?: -1
-                  embedded.forEach { tr -> labels.add("Embedded — " + tr.name); checked.add(tr.id==selected); kinds.add("embedded" to tr.id) }
-                  if(labels.isEmpty()) { Toast.makeText(this,"Load Subtitle 1 or Subtitle 2 first.",Toast.LENGTH_SHORT).show(); return }
-                  val dlg=AlertDialog.Builder(this).setTitle("Subtitles — tick to show")
-                      .setMultiChoiceItems(labels.toTypedArray(),checked.toBooleanArray()) { d, which, on ->
-                          val (kind,value)=kinds[which]
-                          if(kind=="custom") vlcEnabled[value]=on
-                          else if(on) { engine?.selectSubtitleTrack(value); for(i in kinds.indices) if(kinds[i].first=="embedded" && i!=which) (d as AlertDialog).listView.setItemChecked(i,false) }
-                          else if(engine?.selectedSubtitleTrackId()==value) engine?.selectSubtitleTrack(-1)
-                      }.setPositiveButton("Done",null).setNegativeButton("Close",null).create()
+                  val embedded = runCatching { engine?.subtitleTracks().orEmpty() }.getOrDefault(emptyList())
+                  val labels = mutableListOf<String>()
+                  val checked = mutableListOf<Boolean>()
+                  val kinds = mutableListOf<Pair<String, Int>>()
+                  vlcSubtitles.forEachIndexed { index, sub ->
+                      labels.add(sub.name)
+                      checked.add(sub.enabled)
+                      kinds.add("custom" to index)
+                  }
+                  val selected = engine?.selectedSubtitleTrackId() ?: -1
+                  embedded.forEach { tr ->
+                      labels.add("Embedded — " + tr.name)
+                      checked.add(tr.id == selected)
+                      kinds.add("embedded" to tr.id)
+                  }
+                  if (labels.isEmpty()) {
+                      Toast.makeText(this, "No external or embedded subtitles found.", Toast.LENGTH_SHORT).show()
+                      return
+                  }
+                  val dlg = AlertDialog.Builder(this).setTitle("Subtitles — tick to show")
+                      .setMultiChoiceItems(labels.toTypedArray(), checked.toBooleanArray()) { d, which, on ->
+                          val (kind, value) = kinds[which]
+                          if (kind == "custom") vlcSubtitles[value].enabled = on
+                          else if (on) {
+                              engine?.selectSubtitleTrack(value)
+                              for (i in kinds.indices) if (kinds[i].first == "embedded" && i != which)
+                                  (d as AlertDialog).listView.setItemChecked(i, false)
+                          } else if (engine?.selectedSubtitleTrackId() == value) engine?.selectSubtitleTrack(-1)
+                      }.setPositiveButton("Done", null).setNegativeButton("Close", null).create()
                   dlg.show()
               }
 
           """
           s=s[:start]+dialog+s[end:]
-          if "vlcSubtitleViews = arrayOf" not in s:
+          if "vlcSubtitleView = TextView(this)" not in s:
               anchor="        root.addView(controls, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))"
-              overlay="""        vlcSubtitleViews = arrayOf(
-                      TextView(this).apply { setTextColor(android.graphics.Color.WHITE); textSize=22f; gravity=Gravity.CENTER; setShadowLayer(3f,2f,2f,android.graphics.Color.BLACK); visibility=View.GONE },
-                      TextView(this).apply { setTextColor(android.graphics.Color.WHITE); textSize=19f; gravity=Gravity.CENTER; setShadowLayer(3f,2f,2f,android.graphics.Color.BLACK); visibility=View.GONE }
-                  )
-                  root.addView(vlcSubtitleViews[0],FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin=(96*resources.displayMetrics.density).toInt() })
-                  root.addView(vlcSubtitleViews[1],FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin=(138*resources.displayMetrics.density).toInt() })
+              overlay="""        vlcSubtitleView = TextView(this).apply {
+                      setTextColor(android.graphics.Color.WHITE)
+                      textSize = 22f
+                      gravity = Gravity.CENTER
+                      setShadowLayer(3f, 2f, 2f, android.graphics.Color.BLACK)
+                      visibility = View.GONE
+                  }
+                  root.addView(vlcSubtitleView, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
+                      bottomMargin = (96 * resources.displayMetrics.density).toInt()
+                  })
               """
               if anchor not in s: raise SystemExit("root controls anchor missing")
-              s=s.replace(anchor,anchor+"\n"+overlay.rstrip(),1)
+              s=s.replace(anchor,anchor+"\\n"+overlay.rstrip(),1)
           if "handler.post(vlcSubtitleTicker)" not in s: s=s.replace("            handler.post(ticker)","            handler.post(ticker)\n            handler.post(vlcSubtitleTicker)",1)
           if "handler.removeCallbacks(vlcSubtitleTicker)" not in s: s=s.replace("        handler.removeCallbacks(ticker)","        handler.removeCallbacks(ticker)\n        handler.removeCallbacks(vlcSubtitleTicker)",1)
           p.write_text(s)
