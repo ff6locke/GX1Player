@@ -5686,7 +5686,18 @@ jobs:
                       .setMultiChoiceItems(labels.toTypedArray(), checked.toBooleanArray()) { d, which, isChecked ->
                           val (kind, value) = actions[which]
                           when (kind) {
-                              "external" -> mainVlcExternalSubtitles[value].enabled = isChecked
+                              "external" -> {
+                                  mainVlcExternalSubtitles[value].enabled = isChecked
+                                  if (value == 0 && !isChecked) {
+                                      embedded.firstOrNull()?.let { fallback ->
+                                          mainVlcEngine?.selectSubtitleTrack(fallback.id)
+                                          actions.forEachIndexed { i, action ->
+                                              if (action.first == "embedded") (d as AlertDialog).listView.setItemChecked(i, action.second == fallback.id)
+                                              if (action.first == "off") (d as AlertDialog).listView.setItemChecked(i, false)
+                                          }
+                                      }
+                                  }
+                              }
                               "embedded" -> {
                                   if (isChecked) {
                                       mainVlcEngine?.selectSubtitleTrack(value)
@@ -5755,9 +5766,15 @@ jobs:
                       }
                   }?.sortedBy { it.name.lowercase(java.util.Locale.ROOT) }.orEmpty()
                   mainVlcExternalSubtitles.clear()
-                  matches.forEachIndexed { index, file ->
-                      runCatching { loadMainVlcExternalSubtitle(file, initiallyEnabled = index == 0) }
-                          .onFailure { android.util.Log.w("GX1Player", "Subtitle parse failed: " + file.name, it) }
+                  var firstValidExternalEnabled = false
+                  matches.forEach { file ->
+                      runCatching {
+                          loadMainVlcExternalSubtitle(file, initiallyEnabled = !firstValidExternalEnabled)
+                          firstValidExternalEnabled = true
+                      }.onFailure { android.util.Log.w("GX1Player", "Subtitle parse failed: " + file.name, it) }
+                  }
+                  if (!firstValidExternalEnabled) {
+                      engine.subtitleTracks().firstOrNull()?.let { engine.selectSubtitleTrack(it.id) }
                   }
                   Toast.makeText(this, "Found " + mainVlcExternalSubtitles.size + " same-name subtitle(s)", Toast.LENGTH_SHORT).show()
               }
