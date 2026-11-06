@@ -3247,6 +3247,12 @@ jobs:
 
           path = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           source = path.read_text()
+          # The home/library overlay and playback title require the root container reference.
+          if "private lateinit var rootLayout: FrameLayout" not in source:
+              anchor = "    private lateinit var playerView: PlayerView"
+              if anchor not in source: raise SystemExit("MainActivity PlayerView field anchor missing")
+              source = source.replace(anchor, "    private lateinit var rootLayout: FrameLayout\\n" + anchor, 1)
+
           # The restored home-screen methods require these activity-level view references.
           if "private lateinit var homePanel:" not in source:
               anchor = "    private var player: ExoPlayer? = null"
