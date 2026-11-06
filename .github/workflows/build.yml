@@ -1,5 +1,5 @@
 name: Build GX1 Player APK
-# Re-run after correcting the MKV URI, extractor configuration, and TrueHD carrier imports
+# Build subtitle parser escape fix; verify Kotlin character literals
 
 on:
   push:
