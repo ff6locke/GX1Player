@@ -4826,8 +4826,8 @@ jobs:
               """
               if anchor not in s: raise SystemExit("root controls anchor missing")
               s=s.replace(anchor,anchor+"\n"+overlay.rstrip(),1)
-          if "handler.post(vlcSubtitleTicker)" not in s: s=s.replace("            handler.post(ticker)","            handler.post(ticker)\\n            handler.post(vlcSubtitleTicker)",1)
-          if "handler.removeCallbacks(vlcSubtitleTicker)" not in s: s=s.replace("        handler.removeCallbacks(ticker)","        handler.removeCallbacks(ticker)\\n        handler.removeCallbacks(vlcSubtitleTicker)",1)
+          if "handler.post(vlcSubtitleTicker)" not in s: s=s.replace("            handler.post(ticker)","            handler.post(ticker)\n            handler.post(vlcSubtitleTicker)",1)
+          if "handler.removeCallbacks(vlcSubtitleTicker)" not in s: s=s.replace("        handler.removeCallbacks(ticker)","        handler.removeCallbacks(ticker)\n        handler.removeCallbacks(vlcSubtitleTicker)",1)
           p.write_text(s)
           lines=s.splitlines()
           print("GENERATED VLC SOURCE 245-270:\n" + "\n".join(f"{i+1}: {lines[i]}" for i in range(244,min(270,len(lines)))))
