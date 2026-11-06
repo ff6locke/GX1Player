@@ -6090,34 +6090,29 @@ jobs:
               s = s.replace(field, field + "\n    private var gx1MainPlaybackTitle: android.widget.TextView? = null", 1)
 
           if 'tag = "gx1_main_playback_filename"' not in s:
-              pattern = r"(?m)^(\s*)mainVlcLayout = VLCVideoLayout\(this\)\s*$"
-              m = re.search(pattern, s)
-              if not m:
-                  raise SystemExit("Main LibVLC layout initialization missing")
-              indent = m.group(1)
-              title_code = """gx1MainPlaybackTitle = android.widget.TextView(this).apply {
-              tag = "gx1_main_playback_filename"
-              setTextColor(Color.WHITE)
-              textSize = 17f
-              typeface = android.graphics.Typeface.DEFAULT_BOLD
-              maxLines = 1
-              ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
-              gravity = Gravity.CENTER
-              setPadding(18, 9, 18, 9)
-              background = GradientDrawable().apply {
-                  setColor(0x99000000.toInt())
-                  cornerRadius = 10f
+              layout_anchor = "root.addView(mainVlcLayout, FrameLayout.LayoutParams(-1, -1))"
+              if layout_anchor not in s:
+                  raise SystemExit("Main LibVLC root video-layer anchor missing")
+              title_code = """        gx1MainPlaybackTitle = android.widget.TextView(this).apply {
+                  tag = "gx1_main_playback_filename"
+                  setTextColor(Color.WHITE)
+                  textSize = 17f
+                  typeface = android.graphics.Typeface.DEFAULT_BOLD
+                  maxLines = 1
+                  ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
+                  gravity = Gravity.CENTER
+                  setPadding(18, 9, 18, 9)
+                  background = GradientDrawable().apply {
+                      setColor(0x99000000.toInt())
+                      cornerRadius = 10f
+                  }
+                  visibility = View.GONE
               }
-              visibility = View.GONE
-          }
-          val gx1TitleOverlay = playerView.findViewById<FrameLayout>(androidx.media3.ui.R.id.exo_overlay)
-              ?: playerView
-          gx1TitleOverlay.addView(gx1MainPlaybackTitle, FrameLayout.LayoutParams(
-              FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT,
-              Gravity.TOP or Gravity.CENTER_HORIZONTAL
-          ).apply { topMargin = (18 * resources.displayMetrics.density).toInt() })"""
-              insertion = "\n" + "\n".join(indent + line if line else "" for line in title_code.splitlines())
-              s = s[:m.end()] + insertion + s[m.end():]
+              root.addView(gx1MainPlaybackTitle, FrameLayout.LayoutParams(
+                  FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT,
+                  Gravity.TOP or Gravity.CENTER_HORIZONTAL
+              ).apply { topMargin = (18 * resources.displayMetrics.density).toInt() })"""
+              s = s.replace(layout_anchor, layout_anchor + "\\n" + title_code, 1)
 
           start = s.find("private fun startMainLibVlc(uri: Uri)")
           end = s.find("private fun toggleMainPlaybackEngine", start)
