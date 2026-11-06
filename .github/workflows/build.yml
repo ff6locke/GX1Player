@@ -5603,7 +5603,7 @@ jobs:
                           else if (!inTag) {
                               if (ch.code == 92 && i + 1 < value.length && (value[i + 1] == 'N' || value[i + 1] == 'n')) {
                                   out.append(10.toChar()); i++
-                              }                              } else out.append(ch)
+                              } else out.append(ch)
                           }
                           i++
                       }
