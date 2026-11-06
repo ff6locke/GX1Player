@@ -5314,6 +5314,19 @@ jobs:
                       // Use LibVLC's real duration/seek support so the controller timeline stays visible.
                       override fun isCurrentMediaItemSeekable(): Boolean =
                           (mainVlcEngine?.durationMs() ?: 0L) > 0L
+                      // ForwardingPlayer normally inherits the hidden ExoPlayer clock's
+                      // command set. For M2TS that clock can omit seek commands even though
+                      // LibVLC has a seekable timeline. Explicitly advertise those commands.
+                      override fun getAvailableCommands(): Player.Commands {
+                          val commands = Player.Commands.Builder()
+                              .addAll(super.getAvailableCommands())
+                          if ((mainVlcEngine?.durationMs() ?: 0L) > 0L) {
+                              commands.add(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM)
+                                  .add(Player.COMMAND_SEEK_BACK)
+                                  .add(Player.COMMAND_SEEK_FORWARD)
+                          }
+                          return commands.build()
+                      }
                       override fun isCommandAvailable(command: Int): Boolean =
                           if (command == Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM ||
                               command == Player.COMMAND_SEEK_BACK ||
