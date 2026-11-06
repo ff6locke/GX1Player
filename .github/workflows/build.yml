@@ -5637,7 +5637,7 @@ jobs:
                                   val start = timestamp(left, false); val end = timestamp(right, false); i++
                                   val body = StringBuilder()
                                   while (i < lines.size && lines[i].isNotBlank()) {
-                                      if (body.isNotEmpty()) body.append('\\n')
+                                      if (body.isNotEmpty()) body.append(10.toChar())
                                       body.append(lines[i].replace(Regex("<[^>]*>"), "").trim())
                                       i++
                                   }
