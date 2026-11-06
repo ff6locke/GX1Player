@@ -5525,9 +5525,9 @@ jobs:
               raise SystemExit("Main LibVLC startup method boundaries missing")
           block = s[start:end]
           if "autoLoadMainVlcSubtitles(engine)" not in block:
-              open_match = re.search(r"(?m)^[ \\t]*engine\\.open\\(uri, resumeAt, digitalOutput = passthrough\\)[ \\t]*$", block)
+              open_match = re.search(r"(?m)^[^\\n]*engine\\.open\\([^\\n]*$", block)
               if not open_match:
-                  raise SystemExit("Main LibVLC open call missing")
+                  raise SystemExit("Main LibVLC open call missing; method excerpt: " + repr(block[:2500]))
               insert = open_match.group(0) + "\\n                  mainVlcAutoSubtitleFiles.clear()" + "\\n                  subtitleUiHandler.postDelayed({ autoLoadMainVlcSubtitles(engine) }, 1200L)"
               block = block[:open_match.start()] + insert + block[open_match.end():]
               s = s[:start] + block + s[end:]
