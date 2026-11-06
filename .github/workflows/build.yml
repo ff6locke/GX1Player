@@ -6116,12 +6116,11 @@ jobs:
               s = s.replace(layout_anchor, layout_anchor + "\\n" + title_code, 1)
 
           start = s.find("private fun startMainLibVlc(uri: Uri)")
-          end = s.find("private fun toggleMainPlaybackEngine", start)
-          if start < 0 or end < 0:
-              raise SystemExit("Main LibVLC startup method boundaries missing")
-          block = s[start:end]
-          if "gx1MainPlaybackTitle?.apply" not in block:
-              m = re.search(r"(?m)^(\s*)mainVlcLayout\.visibility = View\.VISIBLE", block)
+          if start < 0:
+              raise SystemExit("Main LibVLC startup method missing")
+          if "gx1MainPlaybackTitle?.apply" not in s[start:start + 12000]:
+              tail = s[start:]
+              m = re.search(r"(?m)^(\\s*)mainVlcLayout\\.visibility = View\\.VISIBLE", tail)
               if not m:
                   raise SystemExit("Main LibVLC visibility anchor missing")
               indent = m.group(1)
@@ -6133,8 +6132,8 @@ jobs:
               }
           """
               insertion = "".join(indent + line if line.strip() else line for line in code.splitlines(True))
-              block = block[:m.start()] + insertion + block[m.start():]
-              s = s[:start] + block + s[end:]
+              absolute = start + m.start()
+              s = s[:absolute] + insertion + s[absolute:]
 
           release_anchor = "if (::mainVlcLayout.isInitialized) mainVlcLayout.visibility = View.GONE"
           if release_anchor not in s:
