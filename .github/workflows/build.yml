@@ -5370,7 +5370,7 @@ jobs:
                   // The stock controller can disable its scrubber based on the silent
                   // ExoPlayer clock's M2TS capabilities. LibVLC is the real seek engine,
                   // so keep Media3's existing scrubber enabled for the user.
-                          playerView.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_progress)?.apply {
+                  playerView.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_progress)?.apply {
                       visibility = View.VISIBLE
                       isEnabled = true
                       isClickable = true
