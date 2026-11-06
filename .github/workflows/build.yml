@@ -4756,7 +4756,7 @@ jobs:
                               if (ch == '{') insideTag = true
                               else if (ch == '}') insideTag = false
                               else if (!insideTag) {
-                                  if (ch == '\\\\' && i + 1 < value.length && (value[i + 1] == 'N' || value[i + 1] == 'n')) {
+                                  if (ch == '\\' && i + 1 < value.length && (value[i + 1] == 'N' || value[i + 1] == 'n')) {
                                       out.append('\\n'); i++
                                   } else out.append(ch)
                               }
