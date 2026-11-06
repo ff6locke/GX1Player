@@ -5188,7 +5188,9 @@ jobs:
                   raise SystemExit(label + ' anchor missing')
               return s.replace(old, new, 1)
 
-          if 'import androidx.media3.common.ForwardingPlayer' not in s:
+          if 'import androidx.media3.common.ForwardingPlayer
+import androidx.media3.common.Timeline
+import androidx.media3.exoplayer.source.SinglePeriodTimeline' not in s:
               s = once('import androidx.media3.common.Player',
                        'import androidx.media3.common.Player\nimport androidx.media3.common.ForwardingPlayer',
                        'ForwardingPlayer import')
@@ -5281,6 +5283,24 @@ jobs:
                           mainVlcEngine?.currentTimeMs() ?: super.getCurrentPosition()
                       override fun getDuration(): Long =
                           mainVlcEngine?.durationMs()?.takeIf { it > 0L } ?: super.getDuration()
+                      // Supply a real one-window Media3 timeline from LibVLC metadata.
+                      // PlayerControlView hides its time bar when the clock's timeline is empty,
+                      // even when duration and seek commands are overridden.
+                      override fun getCurrentTimeline(): Timeline {
+                          val durationMs = mainVlcEngine?.durationMs() ?: 0L
+                          return if (durationMs > 0L) {
+                              SinglePeriodTimeline(
+                                  durationMs * 1000L,
+                                  true,
+                                  false,
+                                  false,
+                                  null,
+                                  buildMediaItem(uri)
+                              )
+                          } else {
+                              super.getCurrentTimeline()
+                          }
+                      }
                       // Media3's hidden clock may mark transport streams as unseekable.
                       // Use LibVLC's real duration/seek support so the controller timeline stays visible.
                       override fun isCurrentMediaItemSeekable(): Boolean =
