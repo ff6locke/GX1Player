@@ -1595,7 +1595,7 @@ jobs:
                           val finish = assMs(fields[endIndex])
                           val caption = fields[textIndex]
                               .replace(Regex("""\\\\[Nn]"""), "\n")
-                              .replace(Regex("""\{[^}]*}"""), "")
+                              .replace(Regex("""\{[^}]*\}"""), "")
                               .replace(Regex("<[^>]*>"), "")
                               .trim()
                           if (caption.isNotBlank() && finish > begin) {
