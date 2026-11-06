@@ -3616,6 +3616,8 @@ jobs:
               private var attachedLayout: VLCVideoLayout? = null
               private var released = false
               private var pendingSeekMs = 0L
+              @Volatile private var durationHintMs = 0L
+              @Volatile private var sourceGeneration = 0
 
               init {
                   mediaPlayer.setEventListener { event ->
@@ -3658,6 +3660,8 @@ jobs:
                   activeAssetDescriptor?.let { runCatching { it.close() } }
                   activeAssetDescriptor = null
                   pendingSeekMs = startPositionMs.coerceAtLeast(0L)
+                  durationHintMs = 0L
+                  val durationGeneration = ++sourceGeneration
                   mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)
 
                   // SAF content:// URIs are not ordinary filesystem paths. Give native
@@ -3683,6 +3687,28 @@ jobs:
                   android.util.Log.i("GX1-VLC", "Opened media using ${uri.scheme} source; digitalOutput=$digitalOutput")
                   mediaPlayer.play()
                   publish(opening = true, error = null)
+                  // Some transport-stream files play correctly in LibVLC but report
+                  // mediaPlayer.length == 0. Probe Android's container metadata off the UI
+                  // thread so Media3 can still display duration and enable seeking.
+                  Thread({
+                      val retriever = android.media.MediaMetadataRetriever()
+                      val extracted = try {
+                          retriever.setDataSource(appContext, uri)
+                          retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
+                              ?.toLongOrNull() ?: 0L
+                      } catch (_: Exception) {
+                          0L
+                      } finally {
+                          runCatching { retriever.release() }
+                      }
+                      if (durationGeneration == sourceGeneration && extracted > 0L) {
+                          durationHintMs = extracted
+                          publish()
+                      }
+                  }, "gx1-duration-probe").apply {
+                      isDaemon = true
+                      start()
+                  }
               }
 
               fun play() { checkActive(); if (!mediaPlayer.isPlaying) mediaPlayer.play() }
@@ -3691,7 +3717,8 @@ jobs:
               fun seekTo(positionMs: Long) { checkActive(); mediaPlayer.setTime(positionMs.coerceAtLeast(0L)) }
               fun setRate(rate: Float) { checkActive(); mediaPlayer.setRate(rate.coerceIn(0.25f, 4.0f)) }
               fun currentTimeMs(): Long = if (released) 0L else mediaPlayer.time.coerceAtLeast(0L)
-              fun durationMs(): Long = if (released) 0L else mediaPlayer.length.coerceAtLeast(0L)
+              fun durationMs(): Long = if (released) 0L else
+                  mediaPlayer.length.takeIf { it > 0L } ?: durationHintMs
               fun isPlaying(): Boolean = !released && mediaPlayer.isPlaying
 
               private fun checkActive() { check(!released) { "LibVLC engine has been released" } }
@@ -3709,7 +3736,7 @@ jobs:
                       ended = ended,
                       error = error,
                       timeMs = mediaPlayer.time.coerceAtLeast(0L),
-                      lengthMs = mediaPlayer.length.coerceAtLeast(0L)
+                      lengthMs = durationMs()
                   ))
               }
 
