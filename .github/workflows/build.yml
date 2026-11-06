@@ -5722,7 +5722,7 @@ jobs:
               s = s.replace(anchor, anchor + "\n" + fields, 1)
 
           # Render the enabled external subtitle cues as independent overlays, matching VLC Test.
-          root_anchor = "        root.addView(mainVlcLayout, FrameLayout.LayoutParams(-1, -1))"
+          root_anchor = next((line for line in s.splitlines() if "root.addView(mainVlcLayout" in line), None)
           if "mainVlcSubtitleOverlay = TextView(this)" not in s:
               overlay = r"""
                   mainVlcSubtitleOverlay = TextView(this).apply {
