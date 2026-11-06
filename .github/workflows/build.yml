@@ -5065,10 +5065,7 @@ jobs:
                       FrameLayout.LayoutParams.MATCH_PARENT
                   ))
               '''
-              root_new = root_anchor + '''        mainVlcLayout = VLCVideoLayout(this).apply {
-              setBackgroundColor(Color.BLACK)
-              visibility = View.GONE
-          }
+              root_new = root_anchor + '''        mainVlcLayout = VLCVideoLayout(this)
           root.addView(mainVlcLayout, FrameLayout.LayoutParams(-1, -1))
           mainVlcBar = LinearLayout(this).apply {
               orientation = LinearLayout.HORIZONTAL
@@ -5800,14 +5797,10 @@ jobs:
               idx = s.find(line, release)
               s = s[:idx] + line[:len(line)-len(line.lstrip())] + "subtitleUiHandler.removeCallbacks(mainVlcSubtitleTicker)\n" + s[idx:]
 
-          # Repair generated snippets robustly after every earlier workflow patch has run.
+          # Final safety repair for generated Kotlin source.
           import re
-          s, n = re.subn(r"mainVlcLayout = VLCVideoLayout\(this\)\.apply\s*\{[\s\S]*?\}", "mainVlcLayout = VLCVideoLayout(this)", s, count=1)
-          print("Repaired VLC layout initializers:", n)
+          s = s.replace("mainVlcLayout = VLCVideoLayout(this).apply {\n              setBackgroundColor(Color.BLACK)\n              visibility = View.GONE\n          }", "mainVlcLayout = VLCVideoLayout(this)")
           s = re.sub(r"buildMediaItem\(uri\)", "MediaItem.fromUri(uri)", s)
-          # Replace ASS escape handling without Kotlin backslash character literals.
-          s = re.sub(r"if \(ch == .*?&& i \+ 1 < value\.length", "if (ch.code == 92 && i + 1 < value.length", s, count=1)
-          s = re.sub(r"out\.append\(.*?\); i\+\+", "out.append(10.toChar()); i++", s, count=1)
           p.write_text(s)
           print("Main player now uses VLC Test-style external subtitle checkboxes and simultaneous ASS/SRT overlays.")
           PY
