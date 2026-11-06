@@ -5046,110 +5046,138 @@ jobs:
               if old not in s:
                   raise SystemExit(label + ' anchor missing')
               return s.replace(old, new, 1)
+
           if 'import com.example.gx1player.playback.Gx1LibVlcEngine' not in s:
-              s = once('import com.example.gx1player.audio.TrueHdCarrierRenderersFactory', 'import com.example.gx1player.audio.TrueHdCarrierRenderersFactory\\nimport com.example.gx1player.playback.Gx1LibVlcEngine\\nimport org.videolan.libvlc.util.VLCVideoLayout', 'imports')
+              s = once('import com.example.gx1player.audio.TrueHdCarrierRenderersFactory', '''import com.example.gx1player.audio.TrueHdCarrierRenderersFactory
+          import com.example.gx1player.playback.Gx1LibVlcEngine
+          import org.videolan.libvlc.util.VLCVideoLayout''', 'imports')
+
           if 'private var mainVlcEngine: Gx1LibVlcEngine? = null' not in s:
-              s = once('    private var player: ExoPlayer? = null', '    private var player: ExoPlayer? = null\\n    private var mainVlcEngine: Gx1LibVlcEngine? = null\\n    private lateinit var mainVlcLayout: VLCVideoLayout\\n    private lateinit var mainVlcBar: LinearLayout\\n    private var mainVlcSelected = false', 'player fields')
+              s = once('    private var player: ExoPlayer? = null', '''    private var player: ExoPlayer? = null
+              private var mainVlcEngine: Gx1LibVlcEngine? = null
+              private lateinit var mainVlcLayout: VLCVideoLayout
+              private lateinit var mainVlcBar: LinearLayout
+              private var mainVlcSelected = false''', 'player fields')
+
           if 'mainVlcLayout = VLCVideoLayout(this)' not in s:
               root_anchor = '''        root.addView(playerView, FrameLayout.LayoutParams(
-                      FrameLayout.LayoutParams.MATCH_PARENT,
-                      FrameLayout.LayoutParams.MATCH_PARENT
-                  ))
+              FrameLayout.LayoutParams.MATCH_PARENT,
+              FrameLayout.LayoutParams.MATCH_PARENT
+          ))
           '''
               root_new = root_anchor + '''        mainVlcLayout = VLCVideoLayout(this).apply {
-                      setBackgroundColor(Color.BLACK)
-                      visibility = View.GONE
-                  }
-                  root.addView(mainVlcLayout, FrameLayout.LayoutParams(-1, -1))
-                  mainVlcBar = LinearLayout(this).apply {
-                      orientation = LinearLayout.HORIZONTAL
-                      gravity = Gravity.CENTER
-                      setPadding(8, 6, 8, 6)
-                      background = android.graphics.drawable.GradientDrawable().apply { setColor(0xB0000000.toInt()); cornerRadius = 12f }
-                      visibility = View.GONE
-                  }
-                  fun addVlcControl(label: String, action: () -> Unit) {
-                      mainVlcBar.addView(Button(this).apply { text = label; isFocusable = true; setOnClickListener { action() } }, LinearLayout.LayoutParams(0, -2, 1f))
-                  }
-                  addVlcControl(\"-10s\") { mainVlcEngine?.seekTo((mainVlcEngine?.currentTimeMs() ?: 0L) - 10_000L) }
-                  addVlcControl(\"Play/Pause\") { mainVlcEngine?.togglePlayback() }
-                  addVlcControl(\"+10s\") { mainVlcEngine?.seekTo((mainVlcEngine?.currentTimeMs() ?: 0L) + 10_000L) }
-                  addVlcControl(\"Menu\") { showMenu() }
-                  root.addView(mainVlcBar, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM).apply { setMargins(18, 0, 18, 24) })
+              setBackgroundColor(Color.BLACK)
+              visibility = View.GONE
+          }
+          root.addView(mainVlcLayout, FrameLayout.LayoutParams(-1, -1))
+          mainVlcBar = LinearLayout(this).apply {
+              orientation = LinearLayout.HORIZONTAL
+              gravity = Gravity.CENTER
+              setPadding(8, 6, 8, 6)
+              background = GradientDrawable().apply { setColor(0xB0000000.toInt()); cornerRadius = 12f }
+              visibility = View.GONE
+          }
+          fun addVlcControl(label: String, action: () -> Unit) {
+              mainVlcBar.addView(Button(this).apply { text = label; isFocusable = true; setOnClickListener { action() } }, LinearLayout.LayoutParams(0, -2, 1f))
+          }
+          addVlcControl("-10s") { mainVlcEngine?.seekTo((mainVlcEngine?.currentTimeMs() ?: 0L) - 10_000L) }
+          addVlcControl("Play/Pause") { mainVlcEngine?.togglePlayback() }
+          addVlcControl("+10s") { mainVlcEngine?.seekTo((mainVlcEngine?.currentTimeMs() ?: 0L) + 10_000L) }
+          addVlcControl("Menu") { showMenu() }
+          root.addView(mainVlcBar, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM).apply { setMargins(18, 0, 18, 24) })
           '''
               s = once(root_anchor, root_new, 'player root')
+
           if 'mainVlcSelected = prefs.getBoolean' not in s:
-              s = once('        passthrough = prefs.getBoolean(KEY_PASSTHROUGH, true)', '        mainVlcSelected = prefs.getBoolean(\"main_vlc_selected\", false)\\n        passthrough = prefs.getBoolean(KEY_PASSTHROUGH, true)', 'engine preference')
+              s = once('        passthrough = prefs.getBoolean(KEY_PASSTHROUGH, true)', '''        mainVlcSelected = prefs.getBoolean("main_vlc_selected", false)
+          passthrough = prefs.getBoolean(KEY_PASSTHROUGH, true)''', 'engine preference')
+
+          start_old = '''        val uri = mediaUri ?: return
+
+          val renderers = if (passthrough) {'''
+          start_new = '''        val uri = mediaUri ?: return
+          if (mainVlcSelected) {
+              startMainLibVlc(uri)
+              return
+          }
+
+          val renderers = if (passthrough) {'''
           if 'if (mainVlcSelected) {' not in s[s.find('private fun startPlayer()'):s.find('private fun buildMediaItem')]:
-              start_old = '        val uri = mediaUri ?: return\\n\\n        val renderers = if (passthrough) {'
-              start_new = '        val uri = mediaUri ?: return\\n        if (mainVlcSelected) {\\n            startMainLibVlc(uri)\\n            return\\n        }\\n\\n        val renderers = if (passthrough) {'
               s = once(start_old, start_new, 'startPlayer')
+
           if 'private fun startMainLibVlc(uri: Uri)' not in s:
               anchor = '    private fun buildMediaItem(uri: Uri): MediaItem {'
               methods = '''    private fun startMainLibVlc(uri: Uri) {
-                  val resumeAt = prefs.getLong(posKey(uri), 0L)
-                  try {
-                      playerView.player = null
-                      playerView.visibility = View.GONE
-                      mainVlcLayout.visibility = View.VISIBLE
-                      mainVlcBar.visibility = View.VISIBLE
-                      homePanel.visibility = View.GONE
-                      setPlaybackFullscreen(true)
-                      val engine = Gx1LibVlcEngine(this) { state -> runOnUiThread {
-                          if (state.error != null) Toast.makeText(this, state.error, Toast.LENGTH_LONG).show()
-                          if (state.ended) prefs.edit().remove(posKey(uri)).apply()
-                      } }
-                      mainVlcEngine = engine
-                      engine.attach(mainVlcLayout)
-                      engine.open(uri, resumeAt, digitalOutput = passthrough)
-                      playingUri = uri
-                      loadSecondSubtitleOverlay()
-                  } catch (e: Exception) {
-                      mainVlcEngine?.release()
-                      mainVlcEngine = null
-                      mainVlcLayout.visibility = View.GONE
-                      mainVlcBar.visibility = View.GONE
-                      playerView.visibility = View.VISIBLE
-                      mainVlcSelected = false
-                      prefs.edit().putBoolean(\"main_vlc_selected\", false).apply()
-                      Toast.makeText(this, \"LibVLC failed; switched back to Media3: \" + (e.message ?: e.javaClass.simpleName), Toast.LENGTH_LONG).show()
-                      startPlayer()
-                  }
-              }
-
-              private fun toggleMainPlaybackEngine() {
-                  mainVlcSelected = !mainVlcSelected
-                  prefs.edit().putBoolean(\"main_vlc_selected\", mainVlcSelected).apply()
+              val resumeAt = prefs.getLong(posKey(uri), 0L)
+              try {
+                  playerView.player = null
+                  playerView.visibility = View.GONE
+                  mainVlcLayout.visibility = View.VISIBLE
+                  mainVlcBar.visibility = View.VISIBLE
+                  homePanel.visibility = View.GONE
+                  setPlaybackFullscreen(true)
+                  val engine = Gx1LibVlcEngine(this) { state -> runOnUiThread {
+                      if (state.error != null) Toast.makeText(this, state.error, Toast.LENGTH_LONG).show()
+                      if (state.ended) prefs.edit().remove(posKey(uri)).apply()
+                  } }
+                  mainVlcEngine = engine
+                  engine.attach(mainVlcLayout)
+                  engine.open(uri, resumeAt, digitalOutput = passthrough)
+                  playingUri = uri
+                  loadSecondSubtitleOverlay()
+              } catch (e: Exception) {
+                  mainVlcEngine?.release()
+                  mainVlcEngine = null
+                  mainVlcLayout.visibility = View.GONE
+                  mainVlcBar.visibility = View.GONE
+                  playerView.visibility = View.VISIBLE
+                  mainVlcSelected = false
+                  prefs.edit().putBoolean("main_vlc_selected", false).apply()
+                  Toast.makeText(this, "LibVLC failed; switched back to Media3: " + (e.message ?: e.javaClass.simpleName), Toast.LENGTH_LONG).show()
                   startPlayer()
               }
+          }
 
-              '''
+          private fun toggleMainPlaybackEngine() {
+              mainVlcSelected = !mainVlcSelected
+              prefs.edit().putBoolean("main_vlc_selected", mainVlcSelected).apply()
+              startPlayer()
+          }
+
+          '''
               s = once(anchor, methods + anchor, 'buildMediaItem')
+
           release_old = '''        player = null
-              playingUri = null
-              playerView.player = null'''
+          playingUri = null
+          playerView.player = null'''
           release_new = '''        player = null
-              mainVlcEngine?.let { engine ->
-                  val pos = engine.currentTimeMs()
-                  val dur = engine.durationMs()
-                  val uri = playingUri ?: mediaUri
-                  if (uri != null) {
-                      if ((dur > 0L && pos >= dur - END_MARGIN_MS) || pos < MIN_RESUME_MS) prefs.edit().remove(posKey(uri)).apply()
-                      else prefs.edit().putLong(posKey(uri), pos).apply()
-                  }
-                  engine.release()
+          mainVlcEngine?.let { engine ->
+              val pos = engine.currentTimeMs()
+              val dur = engine.durationMs()
+              val uri = playingUri ?: mediaUri
+              if (uri != null) {
+                  if ((dur > 0L && pos >= dur - END_MARGIN_MS) || pos < MIN_RESUME_MS) prefs.edit().remove(posKey(uri)).apply()
+                  else prefs.edit().putLong(posKey(uri), pos).apply()
               }
-              mainVlcEngine = null
-              if (::mainVlcLayout.isInitialized) mainVlcLayout.visibility = View.GONE
-              if (::mainVlcBar.isInitialized) mainVlcBar.visibility = View.GONE
-              playingUri = null
-              playerView.player = null'''
+              engine.release()
+          }
+          mainVlcEngine = null
+          if (::mainVlcLayout.isInitialized) mainVlcLayout.visibility = View.GONE
+          if (::mainVlcBar.isInitialized) mainVlcBar.visibility = View.GONE
+          playingUri = null
+          playerView.player = null'''
           if 'mainVlcEngine?.let { engine ->' not in s:
               s = once(release_old, release_new, 'releasePlayer')
-          if 'add(if (mainVlcSelected) \\\"Playback engine: LibVLC' not in s:
-              s = once('        add(\\\"Home\\\") { showHome() }', '        add(\\\"Home\\\") { showHome() }\\n        add(if (mainVlcSelected) \\\"Playback engine: LibVLC (switch to Media3)\\\" else \\\"Playback engine: Media3 (switch to LibVLC)\\\") { toggleMainPlaybackEngine() }', 'main menu')
+
+          menu_old = '        add("Home") { showHome() }'
+          menu_new = '''        add("Home") { showHome() }
+          add(if (mainVlcSelected) "Playback engine: LibVLC (switch to Media3)" else "Playback engine: Media3 (switch to LibVLC)") { toggleMainPlaybackEngine() }'''
+          if 'toggleMainPlaybackEngine()' not in s[s.find('private fun showMenu()'):s.find('private fun ') if 'private fun ' in s[s.find('private fun showMenu()')+1:] else len(s)]:
+              s = once(menu_old, menu_new, 'main menu')
+
           s = s.replace('val position = player?.currentPosition ?: 0L', 'val position = player?.currentPosition ?: mainVlcEngine?.currentTimeMs() ?: 0L', 1)
           s = s.replace('active.isNotEmpty() && player?.isPlaying == true', 'active.isNotEmpty() && (player?.isPlaying == true || mainVlcEngine?.isPlaying() == true)', 1)
+          s = s.replace('if (player == null && mediaUri != null) startPlayer()', 'if (player == null && mainVlcEngine == null && mediaUri != null) startPlayer()', 1)
           p.write_text(s)
           print('LibVLC main playback wiring applied')
           PY
