@@ -5601,9 +5601,9 @@ jobs:
                           if (ch == '{') inTag = true
                           else if (ch == '}') inTag = false
                           else if (!inTag) {
-                              if (ch == '\\' && i + 1 < value.length && (value[i + 1] == 'N' || value[i + 1] == 'n')) {
-                                  out.append('\n'); i++
-                              } else out.append(ch)
+                              if (ch.code == 92 && i + 1 < value.length && (value[i + 1] == 'N' || value[i + 1] == 'n')) {
+                                  out.append(10.toChar()); i++
+                              }                              } else out.append(ch)
                           }
                           i++
                       }
