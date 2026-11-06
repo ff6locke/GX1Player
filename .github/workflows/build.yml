@@ -5089,7 +5089,7 @@ jobs:
               s = once(root_anchor, root_new, 'player root')
 
           if 'mainVlcSelected = prefs.getBoolean' not in s:
-              s = once('        passthrough = prefs.getBoolean(KEY_PASSTHROUGH, true)', '''        mainVlcSelected = prefs.getBoolean("main_vlc_selected", false)
+              s = once('        passthrough = prefs.getBoolean(KEY_PASSTHROUGH, true)', '''        mainVlcSelected = true
           passthrough = prefs.getBoolean(KEY_PASSTHROUGH, true)''', 'engine preference')
 
               start_old = '''        val uri = mediaUri ?: return
@@ -5171,11 +5171,7 @@ jobs:
           if 'mainVlcEngine?.let { engine ->' not in s:
               s = once(release_old, release_new, 'releasePlayer')
 
-          menu_old = '        add("Home") { showHome() }'
-          menu_new = '''        add("Home") { showHome() }
-          add(if (mainVlcSelected) "Playback engine: LibVLC (switch to Media3)" else "Playback engine: Media3 (switch to LibVLC)") { toggleMainPlaybackEngine() }'''
-          if 'toggleMainPlaybackEngine()' not in s[s.find('private fun showMenu()'):s.find('private fun ') if 'private fun ' in s[s.find('private fun showMenu()')+1:] else len(s)]:
-              s = once(menu_old, menu_new, 'main menu')
+          # LibVLC is the permanent main playback engine; no engine toggle is shown.
 
           s = s.replace('val position = player?.currentPosition ?: 0L', 'val position = player?.currentPosition ?: mainVlcEngine?.currentTimeMs() ?: 0L', 1)
           s = s.replace('active.isNotEmpty() && player?.isPlaying == true', 'active.isNotEmpty() && (player?.isPlaying == true || mainVlcEngine?.isPlaying() == true)', 1)
