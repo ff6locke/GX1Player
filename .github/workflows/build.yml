@@ -4760,14 +4760,9 @@ jobs:
 
           """
           if "private fun autoLoadMatchingSubtitles()" not in s:
-              marker = "    private fun loadVlcSubtitle(slot: Int, file: java.io.File) {"
+              marker = "    private fun showAudioTracks() {"
               if marker not in s:
-                  lines = s.splitlines()
-                  print("=== VLC SOURCE TOP ===")
-                  print("\\n".join(f"{i+1}: {lines[i]}" for i in range(0, min(75, len(lines)))))
-                  print("=== VLC SOURCE SUBTITLE METHODS ===")
-                  print("\\n".join(f"{i+1}: {lines[i]}" for i in range(345, min(445, len(lines)))))
-                  raise SystemExit("VLC subtitle loader insertion point missing; inspect source excerpts above")
+                  raise SystemExit("VLC audio menu insertion point missing")
               s = s.replace(marker, auto_method + marker, 1)
           open_anchor = "                      vlcEngine.open(uri, resumeAt, digitalOutput)"
           if "autoLoadMatchingSubtitles()" not in s:
