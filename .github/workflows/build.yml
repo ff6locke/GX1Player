@@ -5508,6 +5508,17 @@ jobs:
                       }
                   }
                   if (loaded > 0) {
+                      val firstExternal = matches.firstOrNull()
+                      subtitleUiHandler.postDelayed({
+                          val available = engine.subtitleTracks()
+                          val firstTrack = firstExternal?.let { file ->
+                              available.firstOrNull { track ->
+                                  track.name.contains(file.name, ignoreCase = true) ||
+                                      track.name.contains(file.nameWithoutExtension, ignoreCase = true)
+                              }
+                          } ?: available.lastOrNull()
+                          firstTrack?.let { engine.selectSubtitleTrack(it.id) }
+                      }, 500L)
                       Toast.makeText(this, "Found $loaded same-name subtitle(s)", Toast.LENGTH_SHORT).show()
                   }
               }
