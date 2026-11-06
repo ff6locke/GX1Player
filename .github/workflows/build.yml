@@ -4732,11 +4732,11 @@ jobs:
               methods = r'''
               private fun loadVlcSubtitle(slot: Int, file: java.io.File) {
                   try {
-                      val raw = file.readText(Charsets.UTF_8).removePrefix("\\uFEFF")
+                      val raw = file.readText(Charsets.UTF_8).removePrefix("\uFEFF")
                       val cues = mutableListOf<VlcCue>()
                       if (raw.contains("[Events]", true)) {
                           var fmt = listOf("Layer","Start","End","Style","Name","MarginL","MarginR","MarginV","Effect","Text")
-                          val tm = Regex("""^(\\d+):(\\d{2}):(\\d{2})[.](\\d{1,2})$""")
+                          val tm = Regex("""^(\d+):(\d{2}):(\d{2})[.](\d{1,2})$""")
                           fun ms(v: String): Long {
                               val m = tm.matchEntire(v.trim()) ?: throw IllegalArgumentException("Bad ASS timestamp: " + v)
                               return ((m.groupValues[1].toLong()*3600 + m.groupValues[2].toLong()*60 + m.groupValues[3].toLong())*1000) + m.groupValues[4].padEnd(2,'0').toLong()*10
@@ -4748,14 +4748,14 @@ jobs:
                                   val f = t.substringAfter(':').split(',', limit=fmt.size)
                                   val a=fmt.indexOfFirst { it.equals("Start",true) }; val b=fmt.indexOfFirst { it.equals("End",true) }; val c=fmt.indexOfFirst { it.equals("Text",true) }
                                   if (a>=0 && b>=0 && c>=0 && f.size>maxOf(a,b,c)) {
-                                      val text=f[c].replace(Regex("""\\{[^}]*}"""),"").replace(Regex("""\\\\[Nn]"""),"\\n").trim()
+                                      val text=f[c].replace(Regex("""\{[^}]*}"""),"").replace(Regex("""\\[Nn]"""),"\n").trim()
                                       val st=ms(f[a]); val en=ms(f[b])
                                       if (en>st && text.isNotBlank()) cues.add(VlcCue(st,en,text))
                                   }
                               }
                           }
                       } else {
-                          val tm=Regex("""(?:(\\d{1,2}):)?(\\d{1,2}):(\\d{2})[,.](\\d{1,3})""")
+                          val tm=Regex("""(?:(\d{1,2}):)?(\d{1,2}):(\d{2})[,.](\d{1,3})""")
                           fun ms(v:String):Long {
                               val m=tm.find(v) ?: throw IllegalArgumentException("Bad SRT timestamp")
                               return ((m.groupValues[1].ifBlank{"0"}.toLong()*3600+m.groupValues[2].toLong()*60+m.groupValues[3].toLong())*1000)+m.groupValues[4].padEnd(3,'0').take(3).toLong()
