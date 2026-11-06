@@ -5180,7 +5180,7 @@ jobs:
           print('LibVLC main playback wiring applied')
           PY
       - name: Preserve Media3 controller UI with LibVLC playback
-        working-directory: \${{ env.PROJECT_DIR }}
+        working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
           from pathlib import Path
