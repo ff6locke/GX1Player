@@ -4726,7 +4726,7 @@ jobs:
               }
           """
               if anchor not in s: raise SystemExit("mediaUri field missing")
-              s = s.replace(anchor, fields + "\\n" + anchor, 1)
+              s = s.replace(anchor, fields + "\n" + anchor, 1)
           if "private fun loadVlcSubtitle(slot: Int" not in s:
               anchor = "    private fun showAudioTracks() {"
               methods = r'''
@@ -4825,7 +4825,7 @@ jobs:
                   root.addView(vlcSubtitleViews[1],FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin=(138*resources.displayMetrics.density).toInt() })
               """
               if anchor not in s: raise SystemExit("root controls anchor missing")
-              s=s.replace(anchor,anchor+"\\n"+overlay.rstrip(),1)
+              s=s.replace(anchor,anchor+"\n"+overlay.rstrip(),1)
           if "handler.post(vlcSubtitleTicker)" not in s: s=s.replace("            handler.post(ticker)","            handler.post(ticker)\\n            handler.post(vlcSubtitleTicker)",1)
           if "handler.removeCallbacks(vlcSubtitleTicker)" not in s: s=s.replace("        handler.removeCallbacks(ticker)","        handler.removeCallbacks(ticker)\\n        handler.removeCallbacks(vlcSubtitleTicker)",1)
           p.write_text(s)
