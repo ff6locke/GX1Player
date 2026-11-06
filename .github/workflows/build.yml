@@ -5525,11 +5525,16 @@ jobs:
               raise SystemExit("Main LibVLC startup method boundaries missing")
           block = s[start:end]
           if "autoLoadMainVlcSubtitles(engine)" not in block:
-              open_match = re.search(r"(?m)^[^\\n]*engine\\.open\\([^\\n]*$", block)
-              if not open_match:
+              lines = block.splitlines()
+              open_index = next((i for i, line in enumerate(lines) if "engine.open(" in line), -1)
+              if open_index < 0:
                   raise SystemExit("Main LibVLC open call missing; method excerpt: " + repr(block[:2500]))
-              insert = open_match.group(0) + "\\n                  mainVlcAutoSubtitleFiles.clear()" + "\\n                  subtitleUiHandler.postDelayed({ autoLoadMainVlcSubtitles(engine) }, 1200L)"
-              block = block[:open_match.start()] + insert + block[open_match.end():]
+              lines[open_index:open_index + 1] = [
+                  lines[open_index],
+                  "                  mainVlcAutoSubtitleFiles.clear()",
+                  "                  subtitleUiHandler.postDelayed({ autoLoadMainVlcSubtitles(engine) }, 1200L)"
+              ]
+              block = "\\n".join(lines)
               s = s[:start] + block + s[end:]
           p.write_text(s)
           print("Main LibVLC now discovers and registers same-stem ASS/SSA/SRT files after opening the video.")
