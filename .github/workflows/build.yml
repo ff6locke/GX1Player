@@ -5782,13 +5782,14 @@ jobs:
 
           # Start/stop the overlay ticker with the main VLC player lifecycle.
           if "subtitleUiHandler.post(mainVlcSubtitleTicker)" not in s:
-              anchor = "                  engine.open(uri, resumeAt, digitalOutput = passthrough)"
-              if anchor not in s: raise SystemExit("Main VLC open anchor missing")
-              s = s.replace(anchor, anchor + """
+              open_line = next((line for line in s.splitlines() if "engine.open(uri, resumeAt, digitalOutput = passthrough)" in line), None)
+              if open_line is None: raise SystemExit("Main VLC engine.open call missing")
+              addition = """
                   mainVlcExternalSubtitles.clear()
                   subtitleUiHandler.post(mainVlcSubtitleTicker)
                   mainVlcAutoSubtitleFiles.clear()
-                  subtitleUiHandler.postDelayed({ autoLoadMainVlcSubtitles(engine) }, 1200L)""", 1)
+                  subtitleUiHandler.postDelayed({ autoLoadMainVlcSubtitles(engine) }, 1200L)"""
+              s = s.replace(open_line, open_line + addition, 1)
           if "subtitleUiHandler.removeCallbacks(mainVlcSubtitleTicker)" not in s:
               anchor = "          mainVlcEngine = null"
               # Only add to releasePlayer, not to unrelated fallback blocks.
