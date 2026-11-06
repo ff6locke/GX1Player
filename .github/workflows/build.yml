@@ -5940,6 +5940,93 @@ jobs:
           print("Main player now uses VLC Test-style external subtitle checkboxes and simultaneous ASS/SRT overlays.")
           PY
 
+      - name: Add subtitle track shortcut beside elapsed time
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+
+          drawable = Path("app/src/main/res/drawable/ic_gx1_subtitle_track.xml")
+          drawable.parent.mkdir(parents=True, exist_ok=True)
+          drawable.write_text("""<vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="24dp"
+              android:height="24dp"
+              android:viewportWidth="24"
+              android:viewportHeight="24">
+              <path
+                  android:fillColor="#FFFFFFFF"
+                  android:fillType="evenOdd"
+                  android:pathData="M4,3h16c1.1,0 2,0.9 2,2v14c0,1.1 -0.9,2 -2,2H4c-1.1,0 -2,-0.9 -2,-2V5c0,-1.1 0.9,-2 2,-2zM4,5v14h16V5H4z"/>
+              <path android:fillColor="#FFFFFFFF" android:pathData="M6,9h5v1.5H6zM13,9h5v1.5h-5zM6,13h12v1.5H6z"/>
+          </vector>
+          """)
+
+          helper = r'''    private fun ensureMainVlcSubtitleTrackButton() {
+              if (!::playerView.isInitialized) return
+              val elapsed = playerView.findViewById<android.widget.TextView>(
+                  androidx.media3.ui.R.id.exo_position
+              ) ?: return
+              val parent = elapsed.parent as? android.view.ViewGroup ?: return
+              if (parent.findViewWithTag<android.view.View>("gx1_subtitle_track_button") != null) return
+
+              val density = resources.displayMetrics.density
+              val button = android.widget.ImageButton(this).apply {
+                  tag = "gx1_subtitle_track_button"
+                  setImageResource(R.drawable.ic_gx1_subtitle_track)
+                  imageTintList = android.content.res.ColorStateList.valueOf(Color.WHITE)
+                  scaleType = android.widget.ImageView.ScaleType.CENTER_INSIDE
+                  setPadding((5 * density).toInt(), (5 * density).toInt(),
+                      (5 * density).toInt(), (5 * density).toInt())
+                  background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
+                  contentDescription = "Subtitle tracks"
+                  isFocusable = true
+                  isClickable = true
+                  setOnClickListener {
+                      if (mainVlcEngine != null) showMainVlcSubtitleCheckboxes()
+                      else showSubtitleTrackSelection()
+                  }
+              }
+              val params = parent.generateDefaultLayoutParams().apply {
+                  width = (36 * density).toInt()
+                  height = (36 * density).toInt()
+              }
+              parent.addView(button, parent.indexOfChild(elapsed), params)
+          }
+
+          '''
+          if "private fun ensureMainVlcSubtitleTrackButton()" not in s:
+              anchor = "    private fun showMenu() {"
+              if anchor not in s:
+                  raise SystemExit("Could not find MainActivity showMenu() insertion point")
+              s = s.replace(anchor, helper + anchor, 1)
+
+          settings = """playerView.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_settings)
+                      ?.setOnClickListener { showMenu() }"""
+          if settings not in s:
+              raise SystemExit("Could not find Media3 settings-button setup")
+          if "ensureMainVlcSubtitleTrackButton()" not in s[s.find(settings):s.find(settings) + 500]:
+              s = s.replace(settings, settings + "\n                  ensureMainVlcSubtitleTrackButton()", 1)
+
+          timeline = """playerView.showController()
+                              }
+                          }
+                      }
+                      if (::playerView.isInitialized"""
+          if timeline in s and "ensureMainVlcSubtitleTrackButton()" not in s[s.find(timeline):s.find(timeline) + 200]:
+              s = s.replace(timeline, """playerView.showController()
+                                  ensureMainVlcSubtitleTrackButton()
+                              }
+                          }
+                      }
+                      if (::playerView.isInitialized""", 1)
+
+          p.write_text(s)
+          print("Added a white subtitle-track shortcut immediately before Media3's elapsed-time label; it opens the existing subtitle selector.")
+          PY
+
       - name: Package 32-bit and 64-bit ARM variants for Android TV boxes
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
