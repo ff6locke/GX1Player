@@ -5800,6 +5800,10 @@ jobs:
               idx = s.find(line, release)
               s = s[:idx] + line[:len(line)-len(line.lstrip())] + "subtitleUiHandler.removeCallbacks(mainVlcSubtitleTicker)\n" + s[idx:]
 
+          # Repair earlier generated main-player snippets before writing the patched source.
+          import re
+          s = re.sub(r"mainVlcLayout = VLCVideoLayout\\(this\\)\\.apply\\s*\\{\\s*setBackgroundColor\\(Color\\.BLACK\\)\\s*visibility = View\\.GONE\\s*\\}", "mainVlcLayout = VLCVideoLayout(this)", s, count=1)
+          s = s.replace("clock.setMediaItem(buildMediaItem(uri), resumeAt)", "clock.setMediaItem(MediaItem.fromUri(uri), resumeAt)")
           p.write_text(s)
           print("Main player now uses VLC Test-style external subtitle checkboxes and simultaneous ASS/SRT overlays.")
           PY
