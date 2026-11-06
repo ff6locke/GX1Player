@@ -5534,7 +5534,7 @@ jobs:
                   "                  mainVlcAutoSubtitleFiles.clear()",
                   "                  subtitleUiHandler.postDelayed({ autoLoadMainVlcSubtitles(engine) }, 1200L)"
               ]
-              block = "\\n".join(lines)
+              block = "\n".join(lines)
               s = s[:start] + block + s[end:]
           p.write_text(s)
           print("Main LibVLC now discovers and registers same-stem ASS/SSA/SRT files after opening the video.")
