@@ -4923,6 +4923,8 @@ jobs:
           start=s.find("    private fun showSubtitleTracks() {"); end=s.find("    override fun onStop()",start)
           if start<0 or end<0: raise SystemExit("subtitle dialog anchors missing")
           dialog="""    private fun showSubtitleTracks() {
+                  // Refresh filename-matched external subtitles whenever the checkbox list opens.
+                  autoLoadMatchingSubtitles()
                   val embedded = runCatching { engine?.subtitleTracks().orEmpty() }.getOrDefault(emptyList())
                   val labels = mutableListOf<String>()
                   val checked = mutableListOf<Boolean>()
