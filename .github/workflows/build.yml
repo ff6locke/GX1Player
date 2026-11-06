@@ -4509,6 +4509,7 @@ jobs:
                       object : androidx.media3.ui.PlayerView.ControllerVisibilityListener {
                           override fun onVisibilityChanged(visibility: Int) {
                               playbackTitle.visibility = visibility
+                              gx1MainPlaybackTitle?.visibility = visibility
                           }
                       }
                   )
@@ -6139,7 +6140,9 @@ jobs:
               block = block.replace(marker, marker + """
                   gx1MainPlaybackTitle?.apply {
                       text = displayName(uri)
-                      visibility = View.VISIBLE
+                      // Keep the filename hidden during clean fullscreen playback.
+                      // The controller visibility listener reveals it with the controls.
+                      visibility = View.GONE
                       bringToFront()
                   }""", 1)
               s = s[:start] + block + s[end:]
