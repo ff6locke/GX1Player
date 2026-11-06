@@ -6027,6 +6027,53 @@ jobs:
           print("Added a white subtitle-track shortcut immediately before Media3's elapsed-time label; it opens the existing subtitle selector.")
           PY
 
+      - name: Highlight selected Media3 shortcut icons
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+
+          helper = r'''    private fun gx1IconHighlightBackground(): android.graphics.drawable.Drawable {
+                  val density = resources.displayMetrics.density
+                  fun highlight(alpha: Int) = android.graphics.drawable.GradientDrawable().apply {
+                      setColor(Color.argb(alpha, 255, 179, 0))
+                      cornerRadius = 8f * density
+                  }
+                  return android.graphics.drawable.StateListDrawable().apply {
+                      addState(intArrayOf(android.R.attr.state_pressed), highlight(150))
+                      addState(intArrayOf(android.R.attr.state_focused), highlight(105))
+                      addState(intArrayOf(android.R.attr.state_selected), highlight(105))
+                      addState(intArrayOf(), android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
+                  }
+              }
+
+          '''
+          if "private fun gx1IconHighlightBackground()" not in s:
+              anchor = "    private fun ensureMainVlcSubtitleTrackButton() {"
+              if anchor not in s:
+                  raise SystemExit("Subtitle shortcut helper insertion point missing")
+              s = s.replace(anchor, helper + anchor, 1)
+
+          video_old = 'background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)\n                              contentDescription = "Open video"'
+          video_new = 'background = gx1IconHighlightBackground()\n                              contentDescription = "Open video"'
+          if video_old in s:
+              s = s.replace(video_old, video_new, 1)
+          elif 'background = gx1IconHighlightBackground()\n                              contentDescription = "Open video"' not in s:
+              raise SystemExit("Open Video shortcut background anchor missing")
+
+          subtitle_old = 'background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)\n                  contentDescription = "Subtitle tracks"'
+          subtitle_new = 'background = gx1IconHighlightBackground()\n                  contentDescription = "Subtitle tracks"'
+          if subtitle_old in s:
+              s = s.replace(subtitle_old, subtitle_new, 1)
+          elif subtitle_new not in s:
+              raise SystemExit("Subtitle shortcut background anchor missing")
+
+          p.write_text(s)
+          print("Added amber focus/pressed/selected highlights to both Media3 shortcut icons.")
+          PY
+
       - name: Package 32-bit and 64-bit ARM variants for Android TV boxes
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
