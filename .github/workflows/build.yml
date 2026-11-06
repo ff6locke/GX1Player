@@ -5551,6 +5551,256 @@ jobs:
           print("Main LibVLC now discovers and registers same-stem ASS/SSA/SRT files after opening the video.")
           PY
 
+      - name: Add VLC Test-style simultaneous subtitle checkboxes to the main player
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+
+          fields = r"""
+              private data class MainVlcCue(val start: Long, val end: Long, val text: String)
+              private data class MainVlcExternalSubtitle(
+                  val file: java.io.File,
+                  val cues: MutableList<MainVlcCue>,
+                  var enabled: Boolean
+              )
+              private val mainVlcExternalSubtitles = mutableListOf<MainVlcExternalSubtitle>()
+              private lateinit var mainVlcSubtitleOverlay: TextView
+              private val mainVlcSubtitleTicker = object : Runnable {
+                  override fun run() {
+                      if (::mainVlcSubtitleOverlay.isInitialized) {
+                          val now = mainVlcEngine?.currentTimeMs() ?: 0L
+                          val lines = mainVlcExternalSubtitles.filter { it.enabled }
+                              .flatMap { sub -> sub.cues.filter { now >= it.start && now < it.end } }
+                              .map { it.text }.filter { it.isNotBlank() }
+                          mainVlcSubtitleOverlay.text = lines.joinToString("\\n")
+                          mainVlcSubtitleOverlay.visibility = if (lines.isEmpty()) View.GONE else View.VISIBLE
+                      }
+                      subtitleUiHandler.postDelayed(this, 100L)
+                  }
+              }
+
+              private fun parseMainVlcSubtitle(file: java.io.File): MutableList<MainVlcCue> {
+                  val raw = file.readText(Charsets.UTF_8).removePrefix("\\uFEFF")
+                  val cues = mutableListOf<MainVlcCue>()
+                  fun timestamp(value: String, ass: Boolean): Long {
+                      val v = value.trim()
+                      val clock = v.substringBefore('.').substringBefore(',')
+                      val fraction = if ('.' in v) v.substringAfter('.') else if (',' in v) v.substringAfter(',') else "0"
+                      val parts = clock.split(':')
+                      require(parts.size == 3) { "Invalid timestamp: $value" }
+                      val h = parts[0].toLong(); val m = parts[1].toLong(); val sec = parts[2].toLong()
+                      val digits = fraction.takeWhile { it.isDigit() }.take(if (ass) 2 else 3)
+                          .padEnd(if (ass) 2 else 3, '0')
+                      val millis = digits.toLong() * if (ass) 10 else 1
+                      return ((h * 3600 + m * 60 + sec) * 1000) + millis
+                  }
+                  fun cleanAss(value: String): String {
+                      val out = StringBuilder(); var inTag = false; var i = 0
+                      while (i < value.length) {
+                          val ch = value[i]
+                          if (ch == '{') inTag = true
+                          else if (ch == '}') inTag = false
+                          else if (!inTag) {
+                              if (ch == '\\\\' && i + 1 < value.length && (value[i + 1] == 'N' || value[i + 1] == 'n')) {
+                                  out.append('\\n'); i++
+                              } else out.append(ch)
+                          }
+                          i++
+                      }
+                      return out.toString().trim()
+                  }
+                  if (raw.contains("[Events]", true)) {
+                      var format = listOf("Layer","Start","End","Style","Name","MarginL","MarginR","MarginV","Effect","Text")
+                      raw.lineSequence().forEach { line ->
+                          val t = line.trim()
+                          if (t.startsWith("Format:", true)) format = t.substringAfter(':').split(',').map { it.trim() }
+                          if (t.startsWith("Dialogue:", true)) {
+                              val values = t.substringAfter(':').split(',', limit = format.size)
+                              val a = format.indexOfFirst { it.equals("Start", true) }
+                              val b = format.indexOfFirst { it.equals("End", true) }
+                              val c = format.indexOfFirst { it.equals("Text", true) }
+                              if (a >= 0 && b >= 0 && c >= 0 && values.size > maxOf(a,b,c)) {
+                                  val text = cleanAss(values[c])
+                                  val start = timestamp(values[a], true); val end = timestamp(values[b], true)
+                                  if (end > start && text.isNotBlank()) cues.add(MainVlcCue(start,end,text))
+                              }
+                          }
+                      }
+                  } else {
+                      val lines = raw.lines(); var i = 0
+                      while (i < lines.size) {
+                          val arrow = lines[i].indexOf("-->")
+                          if (arrow >= 0) {
+                              val left = lines[i].substring(0, arrow).trim()
+                              val right = lines[i].substring(arrow + 3).trim().substringBefore(' ')
+                              try {
+                                  val start = timestamp(left, false); val end = timestamp(right, false); i++
+                                  val body = StringBuilder()
+                                  while (i < lines.size && lines[i].isNotBlank()) {
+                                      if (body.isNotEmpty()) body.append('\\n')
+                                      body.append(lines[i].replace(Regex("<[^>]*>"), "").trim())
+                                      i++
+                                  }
+                                  if (end > start && body.isNotBlank()) cues.add(MainVlcCue(start,end,body.toString()))
+                              } catch (_: Exception) { }
+                          }
+                          i++
+                      }
+                  }
+                  require(cues.isNotEmpty()) { "No subtitle cues found" }
+                  return cues.sortedBy { it.start }.toMutableList()
+              }
+
+              private fun loadMainVlcExternalSubtitle(file: java.io.File, initiallyEnabled: Boolean) {
+                  val existing = mainVlcExternalSubtitles.indexOfFirst { it.file.absolutePath == file.absolutePath }
+                  val entry = MainVlcExternalSubtitle(file, parseMainVlcSubtitle(file), initiallyEnabled)
+                  if (existing >= 0) mainVlcExternalSubtitles[existing] = entry
+                  else mainVlcExternalSubtitles.add(entry)
+              }
+
+              private fun showMainVlcSubtitleCheckboxes() {
+                  val embedded = mainVlcEngine?.subtitleTracks().orEmpty()
+                  val labels = mutableListOf<String>()
+                  val checked = mutableListOf<Boolean>()
+                  val actions = mutableListOf<Pair<String, Int>>()
+                  mainVlcExternalSubtitles.forEachIndexed { index, sub ->
+                      labels.add(sub.file.name)
+                      checked.add(sub.enabled)
+                      actions.add("external" to index)
+                  }
+                  val selectedEmbedded = mainVlcEngine?.selectedSubtitleTrackId() ?: -1
+                  embedded.forEach { track ->
+                      labels.add("Embedded — " + track.name)
+                      checked.add(track.id == selectedEmbedded)
+                      actions.add("embedded" to track.id)
+                  }
+                  labels.add("Off (embedded)")
+                  checked.add(selectedEmbedded < 0)
+                  actions.add("off" to -1)
+                  if (labels.isEmpty()) {
+                      Toast.makeText(this, "No subtitles found.", Toast.LENGTH_SHORT).show()
+                      return
+                  }
+                  val dialog = AlertDialog.Builder(this)
+                      .setTitle("Subtitles — tick to show")
+                      .setMultiChoiceItems(labels.toTypedArray(), checked.toBooleanArray()) { d, which, isChecked ->
+                          val (kind, value) = actions[which]
+                          when (kind) {
+                              "external" -> mainVlcExternalSubtitles[value].enabled = isChecked
+                              "embedded" -> {
+                                  if (isChecked) {
+                                      mainVlcEngine?.selectSubtitleTrack(value)
+                                      val list = (d as AlertDialog).listView
+                                      actions.forEachIndexed { i, action ->
+                                          if (action.first == "embedded" && i != which) list.setItemChecked(i, false)
+                                          if (action.first == "off") list.setItemChecked(i, false)
+                                      }
+                                  } else if (mainVlcEngine?.selectedSubtitleTrackId() == value) {
+                                      mainVlcEngine?.selectSubtitleTrack(-1)
+                                  }
+                              }
+                              "off" -> if (isChecked) {
+                                  mainVlcEngine?.selectSubtitleTrack(-1)
+                                  actions.forEachIndexed { i, action ->
+                                      if (action.first == "embedded") (d as AlertDialog).listView.setItemChecked(i, false)
+                                  }
+                              }
+                          }
+                      }
+                      .setPositiveButton("Done", null)
+                      .setNegativeButton("Close", null)
+                      .create()
+                  dialog.show()
+              }
+          """
+          if "private data class MainVlcExternalSubtitle" not in s:
+              anchor = "    private var mainVlcEngine: Gx1LibVlcEngine? = null"
+              if anchor not in s: raise SystemExit("Main LibVLC field anchor missing")
+              s = s.replace(anchor, anchor + "\n" + fields, 1)
+
+          # Render the enabled external subtitle cues as independent overlays, matching VLC Test.
+          root_anchor = "        root.addView(mainVlcLayout, FrameLayout.LayoutParams(-1, -1))"
+          if "mainVlcSubtitleOverlay = TextView(this)" not in s:
+              overlay = r"""
+                  mainVlcSubtitleOverlay = TextView(this).apply {
+                      setTextColor(Color.WHITE)
+                      textSize = 22f
+                      gravity = Gravity.CENTER
+                      setShadowLayer(3f, 2f, 2f, Color.BLACK)
+                      visibility = View.GONE
+                  }
+                  root.addView(mainVlcSubtitleOverlay, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
+                      bottomMargin = (32 * resources.displayMetrics.density).toInt()
+                      leftMargin = (20 * resources.displayMetrics.density).toInt()
+                      rightMargin = (20 * resources.displayMetrics.density).toInt()
+                  })
+              """
+              if root_anchor not in s: raise SystemExit("Main VLC video layout root anchor missing")
+              s = s.replace(root_anchor, root_anchor + "\n" + overlay, 1)
+
+          # Replace native external-slave registration with the same local cue-overlay approach as VLC Test.
+          start = s.find("    private fun autoLoadMainVlcSubtitles(")
+          end = s.find("\\n    private fun ", start + 10)
+          if start < 0 or end < 0: raise SystemExit("Main automatic subtitle discovery method boundaries missing")
+          method = r'''    private fun autoLoadMainVlcSubtitles(engine: Gx1LibVlcEngine) {
+                  val video = currentVideoFile() ?: return
+                  val folder = video.parentFile?.takeIf { it.isDirectory } ?: return
+                  val base = video.nameWithoutExtension
+                  val extensions = setOf("ass", "ssa", "srt")
+                  val matches = folder.listFiles()?.filter { file ->
+                      if (!file.isFile || file.extension.lowercase(java.util.Locale.ROOT) !in extensions) false
+                      else {
+                          val stem = file.name.substringBeforeLast('.', "")
+                          stem.equals(base, ignoreCase = true) || stem.startsWith(base + ".", ignoreCase = true)
+                      }
+                  }?.sortedBy { it.name.lowercase(java.util.Locale.ROOT) }.orEmpty()
+                  mainVlcExternalSubtitles.clear()
+                  matches.forEachIndexed { index, file ->
+                      runCatching { loadMainVlcExternalSubtitle(file, initiallyEnabled = index == 0) }
+                          .onFailure { android.util.Log.w("GX1Player", "Subtitle parse failed: " + file.name, it) }
+                  }
+                  Toast.makeText(this, "Found " + mainVlcExternalSubtitles.size + " same-name subtitle(s)", Toast.LENGTH_SHORT).show()
+              }
+
+          '''
+          s = s[:start] + method + s[end:]
+
+          # Route the Media3 gear's subtitle action to the multi-checkbox dialog.
+          old = "    private fun showSubtitleTrackSelection() {"
+          pos = s.find(old)
+          if pos < 0: raise SystemExit("Subtitle selector method missing")
+          main_branch = """    private fun showSubtitleTrackSelection() {
+                  if (mainVlcEngine != null) {
+                      showMainVlcSubtitleCheckboxes()
+                      return
+                  }
+          """
+          s = s[:pos] + s[pos:].replace(old, main_branch, 1)
+
+          # Start/stop the overlay ticker with the main VLC player lifecycle.
+          if "subtitleUiHandler.post(mainVlcSubtitleTicker)" not in s:
+              anchor = "                  engine.open(uri, resumeAt, digitalOutput = passthrough)"
+              if anchor not in s: raise SystemExit("Main VLC open anchor missing")
+              s = s.replace(anchor, anchor + """
+                  mainVlcExternalSubtitles.clear()
+                  subtitleUiHandler.post(mainVlcSubtitleTicker)
+                  mainVlcAutoSubtitleFiles.clear()
+                  subtitleUiHandler.postDelayed({ autoLoadMainVlcSubtitles(engine) }, 1200L)""", 1)
+          if "subtitleUiHandler.removeCallbacks(mainVlcSubtitleTicker)" not in s:
+              anchor = "          mainVlcEngine = null"
+              # Only add to releasePlayer, not to unrelated fallback blocks.
+              release = s.find("    private fun releasePlayer()")
+              idx = s.find(anchor, release)
+              if release < 0 or idx < 0: raise SystemExit("Main VLC release anchor missing")
+              s = s[:idx] + "          subtitleUiHandler.removeCallbacks(mainVlcSubtitleTicker)\n" + s[idx:]
+
+          p.write_text(s)
+          print("Main player now uses VLC Test-style external subtitle checkboxes and simultaneous ASS/SRT overlays.")
+          PY
+
       - name: Package 32-bit and 64-bit ARM variants for Android TV boxes
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
