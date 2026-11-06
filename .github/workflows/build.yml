@@ -4739,6 +4739,26 @@ jobs:
           """
               if anchor not in s: raise SystemExit("mediaUri field missing")
               s = s.replace(anchor, fields + "\n" + anchor, 1)
+          dynamic_fields = """    private data class VlcSubtitle(val name: String, val cues: MutableList<VlcCue>, var enabled: Boolean = true)
+              private val vlcSubtitles = mutableListOf<VlcSubtitle>()
+              private lateinit var vlcSubtitleView: TextView
+              private val vlcDynamicSubtitleTicker = object : Runnable {
+                  override fun run() {
+                      if (::vlcSubtitleView.isInitialized) {
+                          val now = engine?.currentTimeMs() ?: 0L
+                          val active = vlcSubtitles.filter { it.enabled }
+                              .flatMap { sub -> sub.cues.filter { now >= it.start && now < it.end } }
+                          vlcSubtitleView.text = active.joinToString("\\n") { it.text }
+                          vlcSubtitleView.visibility = if (active.isEmpty()) View.GONE else View.VISIBLE
+                      }
+                      handler.postDelayed(this, 100L)
+                  }
+              }
+          """
+          if "private val vlcSubtitles =" not in s:
+              anchor = "    private var mediaUri: Uri? = null"
+              if anchor not in s: raise SystemExit("mediaUri field missing for dynamic subtitle state")
+              s = s.replace(anchor, dynamic_fields + "\\n" + anchor, 1)
           auto_method = """    private fun autoLoadMatchingSubtitles() {
                   val uri = mediaUri ?: return
                   val path = if (uri.scheme == "file") uri.path else runCatching {
@@ -4765,7 +4785,7 @@ jobs:
                   raise SystemExit("VLC audio menu insertion point missing")
               s = s.replace(marker, auto_method + marker, 1)
           open_anchor = "                      vlcEngine.open(uri, resumeAt, digitalOutput)"
-          if "autoLoadMatchingSubtitles()" not in s:
+          if "handler.postDelayed({ autoLoadMatchingSubtitles() }, 1500L)" not in s:
               if open_anchor not in s: raise SystemExit("VLC media open call missing")
               s = s.replace(open_anchor, open_anchor + "\n                      handler.postDelayed({ autoLoadMatchingSubtitles() }, 1500L)", 1)
           if "private fun loadVlcSubtitle(slot: Int" not in s:
@@ -4925,8 +4945,8 @@ jobs:
               """
               if anchor not in s: raise SystemExit("root controls anchor missing")
               s=s.replace(anchor,anchor+"\\n"+overlay.rstrip(),1)
-          if "handler.post(vlcSubtitleTicker)" not in s: s=s.replace("            handler.post(ticker)","            handler.post(ticker)\n            handler.post(vlcSubtitleTicker)",1)
-          if "handler.removeCallbacks(vlcSubtitleTicker)" not in s: s=s.replace("        handler.removeCallbacks(ticker)","        handler.removeCallbacks(ticker)\n        handler.removeCallbacks(vlcSubtitleTicker)",1)
+          if "handler.post(vlcDynamicSubtitleTicker)" not in s: s=s.replace("            handler.post(ticker)","            handler.post(ticker)\n            handler.post(vlcSubtitleTicker)",1)
+          if "handler.removeCallbacks(vlcDynamicSubtitleTicker)" not in s: s=s.replace("        handler.removeCallbacks(ticker)","        handler.removeCallbacks(ticker)\n        handler.removeCallbacks(vlcSubtitleTicker)",1)
           p.write_text(s)
           lines=s.splitlines()
           print("GENERATED VLC SOURCE 245-270:\n" + "\n".join(f"{i+1}: {lines[i]}" for i in range(244,min(270,len(lines)))))
