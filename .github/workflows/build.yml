@@ -4940,7 +4940,7 @@ jobs:
                       }
                       if(cues.isEmpty()) throw IllegalArgumentException("No subtitle cues found")
                       val existing = vlcSubtitles.indexOfFirst { it.name.equals(file.name, true) }
-                      val loaded = VlcSubtitle(file.name, cues.sortedBy { it.start }.toMutableList(), true)
+                      val loaded = VlcSubtitle(file.name, cues.sortedBy { it.start }.toMutableList(), vlcSubtitles.isEmpty())
                       if (existing >= 0) vlcSubtitles[existing] = loaded else vlcSubtitles.add(loaded)
                       status.text = "Subtitle loaded: " + file.name
                       Toast.makeText(this, "Subtitle loaded: " + file.name, Toast.LENGTH_SHORT).show()
@@ -4973,7 +4973,11 @@ jobs:
                       checked.add(sub.enabled)
                       kinds.add("custom" to index)
                   }
-                  val selected = engine?.selectedSubtitleTrackId() ?: -1
+                  var selected = engine?.selectedSubtitleTrackId() ?: -1
+                  if (selected < 0 && embedded.isNotEmpty()) {
+                      selected = embedded.first().id
+                      engine?.selectSubtitleTrack(selected)
+                  }
                   embedded.forEach { tr ->
                       labels.add("Embedded — " + tr.name)
                       checked.add(tr.id == selected)
