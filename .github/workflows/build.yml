@@ -6079,20 +6079,21 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
 
           field = "    private var mainVlcEngine: Gx1LibVlcEngine? = null"
           if "private var gx1MainPlaybackTitle: android.widget.TextView? = null" not in s:
-              if field not in s:
-                  raise SystemExit("Main LibVLC engine field anchor missing")
+              if field not in s: raise SystemExit("Main LibVLC engine field anchor missing")
               s = s.replace(field, field + "\\n    private var gx1MainPlaybackTitle: android.widget.TextView? = null", 1)
 
-          layout_anchor = "          root.addView(mainVlcLayout, FrameLayout.LayoutParams(-1, -1))"
-          if "tag = \"gx1_main_playback_filename\"" not in s:
-              if layout_anchor not in s:
-                  raise SystemExit("Main LibVLC layout anchor missing")
-              title_view = """          root.addView(mainVlcLayout, FrameLayout.LayoutParams(-1, -1))
+          if "tag = \\"gx1_main_playback_filename\\"" not in s:
+              pattern = r"(?m)^(\\s*)mainVlcLayout = VLCVideoLayout\\(this\\)\\s*$"
+              m = re.search(pattern, s)
+              if not m: raise SystemExit("Main LibVLC layout initialization missing")
+              indent = m.group(1)
+              title_code = """
           gx1MainPlaybackTitle = android.widget.TextView(this).apply {
               tag = "gx1_main_playback_filename"
               setTextColor(Color.WHITE)
@@ -6108,34 +6109,39 @@ jobs:
               }
               visibility = View.GONE
           }
-          root.addView(gx1MainPlaybackTitle, FrameLayout.LayoutParams(
+          val gx1TitleOverlay = playerView.findViewById<FrameLayout>(androidx.media3.ui.R.id.exo_overlay)
+              ?: playerView
+          gx1TitleOverlay.addView(gx1MainPlaybackTitle, FrameLayout.LayoutParams(
               FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT,
               Gravity.TOP or Gravity.CENTER_HORIZONTAL
-          ).apply { topMargin = (18 * resources.displayMetrics.density).toInt() })"""
-              s = s.replace(layout_anchor, title_view, 1)
+          ).apply { topMargin = (18 * resources.displayMetrics.density).toInt() })
+          """
+              s = s[:m.end()] + "\\n" + "\\n".join(indent + line if line else "" for line in title_code.strip("\\n").splitlines()) + s[m.end():]
 
-          start_anchor = "              mainVlcLayout.visibility = View.VISIBLE"
-          start_pos = s.find("private fun startMainLibVlc(uri: Uri)")
-          idx = s.find(start_anchor, start_pos)
-          if idx < 0:
-              raise SystemExit("Main LibVLC start visibility anchor missing")
-          if "gx1MainPlaybackTitle?.text = uri.lastPathSegment" not in s[start_pos:s.find("private fun toggleMainPlaybackEngine", start_pos)]:
-              insert = """              gx1MainPlaybackTitle?.apply {
+          start = s.find("private fun startMainLibVlc(uri: Uri)")
+          end = s.find("private fun toggleMainPlaybackEngine", start)
+          if start < 0 or end < 0: raise SystemExit("Main LibVLC startup method boundaries missing")
+          block = s[start:end]
+          if "gx1MainPlaybackTitle?.apply" not in block:
+              m = re.search(r"(?m)^(\\s*)mainVlcLayout\\.visibility = View\\.VISIBLE", block)
+              if not m: raise SystemExit("Main LibVLC visibility anchor missing")
+              indent = m.group(1)
+              code = '''gx1MainPlaybackTitle?.apply {
                   text = java.io.File(uri.path ?: uri.lastPathSegment.orEmpty()).name
                       .ifBlank { uri.lastPathSegment ?: "Video" }
                   visibility = View.VISIBLE
               }
-          """
-              s = s[:idx] + insert + s[idx:]
+          '''
+              block = block[:m.start()] + "".join(indent + line if line.strip() else line for line in code.splitlines(True)) + block[m.start():]
+              s = s[:start] + block + s[end:]
 
-          release_anchor = "          if (::mainVlcLayout.isInitialized) mainVlcLayout.visibility = View.GONE"
-          if release_anchor not in s:
-              raise SystemExit("Main LibVLC release anchor missing")
+          release_anchor = "if (::mainVlcLayout.isInitialized) mainVlcLayout.visibility = View.GONE"
+          if release_anchor not in s: raise SystemExit("Main LibVLC release anchor missing")
           if "gx1MainPlaybackTitle?.visibility = View.GONE" not in s:
               s = s.replace(release_anchor, release_anchor + "\\n          gx1MainPlaybackTitle?.visibility = View.GONE", 1)
 
           p.write_text(s)
-          print("Added a top-center filename overlay for the main LibVLC playback screen.")
+          print("Added filename to Media3 overlay above the LibVLC video surface.")
           PY
 
       - name: Package 32-bit and 64-bit ARM variants for Android TV boxes
