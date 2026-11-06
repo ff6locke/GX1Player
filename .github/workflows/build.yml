@@ -5188,12 +5188,10 @@ jobs:
                   raise SystemExit(label + ' anchor missing')
               return s.replace(old, new, 1)
 
-          if 'import androidx.media3.common.ForwardingPlayer
-import androidx.media3.common.Timeline
-import androidx.media3.exoplayer.source.SinglePeriodTimeline' not in s:
+          if 'import androidx.media3.exoplayer.source.SinglePeriodTimeline' not in s:
               s = once('import androidx.media3.common.Player',
-                       'import androidx.media3.common.Player\nimport androidx.media3.common.ForwardingPlayer',
-                       'ForwardingPlayer import')
+                       'import androidx.media3.common.Player\\nimport androidx.media3.common.ForwardingPlayer\\nimport androidx.media3.common.Timeline\\nimport androidx.media3.exoplayer.source.SinglePeriodTimeline',
+                       'ForwardingPlayer and timeline imports')
           if 'private var mainVlcControllerClock: ExoPlayer? = null' not in s:
               s = once('private var mainVlcEngine: Gx1LibVlcEngine? = null',
                        'private var mainVlcEngine: Gx1LibVlcEngine? = null\n    private var mainVlcControllerClock: ExoPlayer? = null\n    private var mainVlcControllerPlayer: Player? = null',
