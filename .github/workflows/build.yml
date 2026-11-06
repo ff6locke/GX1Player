@@ -6032,6 +6032,7 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
 
@@ -6056,19 +6057,17 @@ jobs:
                   raise SystemExit("Subtitle shortcut helper insertion point missing")
               s = s.replace(anchor, helper + anchor, 1)
 
-          video_old = 'background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)\n                              contentDescription = "Open video"'
-          video_new = 'background = gx1IconHighlightBackground()\n                              contentDescription = "Open video"'
-          if video_old in s:
-              s = s.replace(video_old, video_new, 1)
-          elif 'background = gx1IconHighlightBackground()\n                              contentDescription = "Open video"' not in s:
-              raise SystemExit("Open Video shortcut background anchor missing")
+          s, video_n = re.subn(
+              r'background = android\.graphics\.drawable\.ColorDrawable\(Color\.TRANSPARENT\)(\s*\n\s*contentDescription = "Open video")',
+              r'background = gx1IconHighlightBackground()\1', s, count=1)
+          if video_n != 1 and 'background = gx1IconHighlightBackground()' not in s[s.find('tag = "gx1_open_video"'):s.find('tag = "gx1_open_video"')+5000]:
+              raise SystemExit("Could not update Open Video shortcut background")
 
-          subtitle_old = 'background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)\n                  contentDescription = "Subtitle tracks"'
-          subtitle_new = 'background = gx1IconHighlightBackground()\n                  contentDescription = "Subtitle tracks"'
-          if subtitle_old in s:
-              s = s.replace(subtitle_old, subtitle_new, 1)
-          elif subtitle_new not in s:
-              raise SystemExit("Subtitle shortcut background anchor missing")
+          s, subtitle_n = re.subn(
+              r'background = android\.graphics\.drawable\.ColorDrawable\(Color\.TRANSPARENT\)(\s*\n\s*contentDescription = "Subtitle tracks")',
+              r'background = gx1IconHighlightBackground()\1', s, count=1)
+          if subtitle_n != 1 and 'background = gx1IconHighlightBackground()' not in s[s.find('tag = "gx1_subtitle_track_button"'):s.find('tag = "gx1_subtitle_track_button"')+1800]:
+              raise SystemExit("Could not update subtitle shortcut background")
 
           p.write_text(s)
           print("Added amber focus/pressed/selected highlights to both Media3 shortcut icons.")
