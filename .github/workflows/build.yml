@@ -5214,9 +5214,9 @@ jobs:
           start = s.find('    private fun startMainLibVlc(uri: Uri) {')
           if start < 0:
               raise SystemExit('startMainLibVlc method missing')
-          end = s.find('\n    private fun toggleMainPlaybackEngine()', start)
+          end = s.find('\n    private fun buildMediaItem(uri: Uri): MediaItem {', start)
           if end < 0:
-              raise SystemExit('toggleMainPlaybackEngine boundary missing')
+              raise SystemExit('buildMediaItem boundary missing')
           new_method = '''    private fun startMainLibVlc(uri: Uri) {
               val resumeAt = prefs.getLong(posKey(uri), 0L)
               try {
