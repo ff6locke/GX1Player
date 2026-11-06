@@ -4727,6 +4727,40 @@ jobs:
           """
               if anchor not in s: raise SystemExit("mediaUri field missing")
               s = s.replace(anchor, fields + "\n" + anchor, 1)
+          auto_method = """    private fun autoLoadMatchingSubtitles() {
+                  val uri = mediaUri ?: return
+                  val path = if (uri.scheme == "file") uri.path else runCatching {
+                      contentResolver.query(uri, arrayOf(android.provider.MediaStore.MediaColumns.DATA), null, null, null)?.use { c ->
+                          if (c.moveToFirst()) c.getString(0) else null
+                      }
+                  }.getOrNull()
+                  val video = path?.let { java.io.File(it) } ?: return
+                  val folder = video.parentFile?.takeIf { it.isDirectory } ?: return
+                  val base = video.nameWithoutExtension
+                  fun find(suffix: String): java.io.File? {
+                      val extensions = listOf("ass", "ssa", "srt", "vtt", "sub")
+                      return extensions.asSequence().map { java.io.File(folder, "$base.$suffix.$it") }
+                          .firstOrNull { it.isFile && it.canRead() }
+                  }
+                  val first = find("1") ?: listOf("ass", "ssa", "srt", "vtt", "sub")
+                      .asSequence().map { java.io.File(folder, "$base.$it") }.firstOrNull { it.isFile && it.canRead() }
+                  val second = find("2")
+                  if (first != null) loadVlcSubtitle(1, first)
+                  if (second != null) loadVlcSubtitle(2, second)
+                  if (first == null && second == null) {
+                      status.text = "No matching external subtitles found"
+                  }
+              }
+
+          """
+          if "private fun autoLoadMatchingSubtitles()" not in s:
+              marker = "    private fun loadVlcSubtitle(slot: Int, file: java.io.File) {"
+              if marker not in s: raise SystemExit("VLC subtitle loader insertion point missing")
+              s = s.replace(marker, auto_method + marker, 1)
+          open_anchor = "                      vlcEngine.open(uri, resumeAt, digitalOutput)"
+          if "autoLoadMatchingSubtitles()" not in s:
+              if open_anchor not in s: raise SystemExit("VLC media open call missing")
+              s = s.replace(open_anchor, open_anchor + "\n                      handler.postDelayed({ autoLoadMatchingSubtitles() }, 1500L)", 1)
           if "private fun loadVlcSubtitle(slot: Int" not in s:
               anchor = "    private fun showAudioTracks() {"
               methods = r'''
