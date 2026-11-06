@@ -5107,6 +5107,9 @@ jobs:
               anchor = '    private fun buildMediaItem(uri: Uri): MediaItem {'
               methods = '''    private fun startMainLibVlc(uri: Uri) {
               val resumeAt = prefs.getLong(posKey(uri), 0L)
+              // M2TS duration can arrive after the Media3 controller is attached.
+              // Rebind once when LibVLC reports it so the seekbar is recalculated.
+              var vlcTimelineBound = false
               try {
                   playerView.player = null
                   playerView.visibility = View.GONE
@@ -5229,6 +5232,14 @@ jobs:
                       if (state.error != null) Toast.makeText(this, state.error, Toast.LENGTH_LONG).show()
                       if (state.ended) prefs.edit().remove(posKey(uri)).apply()
                       mainVlcControllerClock?.let { clock -> clock.playWhenReady = state.playing }
+                      if (state.lengthMs > 0L && !vlcTimelineBound) {
+                          mainVlcControllerPlayer?.let { controller ->
+                              vlcTimelineBound = true
+                              playerView.player = null
+                              playerView.player = controller
+                              playerView.showController()
+                          }
+                      }
                       if (::playerView.isInitialized && playerView.visibility == View.VISIBLE) playerView.invalidate()
                   } }
                   mainVlcEngine = engine
@@ -5318,6 +5329,12 @@ jobs:
                   }
                   mainVlcControllerPlayer = controller
                   playerView.player = controller
+                  // Also handle files whose LibVLC length is known before attachment.
+                  if (engine.durationMs() > 0L) {
+                      vlcTimelineBound = true
+                      playerView.player = null
+                      playerView.player = controller
+                  }
                   if (engine.isPlaying()) clock.playWhenReady = true
                   playerView.showController()
                   playerView.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_settings)
