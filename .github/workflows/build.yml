@@ -5179,6 +5179,73 @@ jobs:
           p.write_text(s)
           print('LibVLC main playback wiring applied')
           PY
+      - name: Add external subtitle loading to the main LibVLC subtitle menu
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app/src/main/java/com/example/gx1player/MainActivity.kt')
+          s = p.read_text()
+          old = """          mainVlcEngine?.let { engine ->
+              val tracks = engine.subtitleTracks()
+              val labels = listOf("Off") + tracks.mapIndexed { index, track ->
+                  track.name.takeIf { it.isNotBlank() } ?: ("Embedded subtitle " + (index + 1))
+              }
+              val selectedId = engine.selectedSubtitleTrackId()
+              val selected = if (selectedId < 0) 0 else tracks.indexOfFirst { it.id == selectedId }.let { if (it < 0) 0 else it + 1 }
+              AlertDialog.Builder(this).setTitle("Subtitle track")
+                  .setSingleChoiceItems(labels.toTypedArray(), selected) { dialog, which ->
+                      if (which == 0) engine.selectSubtitleTrack(-1)
+                      else engine.selectSubtitleTrack(tracks[which - 1].id)
+                      dialog.dismiss()
+                  }.setNegativeButton("Close", null).show()
+              return
+          }
+          val exo = player"""
+          new = """          mainVlcEngine?.let { engine ->
+              val tracks = engine.subtitleTracks()
+              val labels = mutableListOf("Off")
+              labels.addAll(tracks.mapIndexed { index, track ->
+                  track.name.takeIf { it.isNotBlank() } ?: ("Embedded subtitle " + (index + 1))
+              })
+              labels.add("Load external Subtitle 1…")
+              labels.add("Load external Subtitle 2…")
+              val selectedId = engine.selectedSubtitleTrackId()
+              val selected = if (selectedId < 0) 0 else tracks.indexOfFirst { it.id == selectedId }.let { if (it < 0) 0 else it + 1 }
+              AlertDialog.Builder(this).setTitle("Subtitle")
+                  .setSingleChoiceItems(labels.toTypedArray(), selected) { dialog, which ->
+                      when {
+                          which == 0 -> {
+                              engine.selectSubtitleTrack(-1)
+                              dialog.dismiss()
+                          }
+                          which <= tracks.size -> {
+                              engine.selectSubtitleTrack(tracks[which - 1].id)
+                              dialog.dismiss()
+                          }
+                          which == tracks.size + 1 -> {
+                              dialog.dismiss()
+                              showSubtitleFilePicker(1, null)
+                          }
+                          else -> {
+                              dialog.dismiss()
+                              showSubtitleFilePicker(2, null)
+                          }
+                      }
+                  }.setNegativeButton("Close", null).show()
+              return
+          }
+          val exo = player"""
+          if new in s:
+              print("Main LibVLC subtitle menu already includes external subtitle actions.")
+          elif old in s:
+              s = s.replace(old, new, 1)
+              p.write_text(s)
+              print("Added external Subtitle 1/2 actions to the main LibVLC subtitle menu.")
+          else:
+              raise SystemExit("LibVLC subtitle selector block not found; refusing unsafe patch.")
+          PY
+
       - name: Preserve Media3 controller UI with LibVLC playback
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
