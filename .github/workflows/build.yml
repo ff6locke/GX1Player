@@ -3251,7 +3251,7 @@ jobs:
           if "private lateinit var rootLayout: FrameLayout" not in source:
               anchor = "    private lateinit var playerView: PlayerView"
               if anchor not in source: raise SystemExit("MainActivity PlayerView field anchor missing")
-              source = source.replace(anchor, "    private lateinit var rootLayout: FrameLayout\\n" + anchor, 1)
+              source = source.replace(anchor, "    private lateinit var rootLayout: FrameLayout\n" + anchor, 1)
 
           # The restored home-screen methods require these activity-level view references.
           if "private lateinit var homePanel:" not in source:
