@@ -5240,7 +5240,15 @@ jobs:
                               playerView.showController()
                           }
                       }
-                      if (::playerView.isInitialized && playerView.visibility == View.VISIBLE) playerView.invalidate()
+                      if (::playerView.isInitialized && playerView.visibility == View.VISIBLE) {
+                          playerView.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_progress)?.apply {
+                              isEnabled = true
+                              isClickable = true
+                              isFocusable = true
+                              alpha = 1f
+                          }
+                          playerView.invalidate()
+                      }
                   } }
                   mainVlcEngine = engine
                   engine.attach(mainVlcLayout)
@@ -5350,6 +5358,15 @@ jobs:
                   }
                   if (engine.isPlaying()) clock.playWhenReady = true
                   playerView.showController()
+                  // The stock controller can disable its scrubber based on the silent
+                  // ExoPlayer clock's M2TS capabilities. LibVLC is the real seek engine,
+                  // so keep Media3's existing scrubber enabled for the user.
+                  playerView.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_progress)?.apply {
+                      isEnabled = true
+                      isClickable = true
+                      isFocusable = true
+                      alpha = 1f
+                  }
                   playerView.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_settings)
                       ?.setOnClickListener { showMenu() }
               } catch (e: Exception) {
