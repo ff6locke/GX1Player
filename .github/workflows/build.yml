@@ -5800,10 +5800,14 @@ jobs:
               idx = s.find(line, release)
               s = s[:idx] + line[:len(line)-len(line.lstrip())] + "subtitleUiHandler.removeCallbacks(mainVlcSubtitleTicker)\n" + s[idx:]
 
-          # Repair earlier generated main-player snippets before writing the patched source.
+          # Repair generated snippets robustly after every earlier workflow patch has run.
           import re
-          s = re.sub(r"mainVlcLayout = VLCVideoLayout\\(this\\)\\.apply\\s*\\{\\s*setBackgroundColor\\(Color\\.BLACK\\)\\s*visibility = View\\.GONE\\s*\\}", "mainVlcLayout = VLCVideoLayout(this)", s, count=1)
-          s = s.replace("clock.setMediaItem(buildMediaItem(uri), resumeAt)", "clock.setMediaItem(MediaItem.fromUri(uri), resumeAt)")
+          s, n = re.subn(r"mainVlcLayout = VLCVideoLayout\\(this\\)\\.apply\\s*\\{[\\s\\S]*?\\}", "mainVlcLayout = VLCVideoLayout(this)", s, count=1)
+          print("Repaired VLC layout initializers:", n)
+          s = re.sub(r"buildMediaItem\\(uri\\)", "MediaItem.fromUri(uri)", s)
+          # Avoid Kotlin escape-sequence ambiguity in the ASS parser.
+          s = s.replace("if (ch == '\\\\\\\\' && i + 1 < value.length", "if (ch.code == 92 && i + 1 < value.length")
+          s = s.replace("out.append('\\\\n'); i++", "out.append(10.toChar()); i++")
           p.write_text(s)
           print("Main player now uses VLC Test-style external subtitle checkboxes and simultaneous ASS/SRT overlays.")
           PY
