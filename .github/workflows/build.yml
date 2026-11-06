@@ -4786,7 +4786,7 @@ jobs:
                   raise SystemExit("VLC audio menu insertion point missing")
               s = s.replace(marker, auto_method + marker, 1)
           if "handler.postDelayed({ autoLoadMatchingSubtitles() }, 1500L)" not in s:
-              pattern = r'(?m)^(\s*)vlcEngine\.open\(uri, resumeAt, digitalOutput\)
+              pattern = r'(?m)^(\\s*)vlcEngine\\.open\\(uri, resumeAt, digitalOutput\\)'
               s, n = re.subn(pattern, lambda m: m.group(1) + "vlcEngine.open(uri, resumeAt, digitalOutput)\\n" + m.group(1) + "handler.postDelayed({ autoLoadMatchingSubtitles() }, 1500L)", s, count=1)
               if n != 1: raise SystemExit("VLC media open call missing")
           if "private fun loadVlcSubtitle(slot: Int" not in s:
