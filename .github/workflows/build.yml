@@ -5575,7 +5575,7 @@ jobs:
                           val lines = mainVlcExternalSubtitles.filter { it.enabled }
                               .flatMap { sub -> sub.cues.filter { now >= it.start && now < it.end } }
                               .map { it.text }.filter { it.isNotBlank() }
-                          mainVlcSubtitleOverlay.text = lines.joinToString("\\n")
+                          mainVlcSubtitleOverlay.text = lines.joinToString("\n")
                           mainVlcSubtitleOverlay.visibility = if (lines.isEmpty()) View.GONE else View.VISIBLE
                       }
                       subtitleUiHandler.postDelayed(this, 100L)
@@ -5583,7 +5583,7 @@ jobs:
               }
 
               private fun parseMainVlcSubtitle(file: java.io.File): MutableList<MainVlcCue> {
-                  val raw = file.readText(Charsets.UTF_8).removePrefix("\\uFEFF")
+                  val raw = file.readText(Charsets.UTF_8).removePrefix("\uFEFF")
                   val cues = mutableListOf<MainVlcCue>()
                   fun timestamp(value: String, ass: Boolean): Long {
                       val v = value.trim()
@@ -5604,8 +5604,8 @@ jobs:
                           if (ch == '{') inTag = true
                           else if (ch == '}') inTag = false
                           else if (!inTag) {
-                              if (ch == '\\\\' && i + 1 < value.length && (value[i + 1] == 'N' || value[i + 1] == 'n')) {
-                                  out.append('\\n'); i++
+                              if (ch == '\\' && i + 1 < value.length && (value[i + 1] == 'N' || value[i + 1] == 'n')) {
+                                  out.append('\n'); i++
                               } else out.append(ch)
                           }
                           i++
