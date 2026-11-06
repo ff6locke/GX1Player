@@ -6074,11 +6074,93 @@ jobs:
           PY
 
 
-      - name: Prepare playback filename overlay
+      - name: Show current filename above the main LibVLC video
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          echo "Filename overlay patch is temporarily disabled pending source-layout correction."
-          
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+
+          field = "    private var gx1MainPlaybackTitle: android.widget.TextView? = null"
+          if field not in s:
+              anchor = "    private var mainVlcEngine: Gx1LibVlcEngine? = null"
+              if anchor not in s:
+                  raise SystemExit("Main LibVLC engine field anchor missing")
+              s = s.replace(anchor, anchor + "\n" + field, 1)
+
+          if 'tag = "gx1_main_playback_filename"' not in s:
+              anchor = "        root.addView(playerView, FrameLayout.LayoutParams("
+              start = s.find(anchor)
+              if start < 0:
+                  raise SystemExit("Main PlayerView root insertion point missing")
+              close = s.find("        ))", start)
+              if close < 0:
+                  raise SystemExit("Main PlayerView root layout end missing")
+              close += len("        ))")
+              overlay = """
+
+                  gx1MainPlaybackTitle = android.widget.TextView(this).apply {
+                      tag = "gx1_main_playback_filename"
+                      setTextColor(Color.WHITE)
+                      textSize = 18f
+                      typeface = android.graphics.Typeface.DEFAULT_BOLD
+                      gravity = Gravity.CENTER
+                      maxLines = 1
+                      ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
+                      setPadding(16, 8, 16, 8)
+                      background = android.graphics.drawable.GradientDrawable().apply {
+                          setColor(0x99000000.toInt())
+                          cornerRadius = 10f * resources.displayMetrics.density
+                      }
+                      visibility = View.GONE
+                  }
+                  root.addView(gx1MainPlaybackTitle, FrameLayout.LayoutParams(
+                      FrameLayout.LayoutParams.WRAP_CONTENT,
+                      FrameLayout.LayoutParams.WRAP_CONTENT,
+                      Gravity.TOP or Gravity.CENTER_HORIZONTAL
+                  ).apply {
+                      topMargin = (18 * resources.displayMetrics.density).toInt()
+                      leftMargin = (24 * resources.displayMetrics.density).toInt()
+                      rightMargin = (24 * resources.displayMetrics.density).toInt()
+                  })"""
+              s = s[:close] + overlay + s[close:]
+
+          start = s.find("    private fun startMainLibVlc(uri: Uri) {")
+          end = s.find("\n    private fun ", start + 10)
+          if start < 0 or end < 0:
+              raise SystemExit("Main LibVLC startup method boundaries missing")
+          block = s[start:end]
+          marker = "        mainVlcLayout.visibility = View.VISIBLE"
+          if "gx1MainPlaybackTitle?.apply" not in block:
+              if marker not in block:
+                  raise SystemExit("Main LibVLC visibility line missing from startup")
+              block = block.replace(marker, marker + """
+                  gx1MainPlaybackTitle?.apply {
+                      text = displayName(uri)
+                      visibility = View.VISIBLE
+                      bringToFront()
+                  }""", 1)
+              s = s[:start] + block + s[end:]
+
+          release = s.find("    private fun releasePlayer()")
+          release_end = s.find("// ---------- resume ----------", release)
+          if release < 0 or release_end < 0:
+              raise SystemExit("releasePlayer method boundaries missing")
+          release_block = s[release:release_end]
+          if "gx1MainPlaybackTitle?.visibility = View.GONE" not in release_block:
+              marker = "    private fun releasePlayer() {"
+              release_block = release_block.replace(marker, marker + """
+                  gx1MainPlaybackTitle?.visibility = View.GONE""", 1)
+              s = s[:release] + release_block + s[release_end:]
+
+          if 'tag = "gx1_main_playback_filename"' not in s or "gx1MainPlaybackTitle?.apply" not in s:
+              raise SystemExit("Playback filename overlay verification failed")
+          p.write_text(s)
+          print("Added a filename overlay as a sibling above PlayerView; it is shown for main LibVLC playback and hidden on release.")
+          PY
+
       - name: Package 32-bit and 64-bit ARM variants for Android TV boxes
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
