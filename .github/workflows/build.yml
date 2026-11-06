@@ -4759,22 +4759,50 @@ jobs:
               if anchor not in s: raise SystemExit("mediaUri field missing for dynamic subtitle state")
               s = s.replace(anchor, dynamic_fields + "\n" + anchor, 1)
           auto_method = """    private fun autoLoadMatchingSubtitles() {
-                  val uri = mediaUri ?: return
-                  val path = if (uri.scheme == "file") uri.path else runCatching {
+                  val uri = mediaUri
+                  if (uri == null) {
+                      status.text = "External subtitles: video URI unavailable"
+                      return
+                  }
+                  val path = if (uri.scheme.equals("file", true)) uri.path else runCatching {
                       contentResolver.query(uri, arrayOf(android.provider.MediaStore.MediaColumns.DATA), null, null, null)?.use { c ->
                           if (c.moveToFirst()) c.getString(0) else null
                       }
                   }.getOrNull()
-                  val video = path?.let { java.io.File(it) } ?: return
-                  val folder = video.parentFile?.takeIf { it.isDirectory } ?: return
+                  if (path.isNullOrBlank()) {
+                      status.text = "External subtitles: cannot resolve video file path (" + uri.scheme + ")"
+                      return
+                  }
+                  val video = java.io.File(path)
+                  val folder = video.parentFile
+                  if (folder == null || !folder.isDirectory) {
+                      status.text = "External subtitles: video folder is not accessible"
+                      return
+                  }
                   val base = video.nameWithoutExtension
                   val extensions = setOf("ass", "ssa", "srt")
                   val matches = folder.listFiles()?.filter { file ->
-                      file.isFile && file.canRead() && (file.name.equals(base + "." + file.extension, ignoreCase = true) || file.name.startsWith(base + ".", ignoreCase = true)) && file.extension.lowercase() in extensions
-                  }?.sortedBy { it.name.lowercase() }.orEmpty()
+                      if (!file.isFile || file.extension.lowercase(java.util.Locale.ROOT) !in extensions) {
+                          false
+                      } else {
+                          val stem = file.name.substringBeforeLast('.', "")
+                          stem.equals(base, ignoreCase = true) ||
+                              stem.startsWith(base + ".", ignoreCase = true)
+                      }
+                  }?.sortedBy { it.name.lowercase(java.util.Locale.ROOT) }.orEmpty()
                   vlcSubtitles.clear()
-                  matches.forEach { loadVlcSubtitle(1, it) }
-                  if (matches.isEmpty()) status.text = "No matching external subtitles found"
+                  var loaded = 0
+                  matches.forEach { file ->
+                      val before = vlcSubtitles.size
+                      loadVlcSubtitle(1, file)
+                      if (vlcSubtitles.size > before ||
+                          vlcSubtitles.any { it.name.equals(file.name, ignoreCase = true) }) loaded++
+                  }
+                  status.text = if (matches.isEmpty()) {
+                      "No matching external subtitles in " + folder.name
+                  } else {
+                      "External subtitles loaded: " + loaded + "/" + matches.size
+                  }
               }
 
           """
