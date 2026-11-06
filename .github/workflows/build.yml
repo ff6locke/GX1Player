@@ -5008,7 +5008,7 @@ jobs:
                       visibility = View.GONE
                   }
                   root.addView(vlcSubtitleView, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
-                      bottomMargin = (96 * resources.displayMetrics.density).toInt()
+                      bottomMargin = (32 * resources.displayMetrics.density).toInt()
                   })
               """
               if anchor not in s: raise SystemExit("root controls anchor missing")
