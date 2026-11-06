@@ -5452,6 +5452,93 @@ jobs:
           print('Rebuilt the LibVLC subtitle selector by method boundaries; external Subtitle 1/2 actions are now included.')
           PY
 
+      - name: Auto-discover same-name subtitles in the main LibVLC player
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          engine_path = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
+          e = engine_path.read_text()
+          old = """    fun addExternalSubtitle(uri: Uri): Boolean {
+                  checkActive()
+                  return mediaPlayer.addSlave(0, uri, true)
+              }"""
+          new = """    fun addExternalSubtitle(uri: Uri, select: Boolean = true): Boolean {
+                  checkActive()
+                  return mediaPlayer.addSlave(0, uri, select)
+              }"""
+          if old in e:
+              e = e.replace(old, new, 1)
+          elif "fun addExternalSubtitle(uri: Uri, select: Boolean = true)" not in e:
+              raise SystemExit("LibVLC external subtitle API anchor missing")
+          engine_path.write_text(e)
+
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          field = "    private var mainVlcEngine: Gx1LibVlcEngine? = null"
+          if "private val mainVlcAutoSubtitleFiles" not in s:
+              if field not in s:
+                  raise SystemExit("Main LibVLC engine field missing")
+              s = s.replace(field, field + "\\n    private val mainVlcAutoSubtitleFiles = mutableSetOf<String>()", 1)
+
+          method = r'''    private fun autoLoadMainVlcSubtitles(engine: Gx1LibVlcEngine) {
+                  val video = currentVideoFile() ?: return
+                  val folder = video.parentFile?.takeIf { it.isDirectory } ?: return
+                  val base = video.nameWithoutExtension
+                  val extensions = setOf("ass", "ssa", "srt")
+                  val matches = folder.listFiles()?.filter { file ->
+                      if (!file.isFile || file.extension.lowercase(java.util.Locale.ROOT) !in extensions) {
+                          false
+                      } else {
+                          val stem = file.name.substringBeforeLast('.', "")
+                          stem.equals(base, ignoreCase = true) ||
+                              stem.startsWith(base + ".", ignoreCase = true)
+                      }
+                  }?.sortedBy { it.name.lowercase(java.util.Locale.ROOT) }.orEmpty()
+
+                  var loaded = 0
+                  matches.forEachIndexed { index, file ->
+                      if (mainVlcAutoSubtitleFiles.add(file.absolutePath)) {
+                          val ok = runCatching {
+                              engine.addExternalSubtitle(Uri.fromFile(file), select = index == 0)
+                          }.getOrDefault(false)
+                          if (ok) loaded++ else mainVlcAutoSubtitleFiles.remove(file.absolutePath)
+                      }
+                  }
+                  if (loaded > 0) {
+                      Toast.makeText(this, "Found $loaded same-name subtitle(s)", Toast.LENGTH_SHORT).show()
+                  }
+              }
+
+              '''
+          if "private fun autoLoadMainVlcSubtitles(" not in s:
+              anchor = "    private fun buildMediaItem(uri: Uri): MediaItem {"
+              if anchor not in s:
+                  raise SystemExit("MainActivity method insertion point missing")
+              s = s.replace(anchor, method + anchor, 1)
+
+          start = s.find("    private fun startMainLibVlc(uri: Uri) {")
+          end = s.find("\\n    private fun buildMediaItem(uri: Uri): MediaItem {", start)
+          if start < 0 or end < 0:
+              raise SystemExit("Main LibVLC startup method boundaries missing")
+          block = s[start:end]
+          if "autoLoadMainVlcSubtitles(engine)" not in block:
+              open_line = "                  engine.open(uri, resumeAt, digitalOutput = passthrough)"
+              if open_line not in block:
+                  raise SystemExit("Main LibVLC open call missing")
+              block = block.replace(
+                  open_line,
+                  open_line + "\\n                  mainVlcAutoSubtitleFiles.clear()" +
+                  "\\n                  subtitleUiHandler.postDelayed({ autoLoadMainVlcSubtitles(engine) }, 1200L)",
+                  1
+              )
+              s = s[:start] + block + s[end:]
+          p.write_text(s)
+          print("Main LibVLC now discovers and registers same-stem ASS/SSA/SRT files after opening the video.")
+          PY
+
       - name: Package 32-bit and 64-bit ARM variants for Android TV boxes
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
