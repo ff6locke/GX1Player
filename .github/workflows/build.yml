@@ -5668,15 +5668,18 @@ jobs:
                       checked.add(sub.enabled)
                       actions.add("external" to index)
                   }
-                  val selectedEmbedded = mainVlcEngine?.selectedSubtitleTrackId() ?: -1
+                  var selectedEmbedded = mainVlcEngine?.selectedSubtitleTrackId() ?: -1
+                  // If no external subtitle is enabled, never present "Off" as the default:
+                  // choose and visibly tick the first available embedded track instead.
+                  if (mainVlcExternalSubtitles.none { it.enabled } && selectedEmbedded < 0 && embedded.isNotEmpty()) {
+                      selectedEmbedded = embedded.first().id
+                      mainVlcEngine?.selectSubtitleTrack(selectedEmbedded)
+                  }
                   embedded.forEach { track ->
                       labels.add("Embedded — " + track.name)
                       checked.add(track.id == selectedEmbedded)
                       actions.add("embedded" to track.id)
                   }
-                  labels.add("Off (embedded)")
-                  checked.add(selectedEmbedded < 0)
-                  actions.add("off" to -1)
                   if (labels.isEmpty()) {
                       Toast.makeText(this, "No subtitles found.", Toast.LENGTH_SHORT).show()
                       return
@@ -5710,12 +5713,7 @@ jobs:
                                       mainVlcEngine?.selectSubtitleTrack(-1)
                                   }
                               }
-                              "off" -> if (isChecked) {
-                                  mainVlcEngine?.selectSubtitleTrack(-1)
-                                  actions.forEachIndexed { i, action ->
-                                      if (action.first == "embedded") (d as AlertDialog).listView.setItemChecked(i, false)
-                                  }
-                              }
+                              "off" -> Unit
                           }
                       }
                       .setPositiveButton("Done", null)
