@@ -5179,6 +5179,224 @@ jobs:
           p.write_text(s)
           print('LibVLC main playback wiring applied')
           PY
+      - name: Preserve Media3 controller UI with LibVLC playback
+        working-directory: \${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app/src/main/java/com/example/gx1player/MainActivity.kt')
+          s = p.read_text()
+          def once(old, new, label):
+              if old not in s:
+                  raise SystemExit(label + ' anchor missing')
+              return s.replace(old, new, 1)
+
+          if 'import androidx.media3.common.ForwardingPlayer' not in s:
+              s = once('import androidx.media3.common.Player',
+                       'import androidx.media3.common.Player\nimport androidx.media3.common.ForwardingPlayer',
+                       'ForwardingPlayer import')
+          if 'private var mainVlcControllerClock: ExoPlayer? = null' not in s:
+              s = once('private var mainVlcEngine: Gx1LibVlcEngine? = null',
+                       'private var mainVlcEngine: Gx1LibVlcEngine? = null\n    private var mainVlcControllerClock: ExoPlayer? = null\n    private var mainVlcControllerPlayer: Player? = null',
+                       'VLC controller fields')
+
+          s = s.replace('root.addView(mainVlcLayout, FrameLayout.LayoutParams(-1, -1))', '''val vlcContentFrame = playerView.findViewById<android.widget.FrameLayout>(
+              androidx.media3.ui.R.id.exo_content_frame
+          )
+          if (vlcContentFrame != null) {
+              vlcContentFrame.removeAllViews()
+              vlcContentFrame.addView(mainVlcLayout, FrameLayout.LayoutParams(-1, -1))
+          } else {
+              throw IllegalStateException("Media3 video content frame was not found")
+          }''', 1)
+          s = s.replace('root.addView(mainVlcBar, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM).apply { setMargins(18, 0, 18, 24) })', 'mainVlcBar.visibility = View.GONE', 1)
+
+          start = s.find('    private fun startMainLibVlc(uri: Uri) {')
+          if start < 0:
+              raise SystemExit('startMainLibVlc method missing')
+          end = s.find('\n    private fun toggleMainPlaybackEngine()', start)
+          if end < 0:
+              raise SystemExit('toggleMainPlaybackEngine boundary missing')
+          new_method = '''    private fun startMainLibVlc(uri: Uri) {
+              val resumeAt = prefs.getLong(posKey(uri), 0L)
+              try {
+                  player?.release()
+                  player = null
+                  playerView.visibility = View.VISIBLE
+                  mainVlcLayout.visibility = View.VISIBLE
+                  mainVlcBar.visibility = View.GONE
+                  homePanel.visibility = View.GONE
+                  setPlaybackFullscreen(true)
+
+                  val engine = Gx1LibVlcEngine(this) { state -> runOnUiThread {
+                      if (state.error != null) Toast.makeText(this, state.error, Toast.LENGTH_LONG).show()
+                      if (state.ended) prefs.edit().remove(posKey(uri)).apply()
+                      mainVlcControllerClock?.let { clock -> clock.playWhenReady = state.playing }
+                      if (::playerView.isInitialized && playerView.visibility == View.VISIBLE) playerView.invalidate()
+                  } }
+                  mainVlcEngine = engine
+                  engine.attach(mainVlcLayout)
+                  playingUri = uri
+                  engine.open(uri, resumeAt, digitalOutput = passthrough)
+                  loadSecondSubtitleOverlay()
+
+                  // Silent Media3 timeline/controller clock. LibVLC alone renders video and audio.
+                  val clock = ExoPlayer.Builder(this).build()
+                  clock.trackSelectionParameters = clock.trackSelectionParameters.buildUpon()
+                      .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, true)
+                      .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, true)
+                      .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                      .build()
+                  clock.setSeekBackIncrementMs(10_000L)
+                  clock.setSeekForwardIncrementMs(10_000L)
+                  clock.setMediaItem(buildMediaItem(uri), resumeAt)
+                  clock.prepare()
+                  mainVlcControllerClock = clock
+
+                  val controller = object : ForwardingPlayer(clock) {
+                      override fun play() { mainVlcEngine?.play(); super.play() }
+                      override fun pause() { mainVlcEngine?.pause(); super.pause() }
+                      override fun setPlayWhenReady(playWhenReady: Boolean) {
+                          if (playWhenReady) mainVlcEngine?.play() else mainVlcEngine?.pause()
+                          super.setPlayWhenReady(playWhenReady)
+                      }
+                      override fun seekTo(positionMs: Long) {
+                          mainVlcEngine?.seekTo(positionMs)
+                          super.seekTo(positionMs)
+                      }
+                      override fun seekTo(mediaItemIndex: Int, positionMs: Long) {
+                          mainVlcEngine?.seekTo(positionMs)
+                          super.seekTo(mediaItemIndex, positionMs)
+                      }
+                      override fun seekBack() {
+                          val e = mainVlcEngine ?: return
+                          e.seekTo((e.currentTimeMs() - 10_000L).coerceAtLeast(0L))
+                          super.seekBack()
+                      }
+                      override fun seekForward() {
+                          val e = mainVlcEngine ?: return
+                          val next = e.currentTimeMs() + 10_000L
+                          val duration = e.durationMs()
+                          e.seekTo(if (duration > 0L) next.coerceAtMost(duration) else next)
+                          super.seekForward()
+                      }
+                      override fun getCurrentPosition(): Long =
+                          mainVlcEngine?.currentTimeMs() ?: super.getCurrentPosition()
+                      override fun getDuration(): Long =
+                          mainVlcEngine?.durationMs()?.takeIf { it > 0L } ?: super.getDuration()
+                      override fun isPlaying(): Boolean =
+                          mainVlcEngine?.isPlaying() ?: super.isPlaying()
+                      override fun getPlayWhenReady(): Boolean =
+                          mainVlcEngine?.isPlaying() ?: super.getPlayWhenReady()
+                      override fun getPlaybackState(): Int =
+                          if (mainVlcEngine != null) Player.STATE_READY else super.getPlaybackState()
+                  }
+                  mainVlcControllerPlayer = controller
+                  playerView.player = controller
+                  if (engine.isPlaying()) clock.playWhenReady = true
+                  playerView.showController()
+                  playerView.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_settings)
+                      ?.setOnClickListener { showMenu() }
+              } catch (e: Exception) {
+                  mainVlcEngine?.release()
+                  mainVlcEngine = null
+                  mainVlcControllerClock?.release()
+                  mainVlcControllerClock = null
+                  mainVlcControllerPlayer = null
+                  mainVlcLayout.visibility = View.GONE
+                  mainVlcBar.visibility = View.GONE
+                  playerView.player = null
+                  playerView.visibility = View.VISIBLE
+                  mainVlcSelected = false
+                  prefs.edit().putBoolean("main_vlc_selected", false).apply()
+                  Toast.makeText(this, "LibVLC failed; switched back to Media3: " + (e.message ?: e.javaClass.simpleName), Toast.LENGTH_LONG).show()
+                  startPlayer()
+              }
+          }
+          '''
+          s = s[:start] + new_method + s[end:]
+
+          release_start = s.find('    private fun releasePlayer()')
+          release_end = s.find('// ---------- resume ----------', release_start)
+          release_block = s[release_start:release_end]
+          if 'mainVlcControllerClock?.release()' not in release_block:
+              s = s.replace('          mainVlcEngine = null\n          if (::mainVlcLayout.isInitialized)',
+                            '          mainVlcEngine = null\n          playerView.player = null\n          mainVlcControllerClock?.release()\n          mainVlcControllerClock = null\n          mainVlcControllerPlayer = null\n          if (::mainVlcLayout.isInitialized)', 1)
+
+          s = s.replace('val pos = player?.currentPosition ?: 0L',
+                        'val pos = player?.currentPosition ?: mainVlcEngine?.currentTimeMs() ?: 0L')
+          s = s.replace('player?.isPlaying != true',
+                        '(player?.isPlaying != true && mainVlcEngine?.isPlaying() != true)')
+          s = s.replace('if (active.isNotEmpty() && player?.isPlaying == true)',
+                        'if (active.isNotEmpty() && (player?.isPlaying == true || mainVlcEngine?.isPlaying() == true))')
+          s = s.replace('player?.let { if (it.isPlaying) savePosition(it) }',
+                        'player?.let { if (it.isPlaying) savePosition(it) }\n            mainVlcEngine?.let { engine ->\n                val uri = playingUri\n                val pos = engine.currentTimeMs()\n                val dur = engine.durationMs()\n                if (uri != null && pos >= MIN_RESUME_MS && (dur <= 0L || pos < dur - END_MARGIN_MS)) prefs.edit().putLong(posKey(uri), pos).apply()\n            }', 1)
+          s = s.replace('player?.let { savePosition(it); it.pause() }',
+                        'player?.let { savePosition(it); it.pause() }\n                mainVlcEngine?.pause()', 1)
+          s = s.replace('player?.setPlaybackSpeed(values[which])',
+                        'if (mainVlcEngine != null) mainVlcEngine?.setRate(values[which]) else player?.setPlaybackSpeed(values[which])')
+          s = s.replace('player?.pause()\n                                    Toast.makeText(this, "Sleep timer ended"',
+                        'if (mainVlcEngine != null) mainVlcEngine?.pause() else player?.pause()\n                                    Toast.makeText(this, "Sleep timer ended"', 1)
+
+          audio_anchor = '    private fun showAudioTrackSelection() {\n        val exo = player'
+          audio_branch = '''    private fun showAudioTrackSelection() {
+          mainVlcEngine?.let { engine ->
+              val tracks = engine.audioTracks()
+              if (tracks.isEmpty()) {
+                  Toast.makeText(this, "No embedded audio tracks were reported by VLC.", Toast.LENGTH_LONG).show()
+                  return
+              }
+              val selectedId = engine.selectedAudioTrackId()
+              val labels = tracks.mapIndexed { index, track ->
+                  val language = track.language.takeIf { it.isNotBlank() && it != "und" }
+                      ?.let { java.util.Locale.forLanguageTag(it).getDisplayLanguage(java.util.Locale.getDefault()) }
+                  val details = listOfNotNull(track.name.takeIf { it.isNotBlank() }, language,
+                      track.codec.takeIf { it.isNotBlank() },
+                      when (track.channels) { 1 -> "Mono"; 2 -> "Stereo"; 6 -> "5.1"; 8 -> "7.1"; else -> null })
+                      .distinct().joinToString(" · ")
+                  if (details.isBlank()) "Audio " + (index + 1) else details
+              }
+              val selected = tracks.indexOfFirst { it.id == selectedId }
+              AlertDialog.Builder(this).setTitle("Audio track")
+                  .setSingleChoiceItems(labels.toTypedArray(), selected) { dialog, which ->
+                      engine.selectAudioTrack(tracks[which].id)
+                      dialog.dismiss()
+                  }.setNegativeButton("Close", null).show()
+              return
+          }
+          val exo = player'''
+          if audio_anchor not in s:
+              raise SystemExit('Audio track selection anchor missing')
+          s = s.replace(audio_anchor, audio_branch, 1)
+
+          subtitle_anchor = '    private fun showSubtitleTrackSelection() {\n        val exo = player'
+          subtitle_branch = '''    private fun showSubtitleTrackSelection() {
+          mainVlcEngine?.let { engine ->
+              val tracks = engine.subtitleTracks()
+              val labels = listOf("Off") + tracks.mapIndexed { index, track ->
+                  track.name.takeIf { it.isNotBlank() } ?: ("Embedded subtitle " + (index + 1))
+              }
+              val selectedId = engine.selectedSubtitleTrackId()
+              val selected = if (selectedId < 0) 0 else tracks.indexOfFirst { it.id == selectedId }.let { if (it < 0) 0 else it + 1 }
+              AlertDialog.Builder(this).setTitle("Subtitle track")
+                  .setSingleChoiceItems(labels.toTypedArray(), selected) { dialog, which ->
+                      if (which == 0) engine.selectSubtitleTrack(-1)
+                      else engine.selectSubtitleTrack(tracks[which - 1].id)
+                      dialog.dismiss()
+                  }.setNegativeButton("Close", null).show()
+              return
+          }
+          val exo = player'''
+          if subtitle_anchor not in s:
+              raise SystemExit('Subtitle track selection anchor missing')
+          s = s.replace(subtitle_anchor, subtitle_branch, 1)
+
+          s = s.replace('            Triple("VLC", "Play current video with VLC", "vlc_test"),\n', '', 1)
+          s = s.replace('                              "vlc_test" -> launchVlcTest()\n', '', 1)
+
+          p.write_text(s)
+          print('Media3 PlayerView controller now drives LibVLC; separate VLC control strip removed.')
+          PY
       - name: Package 32-bit and 64-bit ARM variants for Android TV boxes
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
