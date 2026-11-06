@@ -5190,7 +5190,7 @@ jobs:
 
           if 'import androidx.media3.exoplayer.source.SinglePeriodTimeline' not in s:
               s = once('import androidx.media3.common.Player',
-                       'import androidx.media3.common.Player\\nimport androidx.media3.common.ForwardingPlayer\\nimport androidx.media3.common.Timeline\\nimport androidx.media3.exoplayer.source.SinglePeriodTimeline',
+                       'import androidx.media3.common.Player\nimport androidx.media3.common.ForwardingPlayer\nimport androidx.media3.common.Timeline\nimport androidx.media3.exoplayer.source.SinglePeriodTimeline',
                        'ForwardingPlayer and timeline imports')
           if 'private var mainVlcControllerClock: ExoPlayer? = null' not in s:
               s = once('private var mainVlcEngine: Gx1LibVlcEngine? = null',
