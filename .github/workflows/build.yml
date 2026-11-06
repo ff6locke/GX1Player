@@ -4756,8 +4756,8 @@ jobs:
                               if (ch == '{') insideTag = true
                               else if (ch == '}') insideTag = false
                               else if (!insideTag) {
-                                  if (ch == '\\' && i + 1 < value.length && (value[i + 1] == 'N' || value[i + 1] == 'n')) {
-                                      out.append('\\n'); i++
+                                  if (ch.code == 92 && i + 1 < value.length && (value[i + 1] == 'N' || value[i + 1] == 'n')) {
+                                      out.append(10.toChar()); i++
                                   } else out.append(ch)
                               }
                               i++
@@ -4801,7 +4801,7 @@ jobs:
                                       i++
                                       val body=StringBuilder()
                                       while(i<lines.size && lines[i].isNotBlank()) {
-                                          if(body.isNotEmpty()) body.append('\\n')
+                                          if(body.isNotEmpty()) body.append(10.toChar())
                                           body.append(cleanSrtText(lines[i]))
                                           i++
                                       }
