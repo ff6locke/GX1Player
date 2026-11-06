@@ -5061,9 +5061,9 @@ jobs:
 
           if 'mainVlcLayout = VLCVideoLayout(this)' not in s:
               root_anchor = '''        root.addView(playerView, FrameLayout.LayoutParams(
-              FrameLayout.LayoutParams.MATCH_PARENT,
-              FrameLayout.LayoutParams.MATCH_PARENT
-          ))
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        ))
           '''
               root_new = root_anchor + '''        mainVlcLayout = VLCVideoLayout(this).apply {
               setBackgroundColor(Color.BLACK)
@@ -5094,7 +5094,7 @@ jobs:
 
           start_old = '''        val uri = mediaUri ?: return
 
-          val renderers = if (passthrough) {'''
+        val renderers = if (passthrough) {'''
           start_new = '''        val uri = mediaUri ?: return
           if (mainVlcSelected) {
               startMainLibVlc(uri)
@@ -5148,8 +5148,8 @@ jobs:
               s = once(anchor, methods + anchor, 'buildMediaItem')
 
           release_old = '''        player = null
-          playingUri = null
-          playerView.player = null'''
+        playingUri = null
+        playerView.player = null'''
           release_new = '''        player = null
           mainVlcEngine?.let { engine ->
               val pos = engine.currentTimeMs()
