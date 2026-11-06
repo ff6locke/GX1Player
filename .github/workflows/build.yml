@@ -5722,7 +5722,7 @@ jobs:
               s = s.replace(anchor, anchor + "\n" + fields, 1)
 
           # Render the enabled external subtitle cues as independent overlays, matching VLC Test.
-          root_anchor = next((line for line in s.splitlines() if "root.addView(mainVlcLayout" in line), None)
+          layout_anchor = "mainVlcLayout = VLCVideoLayout(this)"
           if "mainVlcSubtitleOverlay = TextView(this)" not in s:
               overlay = r"""
                   mainVlcSubtitleOverlay = TextView(this).apply {
@@ -5732,18 +5732,18 @@ jobs:
                       setShadowLayer(3f, 2f, 2f, Color.BLACK)
                       visibility = View.GONE
                   }
-                  root.addView(mainVlcSubtitleOverlay, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
+                  mainVlcLayout.addView(mainVlcSubtitleOverlay, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
                       bottomMargin = (32 * resources.displayMetrics.density).toInt()
                       leftMargin = (20 * resources.displayMetrics.density).toInt()
                       rightMargin = (20 * resources.displayMetrics.density).toInt()
                   })
               """
-              if root_anchor not in s: raise SystemExit("Main VLC video layout root anchor missing")
-              s = s.replace(root_anchor, root_anchor + "\n" + overlay, 1)
+              if layout_anchor not in s: raise SystemExit("Main VLC video layout initialization missing")
+              s = s.replace(layout_anchor, layout_anchor + "\n" + overlay, 1)
 
           # Replace native external-slave registration with the same local cue-overlay approach as VLC Test.
           start = s.find("    private fun autoLoadMainVlcSubtitles(")
-          end = s.find("\\n    private fun ", start + 10)
+          end = s.find("\n    private fun ", start + 10)
           if start < 0 or end < 0: raise SystemExit("Main automatic subtitle discovery method boundaries missing")
           method = r'''    private fun autoLoadMainVlcSubtitles(engine: Gx1LibVlcEngine) {
                   val video = currentVideoFile() ?: return
