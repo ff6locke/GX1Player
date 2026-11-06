@@ -4751,7 +4751,7 @@ jobs:
                   val base = video.nameWithoutExtension
                   val extensions = setOf("ass", "ssa", "srt")
                   val matches = folder.listFiles()?.filter { file ->
-                      file.isFile && file.canRead() && file.name.startsWith(base, ignoreCase = true) && file.extension.lowercase() in extensions
+                      file.isFile && file.canRead() && (file.name.equals(base + "." + file.extension, ignoreCase = true) || file.name.startsWith(base + ".", ignoreCase = true)) && file.extension.lowercase() in extensions
                   }?.sortedBy { it.name.lowercase() }.orEmpty()
                   vlcSubtitles.clear()
                   matches.forEach { loadVlcSubtitle(1, it) }
