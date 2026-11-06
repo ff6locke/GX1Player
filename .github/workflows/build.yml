@@ -3601,12 +3601,13 @@ jobs:
                   val lengthMs: Long = 0L
               )
 
-              // Keep LibVLC's platform-selected audio output and decoder defaults,
-              // matching the regular VLC app instead of forcing a specific Android output.
-              // Verbose logging is enabled temporarily to diagnose files that VLC app plays
-              // but this embedded player cannot open.
+              // Match the audio output used by the successful standalone VLC Test:
+              // Android AudioTrack, with LibVLC selecting the codec/HDMI passthrough path.
+              // Keep this shared engine configuration identical for the upcoming main-player
+              // integration so the two paths do not behave differently on the GX1.
               private val appContext = context.applicationContext
               private val libVlc = LibVLC(appContext, arrayListOf(
+                  "--aout=android_audiotrack",
                   "-vvv",
                   "--no-video-title-show"
               ))
