@@ -5013,7 +5013,15 @@ jobs:
               """
               if anchor not in s: raise SystemExit("root controls anchor missing")
               s=s.replace(anchor,anchor+"\n"+overlay.rstrip(),1)
-          if "handler.post(vlcDynamicSubtitleTicker)" not in s: s=s.replace("            handler.post(ticker)","            handler.post(ticker)\n            handler.post(vlcDynamicSubtitleTicker)",1)
+          if "handler.post(vlcDynamicSubtitleTicker)" not in s:
+              s=s.replace("            handler.post(ticker)","            handler.post(ticker)\n            handler.post(vlcDynamicSubtitleTicker)",1)
+          # Discover same-basename external subtitle files automatically after VLC playback opens.
+          # Place this next to the dynamic subtitle ticker, in the actual VLC Test activity.
+          if "handler.postDelayed({ autoLoadMatchingSubtitles() }, 1500L)" not in s:
+              marker = "            handler.post(vlcDynamicSubtitleTicker)"
+              if marker not in s:
+                  raise SystemExit("VLC dynamic subtitle ticker start point missing")
+              s=s.replace(marker, marker + "\n            handler.postDelayed({ autoLoadMatchingSubtitles() }, 1500L)", 1)
           if "handler.removeCallbacks(vlcDynamicSubtitleTicker)" not in s: s=s.replace("        handler.removeCallbacks(ticker)","        handler.removeCallbacks(ticker)\n        handler.removeCallbacks(vlcDynamicSubtitleTicker)",1)
           p.write_text(s)
           lines=s.splitlines()
