@@ -6579,6 +6579,38 @@ jobs:
           print("LibVLC TimeChanged event time is now cached and used when direct mediaPlayer.time reports zero.")
           PY
 
+      - name: Test software decoding for the reported 4K AVC sample
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
+          s = p.read_text()
+          marker = """        val media = if (uri.scheme == "content") {
+                      val afd = appContext.contentResolver.openAssetFileDescriptor(uri, "r")
+                          ?: throw java.io.IOException("Could not open selected media provider descriptor")
+                      activeAssetDescriptor = afd
+                      Media(libVlc, afd)
+                  } else {
+                      Media(libVlc, uri)
+                  }
+          """
+          if marker not in s:
+              raise SystemExit("Could not locate LibVLC media creation block for diagnostic decode test")
+          addition = marker + """
+                  // Diagnostic only: test whether this specific 4K AVC sample is stalling
+                  // in the Rocktek hardware decoder. Other files keep normal acceleration.
+                  if (uri.lastPathSegment?.contains("sample_3840x2160", ignoreCase = true) == true) {
+                      media.addOption(":avcodec-hw=none")
+                      android.util.Log.w("GX1-VLC", "Diagnostic software decoding enabled for sample_3840x2160")
+                  }
+          """
+          if "Diagnostic software decoding enabled for sample_3840x2160" not in s:
+              s = s.replace(marker, addition, 1)
+          p.write_text(s)
+          print("Enabled software decoding only for the reported 4K AVC sample as a hardware-decoder diagnostic.")
+          PY
+
       - name: Package 32-bit and 64-bit ARM variants for Android TV boxes
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
