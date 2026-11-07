@@ -6564,22 +6564,22 @@ jobs:
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
           s = p.read_text()
-          marker = "        try {\n            mediaPlayer.media = media"
-          replacement = """        // The standalone VLC app enables Android MediaCodec hardware
-          // decoding through this Media API. A custom LibVLC instance does not
-          // inherit the standalone app's decoder preferences automatically.
-          // Explicitly request hardware decoding so HEVC Main10/HDR can use
-          // the GX1's video decoder rather than an unsuitable software path.
-          media.setHWDecoderEnabled(true, false)
-          android.util.Log.i("GX1-VLC", "Requested Android hardware video decoding (non-forced fallback)")
-          try {
-              mediaPlayer.media = media"""
+          marker = "mediaPlayer.media = media"
           if marker not in s:
-              raise SystemExit("Could not locate media assignment for hardware-decoder setup")
+              raise SystemExit("Could not locate LibVLC media assignment")
           if "Requested Android hardware video decoding" not in s:
-              s = s.replace(marker, replacement, 1)
+              index = s.index(marker)
+              line_start = s.rfind("\\n", 0, index) + 1
+              indent = s[line_start:index]
+              if indent.strip():
+                  indent = indent[:len(indent) - len(indent.lstrip())]
+              insertion = (
+                  indent + "media.setHWDecoderEnabled(true, false)\\n" +
+                  indent + 'android.util.Log.i("GX1-VLC", "Requested Android hardware video decoding (fallback allowed)")\\n'
+              )
+              s = s[:line_start] + insertion + s[line_start:]
           p.write_text(s)
-          print("Explicitly enabled LibVLC Android hardware decoding with software fallback allowed.")
+          print("Enabled LibVLC Android hardware decoding with fallback allowed.")
           PY
 
       - name: Package 32-bit and 64-bit ARM variants for Android TV boxes
