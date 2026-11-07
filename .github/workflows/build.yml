@@ -6534,27 +6534,27 @@ jobs:
           print("Kept Media3 controls visible and hid its video shutter above LibVLC.")
           PY
 
-      - name: Request HDR-capable output for the main LibVLC playback window
+      - name: Use Android default display colour mode for LibVLC playback
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
-          anchor = "        super.onCreate(savedInstanceState)"
-          if anchor not in s:
-              raise SystemExit("MainActivity onCreate anchor missing")
-          code = """        // Request an HDR-capable Android window for 10-bit HDR/Dolby Vision
-          // video output. This does not force HDR for SDR content; Android selects
-          // the appropriate display mode based on the video and display capability.
-          if (android.os.Build.VERSION.SDK_INT >= 26) {
-              window.colorMode = android.content.pm.ActivityInfo.COLOR_MODE_HDR
-          }
-          """
-          if "COLOR_MODE_HDR" not in s:
-              s = s.replace(anchor, anchor + "\n" + code.rstrip(), 1)
+          # Do not force COLOR_MODE_HDR for every playback session. Let Android,
+          # the decoder and the display negotiate the appropriate SDR/HDR mode.
+          import re
+          s, count = re.subn(
+              r'\n?\s*// Request an HDR-capable Android window.*?window\.colorMode = android\.content\.pm\.ActivityInfo\.COLOR_MODE_HDR\n\s*}\n',
+              "\\n",
+              s,
+              count=1,
+              flags=re.S
+          )
+          if "COLOR_MODE_HDR" in s:
+              raise SystemExit("Forced HDR window mode remains in MainActivity")
           p.write_text(s)
-          print("Main playback Activity now requests an HDR-capable window on Android 8.0+.")
+          print("Removed forced HDR window mode; Android now uses its default display colour negotiation.")
           PY
 
       - name: Explicitly enable Android hardware video decoding in LibVLC
