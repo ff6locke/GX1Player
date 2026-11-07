@@ -6187,6 +6187,224 @@ jobs:
           print("Added a filename overlay as a sibling above PlayerView; it is shown for main LibVLC playback and hidden on release.")
           PY
 
+      - name: Add previous and next file controls to main LibVLC playback
+        working-directory: \${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+
+          fields = """    private var gx1PlaybackQueue: List<Uri> = emptyList()
+              private var gx1PlaybackQueueIndex: Int = -1
+              private var gx1PreviousFileButton: android.widget.ImageButton? = null
+              private var gx1NextFileButton: android.widget.ImageButton? = null
+          """
+          field_anchor = "    private var mainVlcEngine: Gx1LibVlcEngine? = null"
+          if "private var gx1PlaybackQueue:" not in s:
+              if field_anchor not in s:
+                  raise SystemExit("Main LibVLC engine field missing")
+              s = s.replace(field_anchor, field_anchor + "\n" + fields, 1)
+
+          helpers = r'''
+          private fun gx1IsMediaFile(name: String): Boolean {
+              return name.substringAfterLast(".", "").lowercase() in setOf(
+                  "mkv", "mp4", "avi", "mov", "webm", "mpg", "mpeg",
+                  "ts", "m2ts", "mp3", "flac", "m4a", "aac", "wav", "ogg"
+              )
+          }
+
+          private fun buildGx1PlaybackQueue(uri: Uri): List<Uri> {
+              val found = mutableListOf<Pair<String, Uri>>()
+              try {
+                  if (uri.scheme == "file") {
+                      val selected = java.io.File(uri.path ?: return listOf(uri))
+                      val parent = selected.parentFile
+                      parent?.listFiles()?.filter { it.isFile && gx1IsMediaFile(it.name) }
+                          ?.sortedBy { it.name.lowercase() }
+                          ?.forEach { found.add(it.name to Uri.fromFile(it)) }
+                  } else if (uri.toString().contains("/tree/")) {
+                      val documentId = android.provider.DocumentsContract.getDocumentId(uri)
+                      val parentId = documentId.substringBeforeLast("/", "")
+                      if (parentId.isNotBlank()) {
+                          val children = android.provider.DocumentsContract
+                              .buildChildDocumentsUriUsingTree(uri, parentId)
+                          contentResolver.query(children, arrayOf(
+                              android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                              android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                              android.provider.DocumentsContract.Document.COLUMN_MIME_TYPE
+                          ), null, null, null)?.use { cursor ->
+                              val idCol = cursor.getColumnIndexOrThrow(
+                                  android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID
+                              )
+                              val nameCol = cursor.getColumnIndexOrThrow(
+                                  android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME
+                              )
+                              val mimeCol = cursor.getColumnIndexOrThrow(
+                                  android.provider.DocumentsContract.Document.COLUMN_MIME_TYPE
+                              )
+                              while (cursor.moveToNext()) {
+                                  val name = cursor.getString(nameCol) ?: continue
+                                  val mime = cursor.getString(mimeCol) ?: ""
+                                  if (mime.startsWith("video/") || mime.startsWith("audio/") || gx1IsMediaFile(name)) {
+                                      val id = cursor.getString(idCol) ?: continue
+                                      found.add(name to android.provider.DocumentsContract
+                                          .buildDocumentUriUsingTree(uri, id))
+                                  }
+                              }
+                          }
+                      }
+                  } else {
+                      val relativePath = contentResolver.query(
+                          uri,
+                          arrayOf(android.provider.MediaStore.MediaColumns.RELATIVE_PATH),
+                          null, null, null
+                      )?.use { cursor ->
+                          if (cursor.moveToFirst()) cursor.getString(0) else null
+                      }
+                      if (!relativePath.isNullOrBlank()) {
+                          val collection = android.provider.MediaStore.Files.getContentUri("external")
+                          val projection = arrayOf(
+                              android.provider.MediaStore.MediaColumns._ID,
+                              android.provider.MediaStore.MediaColumns.DISPLAY_NAME,
+                              android.provider.MediaStore.MediaColumns.MIME_TYPE
+                          )
+                          val selection = android.provider.MediaStore.MediaColumns.RELATIVE_PATH + " = ? AND (" +
+                              android.provider.MediaStore.MediaColumns.MIME_TYPE + " LIKE ? OR " +
+                              android.provider.MediaStore.MediaColumns.MIME_TYPE + " LIKE ?)"
+                          contentResolver.query(
+                              collection, projection, selection,
+                              arrayOf(relativePath, "video/%", "audio/%"),
+                              android.provider.MediaStore.MediaColumns.DISPLAY_NAME + " COLLATE NOCASE ASC"
+                          )?.use { cursor ->
+                              val idCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.MediaColumns._ID)
+                              val nameCol = cursor.getColumnIndexOrThrow(android.provider.MediaStore.MediaColumns.DISPLAY_NAME)
+                              while (cursor.moveToNext()) {
+                                  val name = cursor.getString(nameCol) ?: continue
+                                  val id = cursor.getLong(idCol)
+                                  found.add(name to android.content.ContentUris.withAppendedId(collection, id))
+                              }
+                          }
+                      }
+                  }
+              } catch (e: Exception) {
+                  android.util.Log.w("GX1Player", "Could not enumerate sibling media files for " + uri, e)
+              }
+
+              val ordered = found.distinctBy { it.second.toString() }
+                  .sortedBy { it.first.lowercase() }
+                  .map { it.second }
+                  .toMutableList()
+              if (ordered.none { it.toString() == uri.toString() }) ordered.add(uri)
+              return ordered.distinctBy { it.toString() }
+          }
+
+          private fun updateGx1PlaybackQueue(uri: Uri) {
+              gx1PlaybackQueue = buildGx1PlaybackQueue(uri)
+              gx1PlaybackQueueIndex = gx1PlaybackQueue.indexOfFirst { it.toString() == uri.toString() }
+              updateGx1NavigationButtonStates()
+          }
+
+          private fun updateGx1NavigationButtonStates() {
+              val hasPrevious = gx1PlaybackQueueIndex > 0
+              val hasNext = gx1PlaybackQueueIndex >= 0 &&
+                  gx1PlaybackQueueIndex < gx1PlaybackQueue.lastIndex
+              gx1PreviousFileButton?.apply {
+                  isEnabled = hasPrevious
+                  alpha = if (hasPrevious) 1f else 0.35f
+              }
+              gx1NextFileButton?.apply {
+                  isEnabled = hasNext
+                  alpha = if (hasNext) 1f else 0.35f
+              }
+          }
+
+          private fun playAdjacentGx1File(direction: Int) {
+              val targetIndex = gx1PlaybackQueueIndex + direction
+              if (targetIndex !in gx1PlaybackQueue.indices) {
+                  Toast.makeText(this,
+                      if (direction < 0) "No previous file in this folder" else "No next file in this folder",
+                      Toast.LENGTH_SHORT).show()
+                  return
+              }
+              val target = gx1PlaybackQueue[targetIndex]
+              selectMedia(target)
+              startPlayer()
+              playerView.showController()
+          }
+
+          private fun installGx1FileNavigationButtons() {
+              val controller = playerView.findViewById<android.widget.FrameLayout>(
+                  androidx.media3.ui.R.id.exo_controller
+              ) ?: return
+              if (gx1PreviousFileButton?.parent == null) {
+                  val density = resources.displayMetrics.density
+                  val size = (54 * density).toInt()
+                  fun makeButton(icon: Int, description: String, action: () -> Unit) =
+                      android.widget.ImageButton(this).apply {
+                          setImageResource(icon)
+                          imageTintList = android.content.res.ColorStateList.valueOf(Color.WHITE)
+                          background = android.graphics.drawable.GradientDrawable().apply {
+                              shape = android.graphics.drawable.GradientDrawable.OVAL
+                              setColor(0x990B111B.toInt())
+                              setStroke((1 * density).toInt(), 0x99FFFFFF.toInt())
+                          }
+                          setPadding((13 * density).toInt(), (13 * density).toInt(),
+                              (13 * density).toInt(), (13 * density).toInt())
+                          scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+                          contentDescription = description
+                          isFocusable = true
+                          isClickable = true
+                          setOnClickListener { action() }
+                      }
+                  val previous = makeButton(android.R.drawable.ic_media_previous, "Previous file") {
+                      playAdjacentGx1File(-1)
+                  }
+                  val next = makeButton(android.R.drawable.ic_media_next, "Next file") {
+                      playAdjacentGx1File(1)
+                  }
+                  controller.addView(previous, android.widget.FrameLayout.LayoutParams(
+                      size, size, Gravity.CENTER_VERTICAL or Gravity.START
+                  ).apply { leftMargin = (22 * density).toInt() })
+                  controller.addView(next, android.widget.FrameLayout.LayoutParams(
+                      size, size, Gravity.CENTER_VERTICAL or Gravity.END
+                  ).apply { rightMargin = (22 * density).toInt() })
+                  gx1PreviousFileButton = previous
+                  gx1NextFileButton = next
+              }
+              updateGx1NavigationButtonStates()
+          }
+
+          '''
+          if "private fun buildGx1PlaybackQueue(uri: Uri)" not in s:
+              marker = "    private fun selectMedia(uri: Uri) {"
+              if marker not in s:
+                  raise SystemExit("selectMedia() insertion point missing")
+              s = s.replace(marker, helpers + marker, 1)
+
+          start = s.find("    private fun selectMedia(uri: Uri) {")
+          end = s.find("\n    private fun ", start + 10)
+          if start < 0 or end < 0:
+              raise SystemExit("Could not isolate selectMedia()")
+          block = s[start:end]
+          if "updateGx1PlaybackQueue(uri)" not in block:
+              if "mediaUri = uri" not in block:
+                  raise SystemExit("selectMedia() no longer assigns mediaUri")
+              block = block.replace("mediaUri = uri", "mediaUri = uri\n        updateGx1PlaybackQueue(uri)", 1)
+              s = s[:start] + block + s[end:]
+
+          marker = "                  mainVlcControllerPlayer = controller\n                  playerView.player = controller"
+          if marker not in s:
+              raise SystemExit("Main LibVLC Media3 controller attachment point missing")
+          if "installGx1FileNavigationButtons()" not in s:
+              s = s.replace(marker, marker + "\n                  installGx1FileNavigationButtons()", 1)
+
+          if "private fun playAdjacentGx1File(direction: Int)" not in s:
+              raise SystemExit("Previous/next playback navigation helper missing")
+          p.write_text(s)
+          print("Added same-folder previous/next playback controls for file, MediaStore, and SAF tree selections.")
+          PY
+
       - name: Package 32-bit and 64-bit ARM variants for Android TV boxes
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
