@@ -6557,6 +6557,31 @@ jobs:
           print("Main playback Activity now requests an HDR-capable window on Android 8.0+.")
           PY
 
+      - name: Explicitly enable Android hardware video decoding in LibVLC
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
+          s = p.read_text()
+          marker = "        try {\n            mediaPlayer.media = media"
+          replacement = """        // The standalone VLC app enables Android MediaCodec hardware
+          // decoding through this Media API. A custom LibVLC instance does not
+          // inherit the standalone app's decoder preferences automatically.
+          // Explicitly request hardware decoding so HEVC Main10/HDR can use
+          // the GX1's video decoder rather than an unsuitable software path.
+          media.setHWDecoderEnabled(true, false)
+          android.util.Log.i("GX1-VLC", "Requested Android hardware video decoding (non-forced fallback)")
+          try {
+              mediaPlayer.media = media"""
+          if marker not in s:
+              raise SystemExit("Could not locate media assignment for hardware-decoder setup")
+          if "Requested Android hardware video decoding" not in s:
+              s = s.replace(marker, replacement, 1)
+          p.write_text(s)
+          print("Explicitly enabled LibVLC Android hardware decoding with software fallback allowed.")
+          PY
+
       - name: Package 32-bit and 64-bit ARM variants for Android TV boxes
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
