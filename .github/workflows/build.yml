@@ -6557,28 +6557,39 @@ jobs:
           print("Removed forced HDR window mode; Android now uses its default display colour negotiation.")
           PY
 
-      - name: Explicitly enable Android hardware video decoding in LibVLC
+      - name: Match LibVLC decoder selection to the standalone VLC test
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
           s = p.read_text()
-          marker = "mediaPlayer.media = media"
-          if marker not in s:
-              raise SystemExit("Could not locate LibVLC media assignment")
-          if "Requested Android hardware video decoding" not in s:
+          # The standalone VLC test does not force a MediaCodec decoder through
+          # Media.setHWDecoderEnabled(). Keep LibVLC's default automatic decoder
+          # selection in the integrated player too, especially for DV Profile 8.1.
+          s, count = re.subn(
+              r"(?m)^\\s*media\\.setHWDecoderEnabled\\(true,\\s*false\\)\\s*\\n",
+              "",
+              s
+          )
+          s = s.replace(
+              'android.util.Log.i("GX1-VLC", "Requested Android hardware video decoding (fallback allowed)")',
+              'android.util.Log.i("GX1-VLC", "Using LibVLC automatic video decoder selection (same as standalone test)")'
+          )
+          if "setHWDecoderEnabled(true, false)" in s:
+              raise SystemExit("Explicit hardware-decoder override remains")
+          if "Using LibVLC automatic video decoder selection" not in s:
+              marker = "mediaPlayer.media = media"
+              if marker not in s:
+                  raise SystemExit("Could not locate media assignment for decoder diagnostic")
               index = s.index(marker)
-              line_start = s.rfind("\n", 0, index) + 1
+              line_start = s.rfind("\\n", 0, index) + 1
               indent = s[line_start:index]
               indent = indent[:len(indent) - len(indent.lstrip())]
-              insertion = (
-                  indent + "media.setHWDecoderEnabled(true, false)\n" +
-                  indent + 'android.util.Log.i("GX1-VLC", "Requested Android hardware video decoding (fallback allowed)")\n'
-              )
-              s = s[:line_start] + insertion + s[line_start:]
+              s = s[:line_start] + indent + 'android.util.Log.i("GX1-VLC", "Using LibVLC automatic video decoder selection (same as standalone test)")\\n' + s[line_start:]
           p.write_text(s)
-          print("Enabled LibVLC Android hardware decoding with fallback allowed.")
+          print(f"Removed forced hardware-decoder override ({count} occurrence(s)); LibVLC now selects its decoder automatically.")
           PY
 
       - name: Package 32-bit and 64-bit ARM variants for Android TV boxes
