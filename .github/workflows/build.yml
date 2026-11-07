@@ -5266,7 +5266,9 @@ jobs:
           s = s.replace('root.addView(mainVlcLayout, FrameLayout.LayoutParams(-1, -1))', '''// Match the working standalone VLC test: keep VLCVideoLayout as a direct
           // fullscreen sibling, not nested inside PlayerView's shutter/content frame.
           // PlayerView remains above it solely for Media3 controls and touch handling.
-          root.addView(mainVlcLayout, 0, FrameLayout.LayoutParams(-1, -1))
+          root.addView(mainVlcLayout, FrameLayout.LayoutParams(-1, -1))
+          mainVlcLayout.bringToFront()
+          mainVlcLayout.setBackgroundColor(Color.BLACK)
           playerView.setBackgroundColor(Color.TRANSPARENT)
           playerView.findViewById<android.widget.FrameLayout>(
               androidx.media3.ui.R.id.exo_content_frame
@@ -5286,6 +5288,8 @@ jobs:
                   player = null
                   playerView.visibility = View.VISIBLE
                   mainVlcLayout.visibility = View.VISIBLE
+                  mainVlcLayout.bringToFront()
+                  mainVlcLayout.requestLayout()
                   mainVlcBar.visibility = View.GONE
                   homePanel.visibility = View.GONE
                   setPlaybackFullscreen(true)
