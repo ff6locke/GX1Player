@@ -6581,6 +6581,36 @@ jobs:
           print("Enabled LibVLC Android hardware decoding with fallback allowed.")
           PY
 
+      - name: Place LibVLC video below Media3 controls
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          marker = "mainVlcLayout = VLCVideoLayout(this)"
+          if marker not in s:
+              raise SystemExit("Could not find main LibVLC video layout")
+          if "Place LibVLC below Media3 controller" not in s:
+              # MainActivity originally adds PlayerView first and the LibVLC
+              # layout afterwards. That puts LibVLC above Media3's controller.
+              # Reorder only these root children: video first, controller next,
+              # then the existing custom bar and home overlay.
+              insertion = """        // Place the LibVLC video surface behind Media3's controls.
+                  // PlayerView's own video surfaces are hidden separately, so its
+                  // controller and track/settings menus remain visible above VLC.
+                  root.removeView(playerView)
+                  root.addView(playerView, 1)
+                  // Place LibVLC below Media3 controller
+              """
+              anchor = "        mainVlcBar = LinearLayout(this).apply {"
+              if anchor not in s:
+                  raise SystemExit("Could not find main VLC controls insertion point")
+              s = s.replace(anchor, insertion + anchor, 1)
+          p.write_text(s)
+          print("Reordered root: LibVLC video behind Media3 controls.")
+          PY
+
       - name: Package 32-bit and 64-bit ARM variants for Android TV boxes
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
