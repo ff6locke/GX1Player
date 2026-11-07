@@ -6516,6 +6516,69 @@ jobs:
           print("Added a 250 ms LibVLC-driven elapsed-time and seek-bar refresh, independent of the silent Media3 clock.")
           PY
 
+      - name: Use LibVLC TimeChanged event time for M2TS
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
+          s = p.read_text()
+
+          if "lastKnownTimeMs" not in s:
+              anchor = "    @Volatile private var durationHintMs = 0L"
+              if anchor not in s:
+                  raise SystemExit("LibVLC duration state anchor missing")
+              s = s.replace(anchor, anchor + "\n    @Volatile private var lastKnownTimeMs = 0L", 1)
+
+          old = """                MediaPlayer.Event.TimeChanged,
+                          MediaPlayer.Event.PositionChanged,
+                          MediaPlayer.Event.LengthChanged -> publish()"""
+          new = """                MediaPlayer.Event.TimeChanged -> {
+                          // Some transport streams do not update MediaPlayer.time reliably,
+                          // even though LibVLC emits the current time in this event.
+                          lastKnownTimeMs = event.timeChanged.coerceAtLeast(0L)
+                          publish()
+                      }
+                      MediaPlayer.Event.PositionChanged -> publish()
+                      MediaPlayer.Event.LengthChanged -> publish()"""
+          if old in s:
+              s = s.replace(old, new, 1)
+          elif "lastKnownTimeMs = event.timeChanged" not in s:
+              raise SystemExit("Could not locate LibVLC TimeChanged event branch")
+
+          old_seek = "    fun seekTo(positionMs: Long) { checkActive(); mediaPlayer.setTime(positionMs.coerceAtLeast(0L)) }"
+          new_seek = """    fun seekTo(positionMs: Long) {
+                  checkActive()
+                  val target = positionMs.coerceAtLeast(0L)
+                  lastKnownTimeMs = target
+                  mediaPlayer.setTime(target)
+              }"""
+          if old_seek in s:
+              s = s.replace(old_seek, new_seek, 1)
+          elif "lastKnownTimeMs = target" not in s:
+              raise SystemExit("Could not locate LibVLC seekTo method")
+
+          old_time = "    fun currentTimeMs(): Long = if (released) 0L else mediaPlayer.time.coerceAtLeast(0L)"
+          new_time = """    fun currentTimeMs(): Long {
+                  if (released) return 0L
+                  val reported = mediaPlayer.time.coerceAtLeast(0L)
+                  if (reported > 0L) {
+                      lastKnownTimeMs = reported
+                      return reported
+                  }
+                  return lastKnownTimeMs.coerceAtLeast(0L)
+              }"""
+          if old_time in s:
+              s = s.replace(old_time, new_time, 1)
+          elif "return lastKnownTimeMs.coerceAtLeast(0L)" not in s:
+              raise SystemExit("Could not locate LibVLC currentTimeMs method")
+
+          s = s.replace("            timeMs = mediaPlayer.time.coerceAtLeast(0L),",
+                        "            timeMs = currentTimeMs(),", 1)
+          p.write_text(s)
+          print("LibVLC TimeChanged event time is now cached and used when direct mediaPlayer.time reports zero.")
+          PY
+
       - name: Package 32-bit and 64-bit ARM variants for Android TV boxes
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
