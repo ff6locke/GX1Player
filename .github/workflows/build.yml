@@ -6471,10 +6471,6 @@ jobs:
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
 
-          # PlayerView can restore its opaque shutter/content frame when its player is
-          # attached or rebound. That frame sits above the LibVLC surface and can make
-          # the picture black while LibVLC audio continues. Keep only the Media3
-          # controller layer visible in main LibVLC mode.
           helper = '''    private fun hideMainVlcMedia3VideoContent() {
               if (!::playerView.isInitialized) return
               playerView.setBackgroundColor(Color.TRANSPARENT)
@@ -6490,32 +6486,33 @@ jobs:
           }
 
           '''
+          anchor = "    private fun startMainLibVlc(uri: Uri) {"
           if "private fun hideMainVlcMedia3VideoContent()" not in s:
-              anchor = "    private fun startMainLibVlc(uri: Uri) {"
               if anchor not in s:
                   raise SystemExit("Main LibVLC startup method missing")
               s = s.replace(anchor, helper + anchor, 1)
 
-          start = s.find("    private fun startMainLibVlc(uri: Uri) {")
-          end = s.find("\\n    private fun buildMediaItem(uri: Uri): MediaItem {", start)
+          start = s.find(anchor)
+          boundary = "private fun buildMediaItem(uri: Uri): MediaItem {"
+          end = s.find(boundary, start)
           if start < 0 or end < 0:
-              raise SystemExit("Could not isolate main LibVLC startup method")
+              raise SystemExit("Could not locate main LibVLC startup method boundaries")
           block = s[start:end]
 
-          # Reapply after every PlayerView attach/rebind, and after showing controls.
+          nl = chr(10)
           block = block.replace(
               "playerView.player = controller",
-              "playerView.player = controller\\n                  hideMainVlcMedia3VideoContent()"
+              "playerView.player = controller" + nl + "                  hideMainVlcMedia3VideoContent()"
           )
           block = block.replace(
               "playerView.showController()",
-              "playerView.showController()\\n                  hideMainVlcMedia3VideoContent()"
+              "playerView.showController()" + nl + "                  hideMainVlcMedia3VideoContent()"
           )
           if "hideMainVlcMedia3VideoContent()" not in block:
-              raise SystemExit("Failed to add the LibVLC overlay protection calls")
+              raise SystemExit("Failed to add LibVLC overlay protection calls")
           s = s[:start] + block + s[end:]
           p.write_text(s)
-          print("Kept Media3 controls visible while preventing its shutter/content frame from covering LibVLC video.")
+          print("Kept Media3 controls visible and hid its video shutter above LibVLC.")
           PY
 
       - name: Package 32-bit and 64-bit ARM variants for Android TV boxes
