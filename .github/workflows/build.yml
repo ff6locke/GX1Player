@@ -2604,6 +2604,29 @@ jobs:
           }
           GRADLE
 
+      - name: Compress packaged native libraries to reduce APK upload size
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/build.gradle.kts")
+          s = p.read_text()
+          marker = "    buildFeatures { buildConfig = true }"
+          block = """    packaging {
+                      jniLibs {
+                          // Store native .so libraries compressed in the APK.
+                          // Android extracts them at install time; this reduces upload size.
+                          useLegacyPackaging = true
+                      }
+                  }
+          """
+          if "useLegacyPackaging = true" not in s:
+              if marker not in s:
+                  raise SystemExit("Could not find Android buildFeatures block for native packaging configuration")
+              s = s.replace(marker, marker + "\\n" + block, 1)
+              p.write_text(s)
+          print("Enabled compressed native-library packaging.")
+          PY
       - name: Generate Gradle wrapper
         working-directory: ${{ env.PROJECT_DIR }}
         run: gradle wrapper --gradle-version "$GRADLE_VERSION" --no-daemon
