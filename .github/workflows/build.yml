@@ -6493,10 +6493,13 @@ jobs:
               s = s.replace(anchor, helper + anchor, 1)
 
           start = s.find(anchor)
-          boundary = "private fun buildMediaItem(uri: Uri): MediaItem {"
-          end = s.find(boundary, start)
-          if start < 0 or end < 0:
-              raise SystemExit("Could not locate main LibVLC startup method boundaries")
+          if start < 0:
+              raise SystemExit("Could not locate main LibVLC startup method")
+          import re
+          next_method = re.search(r"(?m)^    (?:private\\s+)?fun\\s+", s[start + len(anchor):])
+          if next_method is None:
+              raise SystemExit("Could not locate the next method after main LibVLC startup")
+          end = start + len(anchor) + next_method.start()
           block = s[start:end]
 
           nl = chr(10)
