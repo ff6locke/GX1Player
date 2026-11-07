@@ -6393,11 +6393,21 @@ jobs:
               block = block.replace("mediaUri = uri", "mediaUri = uri\n        updateGx1PlaybackQueue(uri)", 1)
               s = s[:start] + block + s[end:]
 
-          marker = "                  mainVlcControllerPlayer = controller\n                  playerView.player = controller"
-          if marker not in s:
-              raise SystemExit("Main LibVLC Media3 controller attachment point missing")
-          if "installGx1FileNavigationButtons()" not in s:
-              s = s.replace(marker, marker + "\n                  installGx1FileNavigationButtons()", 1)
+          attach = s.find("mainVlcControllerPlayer = controller")
+          if attach < 0:
+              raise SystemExit("Main LibVLC Media3 controller assignment missing")
+          attach_end = s.find("playerView.player = controller", attach)
+          if attach_end < 0:
+              raise SystemExit("Main LibVLC PlayerView attachment missing")
+          attach_end += len("playerView.player = controller")
+          start = s.find("private fun startMainLibVlc(uri: Uri)")
+          start_end = s.find("\\n    private fun ", start + 10)
+          if start < 0 or start_end < 0:
+              raise SystemExit("Could not locate main LibVLC startup method")
+          startup = s[start:start_end]
+          if "installGx1FileNavigationButtons()" not in startup:
+              insert_at = s.find("playerView.player = controller", start, start_end) + len("playerView.player = controller")
+              s = s[:insert_at] + "\\n                  installGx1FileNavigationButtons()" + s[insert_at:]
 
           if "private fun playAdjacentGx1File(direction: Int)" not in s:
               raise SystemExit("Previous/next playback navigation helper missing")
