@@ -3687,14 +3687,26 @@ jobs:
                   val durationGeneration = ++sourceGeneration
                   mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)
 
-                  // SAF content:// URIs are not ordinary filesystem paths. Give native
-                  // LibVLC the provider's open file descriptor instead of passing the
-                  // content URI as an MRL, and keep the descriptor alive during playback.
+                  // Match the known-working VLC test path first: pass the Android Uri
+                  // directly to LibVLC. In particular, SAF content:// playback must use
+                  // the same MRL path as the test player rather than forcing an
+                  // AssetFileDescriptor for every provider.
                   val media = if (uri.scheme == "content") {
-                      val afd = appContext.contentResolver.openAssetFileDescriptor(uri, "r")
-                          ?: throw java.io.IOException("Could not open selected media provider descriptor")
-                      activeAssetDescriptor = afd
-                      Media(libVlc, afd)
+                      try {
+                          Media(libVlc, uri).also {
+                              android.util.Log.i("GX1-VLC", "Using direct content Uri source")
+                          }
+                      } catch (uriError: Exception) {
+                          android.util.Log.w(
+                              "GX1-VLC",
+                              "Direct content Uri open failed; falling back to AssetFileDescriptor",
+                              uriError
+                          )
+                          val afd = appContext.contentResolver.openAssetFileDescriptor(uri, "r")
+                              ?: throw java.io.IOException("Could not open selected media provider descriptor")
+                          activeAssetDescriptor = afd
+                          Media(libVlc, afd)
+                      }
                   } else {
                       Media(libVlc, uri)
                   }
