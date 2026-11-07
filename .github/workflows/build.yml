@@ -6546,7 +6546,7 @@ jobs:
           import re
           s, count = re.subn(
               r'\n?\s*// Request an HDR-capable Android window.*?window\.colorMode = android\.content\.pm\.ActivityInfo\.COLOR_MODE_HDR\n\s*}\n',
-              "\\n",
+              "",
               s,
               count=1,
               flags=re.S
