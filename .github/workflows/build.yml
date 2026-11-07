@@ -6188,7 +6188,7 @@ jobs:
           PY
 
       - name: Add previous and next file controls to main LibVLC playback
-        working-directory: \${{ env.PROJECT_DIR }}
+        working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -6225,7 +6225,7 @@ jobs:
                           ?.forEach { found.add(it.name to Uri.fromFile(it)) }
                   } else if (uri.toString().contains("/tree/")) {
                       val documentId = android.provider.DocumentsContract.getDocumentId(uri)
-                      val parentId = documentId.substringBeforeLast("/", "")
+                      val parentId = if (documentId.contains("/")) documentId.substringBeforeLast("/") else documentId.substringBefore(":", "") + ":"
                       if (parentId.isNotBlank()) {
                           val children = android.provider.DocumentsContract
                               .buildChildDocumentsUriUsingTree(uri, parentId)
@@ -6254,7 +6254,7 @@ jobs:
                               }
                           }
                       }
-                  } else {
+                  } else if (android.os.Build.VERSION.SDK_INT >= 29) {
                       val relativePath = contentResolver.query(
                           uri,
                           arrayOf(android.provider.MediaStore.MediaColumns.RELATIVE_PATH),
