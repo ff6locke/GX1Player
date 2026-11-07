@@ -5263,15 +5263,14 @@ jobs:
                        'private var mainVlcEngine: Gx1LibVlcEngine? = null\n    private var mainVlcControllerClock: ExoPlayer? = null\n    private var mainVlcControllerPlayer: Player? = null\n    private var vlcTimelineBound = false',
                        'VLC controller fields')
 
-          s = s.replace('root.addView(mainVlcLayout, FrameLayout.LayoutParams(-1, -1))', '''val vlcContentFrame = playerView.findViewById<android.widget.FrameLayout>(
+          s = s.replace('root.addView(mainVlcLayout, FrameLayout.LayoutParams(-1, -1))', '''// Match the working standalone VLC test: keep VLCVideoLayout as a direct
+          // fullscreen sibling, not nested inside PlayerView's shutter/content frame.
+          // PlayerView remains above it solely for Media3 controls and touch handling.
+          root.addView(mainVlcLayout, 0, FrameLayout.LayoutParams(-1, -1))
+          playerView.setBackgroundColor(Color.TRANSPARENT)
+          playerView.findViewById<android.widget.FrameLayout>(
               androidx.media3.ui.R.id.exo_content_frame
-          )
-          if (vlcContentFrame != null) {
-              vlcContentFrame.removeAllViews()
-              vlcContentFrame.addView(mainVlcLayout, FrameLayout.LayoutParams(-1, -1))
-          } else {
-              throw IllegalStateException("Media3 video content frame was not found")
-          }''', 1)
+          )?.visibility = View.GONE''', 1)
           s = s.replace('root.addView(mainVlcBar, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM).apply { setMargins(18, 0, 18, 24) })', 'mainVlcBar.visibility = View.GONE', 1)
 
           start = s.find('    private fun startMainLibVlc(uri: Uri) {')
