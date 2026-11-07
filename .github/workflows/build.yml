@@ -6401,13 +6401,13 @@ jobs:
               raise SystemExit("Main LibVLC PlayerView attachment missing")
           attach_end += len("playerView.player = controller")
           start = s.find("private fun startMainLibVlc(uri: Uri)")
-          start_end = s.find("\\n    private fun ", start + 10)
+          start_end = s.find("\n    private fun ", start + 10)
           if start < 0 or start_end < 0:
               raise SystemExit("Could not locate main LibVLC startup method")
           startup = s[start:start_end]
           if "installGx1FileNavigationButtons()" not in startup:
               insert_at = s.find("playerView.player = controller", start, start_end) + len("playerView.player = controller")
-              s = s[:insert_at] + "\\n                  installGx1FileNavigationButtons()" + s[insert_at:]
+              s = s[:insert_at] + "\n                  installGx1FileNavigationButtons()" + s[insert_at:]
 
           if "private fun playAdjacentGx1File(direction: Int)" not in s:
               raise SystemExit("Previous/next playback navigation helper missing")
