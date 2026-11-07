@@ -6415,6 +6415,107 @@ jobs:
           print("Added same-folder previous/next playback controls for file, MediaStore, and SAF tree selections.")
           PY
 
+      - name: Refresh LibVLC playback position and M2TS seek bar
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+
+          field_anchor = "    private var mainVlcEngine: Gx1LibVlcEngine? = null"
+          fields = """    private val gx1PositionRefreshHandler = android.os.Handler(android.os.Looper.getMainLooper())
+              private var gx1PositionRefreshTask: Runnable? = null
+          """
+          if "gx1PositionRefreshHandler" not in s:
+              if field_anchor not in s:
+                  raise SystemExit("Main LibVLC engine field missing for position refresh")
+              s = s.replace(field_anchor, field_anchor + "\n" + fields, 1)
+
+          helper = r'''
+          private fun gx1FormatPlaybackTime(positionMs: Long): String {
+              val totalSeconds = (positionMs.coerceAtLeast(0L) / 1000L)
+              val hours = totalSeconds / 3600L
+              val minutes = (totalSeconds % 3600L) / 60L
+              val seconds = totalSeconds % 60L
+              return if (hours > 0L) {
+                  String.format(java.util.Locale.US, "%d:%02d:%02d", hours, minutes, seconds)
+              } else {
+                  String.format(java.util.Locale.US, "%d:%02d", minutes, seconds)
+              }
+          }
+
+          private fun startGx1PositionRefresh() {
+              gx1PositionRefreshTask?.let { gx1PositionRefreshHandler.removeCallbacks(it) }
+              val task = object : Runnable {
+                  override fun run() {
+                      val engine = mainVlcEngine ?: return
+                      if (!::playerView.isInitialized) return
+                      val position = engine.currentTimeMs().coerceAtLeast(0L)
+                      val duration = engine.durationMs().coerceAtLeast(0L)
+                      playerView.findViewById<android.widget.TextView>(
+                          androidx.media3.ui.R.id.exo_position
+                      )?.text = gx1FormatPlaybackTime(position)
+                      playerView.findViewById<android.widget.TextView>(
+                          androidx.media3.ui.R.id.exo_duration
+                      )?.text = gx1FormatPlaybackTime(duration)
+                      (playerView.findViewById<android.view.View>(
+                          androidx.media3.ui.R.id.exo_progress
+                      ) as? androidx.media3.ui.TimeBar)?.apply {
+                          if (duration > 0L) setDuration(duration)
+                          setPosition(position)
+                          setBufferedPosition(position)
+                      }
+                      gx1PositionRefreshHandler.postDelayed(this, 250L)
+                  }
+              }
+              gx1PositionRefreshTask = task
+              gx1PositionRefreshHandler.post(task)
+          }
+
+          private fun stopGx1PositionRefresh() {
+              gx1PositionRefreshTask?.let { gx1PositionRefreshHandler.removeCallbacks(it) }
+              gx1PositionRefreshTask = null
+          }
+
+          '''
+          if "private fun startGx1PositionRefresh()" not in s:
+              marker = "    private fun startMainLibVlc(uri: Uri) {"
+              if marker not in s:
+                  raise SystemExit("Main LibVLC startup method missing for position refresh")
+              s = s.replace(marker, helper + marker, 1)
+
+          start = s.find("    private fun startMainLibVlc(uri: Uri) {")
+          end = s.find("\n    private fun ", start + 10)
+          if start < 0 or end < 0:
+              raise SystemExit("Could not isolate main LibVLC startup method")
+          block = s[start:end]
+          if "startGx1PositionRefresh()" not in block:
+              marker = "                  playerView.showController()"
+              if marker not in block:
+                  raise SystemExit("Could not locate controller display call")
+              block = block.replace(marker, marker + "\n                  startGx1PositionRefresh()", 1)
+              s = s[:start] + block + s[end:]
+
+          release = s.find("    private fun releasePlayer()")
+          if release >= 0:
+              release_end = s.find("\n    private fun ", release + 10)
+              if release_end < 0:
+                  release_end = s.find("// ---------- resume ----------", release)
+              if release_end < 0:
+                  raise SystemExit("Could not isolate releasePlayer()")
+              block = s[release:release_end]
+              if "stopGx1PositionRefresh()" not in block:
+                  block = block.replace("    private fun releasePlayer() {",
+                                        "    private fun releasePlayer() {\n        stopGx1PositionRefresh()", 1)
+                  s = s[:release] + block + s[release_end:]
+
+          if "private fun startGx1PositionRefresh()" not in s or "startGx1PositionRefresh()" not in s:
+              raise SystemExit("M2TS playback position refresh verification failed")
+          p.write_text(s)
+          print("Added a 250 ms LibVLC-driven elapsed-time and seek-bar refresh, independent of the silent Media3 clock.")
+          PY
+
       - name: Package 32-bit and 64-bit ARM variants for Android TV boxes
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
