@@ -6565,31 +6565,12 @@ jobs:
           import re
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
           s = p.read_text()
-          # The standalone VLC test does not force a MediaCodec decoder through
-          # Media.setHWDecoderEnabled(). Keep LibVLC's default automatic decoder
-          # selection in the integrated player too, especially for DV Profile 8.1.
-          s, count = re.subn(
-              r"(?m)^\\s*media\\.setHWDecoderEnabled\\(true,\\s*false\\)\\s*\\n",
-              "",
-              s
-          )
-          s = s.replace(
-              'android.util.Log.i("GX1-VLC", "Requested Android hardware video decoding (fallback allowed)")',
-              'android.util.Log.i("GX1-VLC", "Using LibVLC automatic video decoder selection (same as standalone test)")'
-          )
+          # Mirror the standalone test: let LibVLC choose its decoder automatically.
+          s, count = re.subn(r"(?m)^\s*media\.setHWDecoderEnabled\(true,\s*false\)\s*\n", "", s)
           if "setHWDecoderEnabled(true, false)" in s:
               raise SystemExit("Explicit hardware-decoder override remains")
-          if "Using LibVLC automatic video decoder selection" not in s:
-              marker = "mediaPlayer.media = media"
-              if marker not in s:
-                  raise SystemExit("Could not locate media assignment for decoder diagnostic")
-              index = s.index(marker)
-              line_start = s.rfind("\\n", 0, index) + 1
-              indent = s[line_start:index]
-              indent = indent[:len(indent) - len(indent.lstrip())]
-              s = s[:line_start] + indent + 'android.util.Log.i("GX1-VLC", "Using LibVLC automatic video decoder selection (same as standalone test)")\\n' + s[line_start:]
           p.write_text(s)
-          print(f"Removed forced hardware-decoder override ({count} occurrence(s)); LibVLC now selects its decoder automatically.")
+          print(f"Removed forced hardware-decoder override ({count} occurrence(s)).")
           PY
 
       - name: Package 32-bit and 64-bit ARM variants for Android TV boxes
