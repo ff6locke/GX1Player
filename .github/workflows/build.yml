@@ -6463,6 +6463,61 @@ jobs:
           print("Enabled software decoding only for the reported 4K AVC sample as a hardware-decoder diagnostic.")
           PY
 
+      - name: Re-hide Media3 video content after attaching its controller
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+
+          # PlayerView can restore its opaque shutter/content frame when its player is
+          # attached or rebound. That frame sits above the LibVLC surface and can make
+          # the picture black while LibVLC audio continues. Keep only the Media3
+          # controller layer visible in main LibVLC mode.
+          helper = '''    private fun hideMainVlcMedia3VideoContent() {
+              if (!::playerView.isInitialized) return
+              playerView.setBackgroundColor(Color.TRANSPARENT)
+              playerView.findViewById<android.view.View>(
+                  androidx.media3.ui.R.id.exo_content_frame
+              )?.visibility = View.GONE
+              playerView.findViewById<android.view.View>(
+                  androidx.media3.ui.R.id.exo_shutter
+              )?.visibility = View.GONE
+              playerView.findViewById<android.view.View>(
+                  androidx.media3.ui.R.id.exo_artwork
+              )?.visibility = View.GONE
+          }
+
+          '''
+          if "private fun hideMainVlcMedia3VideoContent()" not in s:
+              anchor = "    private fun startMainLibVlc(uri: Uri) {"
+              if anchor not in s:
+                  raise SystemExit("Main LibVLC startup method missing")
+              s = s.replace(anchor, helper + anchor, 1)
+
+          start = s.find("    private fun startMainLibVlc(uri: Uri) {")
+          end = s.find("\\n    private fun buildMediaItem(uri: Uri): MediaItem {", start)
+          if start < 0 or end < 0:
+              raise SystemExit("Could not isolate main LibVLC startup method")
+          block = s[start:end]
+
+          # Reapply after every PlayerView attach/rebind, and after showing controls.
+          block = block.replace(
+              "playerView.player = controller",
+              "playerView.player = controller\\n                  hideMainVlcMedia3VideoContent()"
+          )
+          block = block.replace(
+              "playerView.showController()",
+              "playerView.showController()\\n                  hideMainVlcMedia3VideoContent()"
+          )
+          if "hideMainVlcMedia3VideoContent()" not in block:
+              raise SystemExit("Failed to add the LibVLC overlay protection calls")
+          s = s[:start] + block + s[end:]
+          p.write_text(s)
+          print("Kept Media3 controls visible while preventing its shutter/content frame from covering LibVLC video.")
+          PY
+
       - name: Package 32-bit and 64-bit ARM variants for Android TV boxes
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
