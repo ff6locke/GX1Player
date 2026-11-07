@@ -2623,7 +2623,7 @@ jobs:
           if "useLegacyPackaging = true" not in s:
               if marker not in s:
                   raise SystemExit("Could not find Android buildFeatures block for native packaging configuration")
-              s = s.replace(marker, marker + "\\n" + block, 1)
+              s = s.replace(marker, marker + "\n" + block, 1)
               p.write_text(s)
           print("Enabled compressed native-library packaging.")
           PY
