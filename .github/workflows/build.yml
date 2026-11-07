@@ -3644,6 +3644,12 @@ jobs:
 
               init {
                   mediaPlayer.setEventListener { event ->
+                      val voutInfo = runCatching {
+                          mediaPlayer.javaClass.methods.firstOrNull {
+                              it.name == "getVoutCount" || it.name == "getVout"
+                          }?.invoke(mediaPlayer)?.toString() ?: "not-exposed"
+                      }.getOrDefault("query-failed")
+                      android.util.Log.i("GX1-VLC", "MAIN LibVLC event=${event.type}, vout=$voutInfo")
                       when (event.type) {
                           MediaPlayer.Event.Opening -> publish(opening = true, error = null)
                           MediaPlayer.Event.Playing -> {
@@ -3668,6 +3674,7 @@ jobs:
 
               fun attach(layout: VLCVideoLayout) {
                   checkActive()
+                  android.util.Log.i("GX1-VLC", "MAIN attach: attached=${layout.isAttachedToWindow}, size=${layout.width}x${layout.height}, parent=${layout.parent?.javaClass?.simpleName}")
                   if (attachedLayout === layout) return
                   if (attachedLayout != null) runCatching { mediaPlayer.detachViews() }
                   mediaPlayer.attachViews(layout, null, false, false)
