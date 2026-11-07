@@ -6569,13 +6569,12 @@ jobs:
               raise SystemExit("Could not locate LibVLC media assignment")
           if "Requested Android hardware video decoding" not in s:
               index = s.index(marker)
-              line_start = s.rfind("\\n", 0, index) + 1
+              line_start = s.rfind("\n", 0, index) + 1
               indent = s[line_start:index]
-              if indent.strip():
-                  indent = indent[:len(indent) - len(indent.lstrip())]
+              indent = indent[:len(indent) - len(indent.lstrip())]
               insertion = (
-                  indent + "media.setHWDecoderEnabled(true, false)\\n" +
-                  indent + 'android.util.Log.i("GX1-VLC", "Requested Android hardware video decoding (fallback allowed)")\\n'
+                  indent + "media.setHWDecoderEnabled(true, false)\n" +
+                  indent + 'android.util.Log.i("GX1-VLC", "Requested Android hardware video decoding (fallback allowed)")\n'
               )
               s = s[:line_start] + insertion + s[line_start:]
           p.write_text(s)
