@@ -6782,7 +6782,7 @@ jobs:
           # VLCVideoLayout attachment and all video-surface work stay on the UI thread.
           engine = engine.replace(
               "private val onStateChanged: (State) -> Unit = {}\n",
-              "private val onStateChanged: (State) -> Unit = {},\n    prewarmedLibVlc: LibVLC? = null\n",
+              "prewarmedLibVlc: LibVLC? = null,\n    private val onStateChanged: (State) -> Unit = {}\n",
               1
           )
           old_vlc = '''    private val libVlc = LibVLC(appContext, arrayListOf(
