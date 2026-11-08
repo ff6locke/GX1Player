@@ -4594,16 +4594,17 @@ jobs:
           engine = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
           e = engine.read_text()
           if "fun addExternalSubtitle(uri: Uri)" not in e:
-              match = re.search(r"(?m)^\\s*fun play\\(\\) \\{", e)
-              if not match:
+              play_index = e.find("fun play()")
+              if play_index < 0:
                   raise SystemExit("Engine play() declaration missing")
+              line_start = e.rfind("\\n", 0, play_index) + 1
               method = """    fun addExternalSubtitle(uri: Uri): Boolean {
                   checkActive()
                   return mediaPlayer.addSlave(0, uri, true)
               }
 
           """
-              e = e[:match.start()] + method + e[match.start():]
+              e = e[:line_start] + method + e[line_start:]
               engine.write_text(e)
 
           activity = Path("app/src/main/java/com/example/gx1player/VlcTestActivity.kt")
