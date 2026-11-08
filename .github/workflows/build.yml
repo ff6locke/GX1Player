@@ -6604,7 +6604,7 @@ jobs:
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
           s = p.read_text()
           import re
-          s, removed = re.subn(r"(?m)^\\s*mediaPlayer\\.setAudioDigitalOutputEnabled\\(digitalOutput\\)\\s*\\n", "", s, count=1)
+          s, removed = re.subn(r"(?m)^\s*mediaPlayer\.setAudioDigitalOutputEnabled\(digitalOutput\)\s*\n", "", s, count=1)
           if removed != 1:
               raise SystemExit("Could not find exactly one default LibVLC digital-output setup")
           anchor = """                  try {
