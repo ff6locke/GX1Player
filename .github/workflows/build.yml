@@ -6800,7 +6800,6 @@ jobs:
 
           on_create = "    override fun onCreate(savedInstanceState: Bundle?) {"
           prewarm = """    override fun onCreate(savedInstanceState: Bundle?) {
-                  super.onCreate(savedInstanceState)
                   // Initialize LibVLC in the background while the home screen loads.
                   Thread({
                       val warmed = runCatching { Gx1LibVlcEngine(applicationContext) }.getOrNull()
