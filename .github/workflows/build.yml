@@ -6607,12 +6607,12 @@ jobs:
               args = m.group(1)
               return '''LibVLC(appContext, arrayListOf(''' + args + ''').apply {
                   when (appContext.getSharedPreferences("gx1_player", Context.MODE_PRIVATE)
-                      .getString("vlc_video_output", "auto")) {
+                      .getString("vlc_video_output", "android")) {
                       "opengl" -> add("--vout=gles2,none")
                       "android" -> add("--vout=android_display,none")
                   }
               })'''
-          if 'getString("vlc_video_output", "auto")' not in s:
+          if 'getString("vlc_video_output", "android")' not in s:
               s, count = re.subn(pattern, add_output_selector, s, count=1, flags=re.S)
               if count != 1:
                   raise SystemExit("Could not match LibVLC constructor in generated engine")
@@ -6631,7 +6631,7 @@ jobs:
               action = '''"video_output" -> {
                                   val labels = arrayOf("Automatic (recommended)", "OpenGL (gles2)", "Android display")
                                   val values = arrayOf("auto", "opengl", "android")
-                                  val current = prefs.getString("vlc_video_output", "auto")
+                                  val current = prefs.getString("vlc_video_output", "android")
                                   AlertDialog.Builder(this)
                                       .setTitle("VLC Video Output")
                                       .setSingleChoiceItems(labels, values.indexOf(current).coerceAtLeast(0)) { dialog, which ->
@@ -6658,7 +6658,7 @@ jobs:
           p.write_text(s)
           engine = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt").read_text()
           activity = Path("app/src/main/java/com/example/gx1player/MainActivity.kt").read_text()
-          if 'getString("vlc_video_output", "auto")' not in engine:
+          if 'getString("vlc_video_output", "android")' not in engine:
               raise SystemExit("Video output preference verification failed in LibVLC engine")
           if 'Triple("▣", "VLC Video Output", "video_output")' not in activity:
               raise SystemExit("Video output menu row verification failed in MainActivity")
