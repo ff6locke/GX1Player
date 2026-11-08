@@ -6604,10 +6604,10 @@ jobs:
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
           s = p.read_text()
-          old = "              mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)\n"
-          if old not in s:
-              raise SystemExit("Could not find default LibVLC digital-output setup")
-          s = s.replace(old, "", 1)
+          import re
+          s, removed = re.subn(r"(?m)^\\s*mediaPlayer\\.setAudioDigitalOutputEnabled\\(digitalOutput\\)\\s*\\n", "", s, count=1)
+          if removed != 1:
+              raise SystemExit("Could not find exactly one default LibVLC digital-output setup")
           anchor = """                  try {
                       mediaPlayer.media = media
                   } catch (error: Exception) {"""
