@@ -1781,6 +1781,7 @@ jobs:
           s = s.replace("private fun loadFirstSubtitleOverlay()", "private fun loadFirstSubtitleOverlay_REMOVED()")
           # Remove any picker call left behind after deleting the slot-1 overlay.
           # Match whitespace from the generated Kotlin source, not this YAML script.
+          removed = re.sub(
               r'(?m)^[ \t]*loadFirstSubtitleOverlay\(\)[ \t]*\r?\n[ \t]*subtitleUiHandler\.removeCallbacks\(subtitleTicker\)[ \t]*\r?\n[ \t]*subtitleUiHandler\.post\(subtitleTicker\)',
               "startPlayer()",
               s
