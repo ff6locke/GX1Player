@@ -3641,6 +3641,9 @@ jobs:
               private var pendingSeekMs = 0L
               @Volatile private var durationHintMs = 0L
               @Volatile private var sourceGeneration = 0
+              @Volatile private var reachedEnd = false
+              private var activeUri: Uri? = null
+              private var activeDigitalOutput = true
 
               init {
                   mediaPlayer.setEventListener { event ->
@@ -3653,6 +3656,7 @@ jobs:
                       when (event.type) {
                           MediaPlayer.Event.Opening -> publish(opening = true, error = null)
                           MediaPlayer.Event.Playing -> {
+                              reachedEnd = false
                               val seek = pendingSeekMs
                               pendingSeekMs = 0L
                               if (seek > 0L) mediaPlayer.setTime(seek)
@@ -3660,7 +3664,10 @@ jobs:
                           }
                           MediaPlayer.Event.Paused -> publish(playing = false)
                           MediaPlayer.Event.Stopped -> publish(playing = false, opening = false)
-                          MediaPlayer.Event.EndReached -> publish(playing = false, opening = false, ended = true)
+                          MediaPlayer.Event.EndReached -> {
+                              reachedEnd = true
+                              publish(playing = false, opening = false, ended = true)
+                          }
                           MediaPlayer.Event.EncounteredError -> publish(
                               playing = false, opening = false,
                               error = "LibVLC encountered a playback error"
@@ -3683,6 +3690,9 @@ jobs:
 
               fun open(uri: Uri, startPositionMs: Long = 0L, digitalOutput: Boolean = true) {
                   checkActive()
+                  activeUri = uri
+                  activeDigitalOutput = digitalOutput
+                  reachedEnd = false
                   require(uri.scheme in setOf("content", "file", "http", "https")) {
                       "Unsupported media URI scheme: ${uri.scheme}"
                   }
@@ -3753,7 +3763,19 @@ jobs:
                   }
               }
 
-              fun play() { checkActive(); if (!mediaPlayer.isPlaying) mediaPlayer.play() }
+              fun play() {
+                  checkActive()
+                  if (reachedEnd) {
+                      // LibVLC does not reliably restart a MediaPlayer after EndReached.
+                      // Reopen the same source at zero so the Play button works without
+                      // requiring the user to switch files or reopen the video.
+                      val uri = activeUri
+                      if (uri != null) open(uri, 0L, activeDigitalOutput)
+                      else mediaPlayer.play()
+                  } else if (!mediaPlayer.isPlaying) {
+                      mediaPlayer.play()
+                  }
+              }
               fun pause() { checkActive(); if (mediaPlayer.isPlaying) mediaPlayer.pause() }
               fun togglePlayback() { checkActive(); if (mediaPlayer.isPlaying) pause() else play() }
               fun seekTo(positionMs: Long) { checkActive(); mediaPlayer.setTime(positionMs.coerceAtLeast(0L)) }
