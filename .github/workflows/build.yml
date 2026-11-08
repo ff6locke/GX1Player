@@ -4027,7 +4027,7 @@ jobs:
                           }
                       }
                       val media = Media(vlc, uri)
-                      try { mp.media = media } finally { media.release() }
+                      try { mp.media = media } finally { runCatching { media.javaClass.getMethod("release").invoke(media) } }
                       mp.play()
                       handler.post(ticker)
                   } catch (e: Exception) {
