@@ -1,5 +1,6 @@
 name: Build GX1 Player APK
 # Build subtitle parser escape fix; verify Kotlin character literals
+# Keep the LibVLC prewarm test workflow on this PR branch.
 
 on:
   push:
