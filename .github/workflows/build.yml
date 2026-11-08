@@ -6602,7 +6602,7 @@ jobs:
 
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
           s = p.read_text()
-          pattern = r'LibVLC\\(appContext,\\s*arrayListOf\\((.*?)\\)\\)'
+          pattern = r'LibVLC\(appContext,\s*arrayListOf\((.*?)\)\)'
           def add_output_selector(m):
               args = m.group(1)
               return '''LibVLC(appContext, arrayListOf(''' + args + ''').apply {
@@ -6622,8 +6622,8 @@ jobs:
           s = p.read_text()
           if '"video_output"' not in s:
               s, count = re.subn(
-                  r'(?m)^(\\s*)Triple\\("▤", "Aspect Ratio", "aspect"\\),',
-                  r'\\1Triple("▤", "Aspect Ratio", "aspect"),\\n\\1Triple("▣", "VLC Video Output", "video_output"),',
+                  r'(?m)^(\s*)Triple\("▤", "Aspect Ratio", "aspect"\),',
+                  r'\1Triple("▤", "Aspect Ratio", "aspect"),\n\1Triple("▣", "VLC Video Output", "video_output"),',
                   s, count=1)
               if count != 1:
                   raise SystemExit("Could not locate Aspect Ratio menu row")
@@ -6652,7 +6652,7 @@ jobs:
                                       .show()
                               }
                   '''
-              s, count = re.subn(r'(?m)^(\\s*)"repeat" -> \\{', lambda m: m.group(1) + action + '\\n' + m.group(1) + '"repeat" -> {', s, count=1)
+              s, count = re.subn(r'(?m)^(\s*)"repeat" -> \{', lambda m: m.group(1) + action + '\n' + m.group(1) + '"repeat" -> {', s, count=1)
               if count != 1:
                   raise SystemExit("Could not locate Repeat menu action")
           if 'getString("vlc_video_output", "auto")' not in p.read_text():
