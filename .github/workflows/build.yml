@@ -6598,44 +6598,37 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
+
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
           s = p.read_text()
-          old = '''              private val libVlc = LibVLC(appContext, arrayListOf(
-                  "--aout=android_audiotrack",
-                  "-vvv",
-                  "--no-video-title-show"
-              ))'''
-          new = '''              private val libVlc = LibVLC(appContext, arrayListOf(
-                  "--aout=android_audiotrack",
-                  "-vvv",
-                  "--no-video-title-show"
-              ).apply {
+          pattern = r'LibVLC\\(appContext,\\s*arrayListOf\\((.*?)\\)\\)'
+          def add_output_selector(m):
+              args = m.group(1)
+              return '''LibVLC(appContext, arrayListOf(''' + args + ''').apply {
                   when (appContext.getSharedPreferences("gx1_player", Context.MODE_PRIVATE)
                       .getString("vlc_video_output", "auto")) {
                       "opengl" -> add("--vout=gles2,none")
                       "android" -> add("--vout=android_display,none")
                   }
               })'''
-          if old in s:
-              s = s.replace(old, new, 1)
-          elif 'getString("vlc_video_output", "auto")' not in s:
-              raise SystemExit("Could not locate LibVLC option list for video-output setting")
+          if 'getString("vlc_video_output", "auto")' not in s:
+              s, count = re.subn(pattern, add_output_selector, s, count=1, flags=re.S)
+              if count != 1:
+                  raise SystemExit("Could not match LibVLC constructor in generated engine")
           p.write_text(s)
 
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
-          old_row = '''                      Triple("▤", "Aspect Ratio", "aspect"),
-                      Triple("⇄", "Repeat", "repeat"),'''
-          new_row = '''                      Triple("▤", "Aspect Ratio", "aspect"),
-                      Triple("▣", "VLC Video Output", "video_output"),
-                      Triple("⇄", "Repeat", "repeat"),'''
-          if old_row in s:
-              s = s.replace(old_row, new_row, 1)
-          elif '"video_output"' not in s:
-              raise SystemExit("Could not locate playback menu rows")
-
-          marker = '''                              "repeat" -> {'''
-          action = '''                              "video_output" -> {
+          if '"video_output"' not in s:
+              s, count = re.subn(
+                  r'(?m)^(\\s*)Triple\\("▤", "Aspect Ratio", "aspect"\\),',
+                  r'\\1Triple("▤", "Aspect Ratio", "aspect"),\\n\\1Triple("▣", "VLC Video Output", "video_output"),',
+                  s, count=1)
+              if count != 1:
+                  raise SystemExit("Could not locate Aspect Ratio menu row")
+          if '"video_output" -> {' not in s:
+              action = '''"video_output" -> {
                                   val labels = arrayOf("Automatic (recommended)", "OpenGL (gles2)", "Android display")
                                   val values = arrayOf("auto", "opengl", "android")
                                   val current = prefs.getString("vlc_video_output", "auto")
@@ -6658,18 +6651,15 @@ jobs:
                                       .setNegativeButton("Cancel", null)
                                       .show()
                               }
-          '''
-          if marker in s and '"video_output" -> {' not in s:
-              s = s.replace(marker, action + marker, 1)
-          elif '"video_output" -> {' not in s:
-              raise SystemExit("Could not locate playback menu action switch")
-
+                  '''
+              s, count = re.subn(r'(?m)^(\\s*)"repeat" -> \\{', lambda m: m.group(1) + action + '\\n' + m.group(1) + '"repeat" -> {', s, count=1)
+              if count != 1:
+                  raise SystemExit("Could not locate Repeat menu action")
           if 'getString("vlc_video_output", "auto")' not in p.read_text():
               raise SystemExit("Video output preference verification failed")
           if 'Triple("▣", "VLC Video Output", "video_output")' not in p.read_text():
               raise SystemExit("Video output menu row verification failed")
-          p.write_text(s)
-          print("Added Automatic/OpenGL/Android-display LibVLC output selector.")
+          print("Added selectable LibVLC video output modes.")
           PY
 
       - name: Build separate 32-bit and 64-bit ARM APKs
