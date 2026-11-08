@@ -6766,73 +6766,99 @@ jobs:
           print("Added selectable LibVLC video output modes.")
           PY
 
-      - name: Prewarm LibVLC before first video playback
+      - name: Prewarm LibVLC core only; create MediaPlayer on UI thread
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
           engine_path = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
           activity_path = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           engine = engine_path.read_text()
           activity = activity_path.read_text()
 
-          old_callback = "private val onStateChanged: (State) -> Unit = {}"
-          if old_callback in engine:
-              engine = engine.replace(old_callback, "private var onStateChanged: (State) -> Unit = {}", 1)
-          if "fun setStateListener(listener: (State) -> Unit)" not in engine:
-              attach = "    fun attach(layout: VLCVideoLayout) {"
-              if attach not in engine:
-                  raise SystemExit("LibVLC attach method not found")
-              engine = engine.replace(attach,
-                  "    fun setStateListener(listener: (State) -> Unit) { onStateChanged = listener }\n\n" + attach, 1)
+          # Warm only the native LibVLC core on the worker thread. MediaPlayer,
+          # VLCVideoLayout attachment and all video-surface work stay on the UI thread.
+          engine = engine.replace(
+              "private val onStateChanged: (State) -> Unit = {}\n",
+              "private val onStateChanged: (State) -> Unit = {},\n    prewarmedLibVlc: LibVLC? = null\n",
+              1
+          )
+          old_vlc = '''    private val libVlc = LibVLC(appContext, arrayListOf(
+          "--aout=android_audiotrack",
+          "-vvv",
+          "--no-video-title-show"
+      ))'''
+          new_vlc = '''    private val libVlc = prewarmedLibVlc ?: createPrewarmedLibVlc(appContext)'''
+          if old_vlc in engine:
+              engine = engine.replace(old_vlc, new_vlc, 1)
+          elif new_vlc not in engine:
+              raise SystemExit("Could not locate LibVLC construction in engine")
+
+          if "fun createPrewarmedLibVlc(context: Context): LibVLC" not in engine:
+              marker = "    data class State("
+              factory = '''    companion object {
+              fun createPrewarmedLibVlc(context: Context): LibVLC = LibVLC(
+                  context.applicationContext,
+                  arrayListOf("--aout=android_audiotrack", "-vvv", "--no-video-title-show")
+              )
+          }
+
+          '''
+              if marker not in engine:
+                  raise SystemExit("Could not locate engine State declaration")
+              engine = engine.replace(marker, factory + marker, 1)
 
           field = "    private var mainVlcEngine: Gx1LibVlcEngine? = null"
           fields = """    private var mainVlcEngine: Gx1LibVlcEngine? = null
-              private var gx1PrewarmedEngine: Gx1LibVlcEngine? = null
+              private var gx1PrewarmedLibVlc: org.videolan.libvlc.LibVLC? = null
               private val gx1VlcPrewarmReady = java.util.concurrent.CountDownLatch(1)
               @Volatile private var gx1VlcPlaybackStarted = false
               @Volatile private var gx1ActivityDestroyed = false"""
-          if "private var gx1PrewarmedEngine:" not in activity:
+          if "gx1PrewarmedLibVlc:" not in activity:
               if field not in activity:
                   raise SystemExit("Main LibVLC engine field not found")
               activity = activity.replace(field, fields, 1)
 
-          on_create = "    override fun onCreate(savedInstanceState: Bundle?) {"
-          prewarm = """    override fun onCreate(savedInstanceState: Bundle?) {
-                  // Initialize LibVLC in the background while the home screen loads.
+          on_create_call = "        super.onCreate(savedInstanceState)"
+          prewarm = """        super.onCreate(savedInstanceState)
+                  // Load LibVLC native core off the UI thread; do not create MediaPlayer here.
                   Thread({
-                      val warmed = runCatching { Gx1LibVlcEngine(applicationContext) }.getOrNull()
+                      val warmed = runCatching {
+                          Gx1LibVlcEngine.createPrewarmedLibVlc(applicationContext)
+                      }.getOrNull()
                       synchronized(this@MainActivity) {
                           if (warmed != null) {
                               if (gx1ActivityDestroyed || gx1VlcPlaybackStarted) warmed.release()
-                              else gx1PrewarmedEngine = warmed
+                              else gx1PrewarmedLibVlc = warmed
                           }
                       }
                       gx1VlcPrewarmReady.countDown()
-                  }, "gx1-libvlc-prewarm").apply { isDaemon = true; start() }"""
-          if "gx1-libvlc-prewarm" not in activity:
-              if on_create not in activity:
-                  raise SystemExit("MainActivity onCreate method not found")
-              activity = activity.replace(on_create, prewarm, 1)
+                  }, "gx1-libvlc-core-prewarm").apply { isDaemon = true; start() }"""
+          if "gx1-libvlc-core-prewarm" not in activity:
+              if on_create_call not in activity:
+                  raise SystemExit("MainActivity super.onCreate call not found")
+              activity = activity.replace(on_create_call, prewarm, 1)
 
           old_start = "val engine = Gx1LibVlcEngine(this) { state -> runOnUiThread {"
-          new_start = """runCatching { gx1VlcPrewarmReady.await(15, java.util.concurrent.TimeUnit.SECONDS) }
-                  val engine = synchronized(this) {
+          new_start = """runCatching { gx1VlcPrewarmReady.await(5, java.util.concurrent.TimeUnit.SECONDS) }
+                  val prewarmed = synchronized(this) {
                       gx1VlcPlaybackStarted = true
-                      gx1PrewarmedEngine.also { gx1PrewarmedEngine = null }
-                  } ?: Gx1LibVlcEngine(this)
-                  engine.setStateListener { state -> runOnUiThread {"""
+                      gx1PrewarmedLibVlc.also { gx1PrewarmedLibVlc = null }
+                  }
+                  // MediaPlayer is deliberately constructed here on the UI thread.
+                  val engine = Gx1LibVlcEngine(this, prewarmedLibVlc = prewarmed) { state -> runOnUiThread {"""
           if old_start in activity:
               activity = activity.replace(old_start, new_start, 1)
-          elif "engine.setStateListener { state -> runOnUiThread {" not in activity:
-              raise SystemExit("Main LibVLC startup callback not found")
+          elif "Gx1LibVlcEngine(this, prewarmedLibVlc = prewarmed)" not in activity:
+              raise SystemExit("Main LibVLC startup constructor not found")
 
           destroy = """    override fun onDestroy() {
                   synchronized(this) {
                       gx1ActivityDestroyed = true
-                      gx1PrewarmedEngine?.release()
-                      gx1PrewarmedEngine = null
+                      gx1PrewarmedLibVlc?.release()
+                      gx1PrewarmedLibVlc = null
                   }
                   super.onDestroy()
               }
@@ -6846,12 +6872,12 @@ jobs:
 
           if "mediaPlayer.attachViews(layout, null, true, false)" not in engine:
               raise SystemExit("Embedded subtitle surface attachment unexpectedly changed")
-          if "engine.setStateListener" not in activity or "gx1VlcPrewarmReady.await(15" not in activity:
-              raise SystemExit("Prewarm reuse/callback verification failed")
+          if "gx1VlcPrewarmReady.await(5" not in activity or "Gx1LibVlcEngine(this, prewarmedLibVlc = prewarmed)" not in activity:
+              raise SystemExit("UI-thread MediaPlayer handoff verification failed")
 
           engine_path.write_text(engine)
           activity_path.write_text(activity)
-          print("Added background LibVLC prewarm, first-play reuse, state callback handoff and unused-instance cleanup.")
+          print("Prewarm is limited to LibVLC core; MediaPlayer and video surface are created/attached on UI thread.")
           PY
 
       - name: Build separate 32-bit and 64-bit ARM APKs
