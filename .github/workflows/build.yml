@@ -6655,6 +6655,7 @@ jobs:
               s, count = re.subn(r'(?m)^(\s*)"sleep" -> \{', lambda m: m.group(1) + action + '\n' + m.group(1) + '"sleep" -> {', s, count=1)
               if count != 1:
                   raise SystemExit("Could not locate Sleep Timer menu action")
+          p.write_text(s)
           engine = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt").read_text()
           activity = Path("app/src/main/java/com/example/gx1player/MainActivity.kt").read_text()
           if 'getString("vlc_video_output", "auto")' not in engine:
