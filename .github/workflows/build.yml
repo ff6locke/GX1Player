@@ -6608,49 +6608,48 @@ jobs:
           s, removed = re.subn(r"(?m)^\s*mediaPlayer\.setAudioDigitalOutputEnabled\(digitalOutput\)\s*\n", "", s, count=1)
           if removed != 1:
               raise SystemExit("Could not find exactly one default LibVLC digital-output setup")
-          anchor = """                  try {
-                      mediaPlayer.media = media
-                  } catch (error: Exception) {"""
-          replacement = """                  // Parse the embedded audio metadata before playback so the HDMI output
-                  // can be selected for this source only. RockTek GX1 fails to negotiate
-                  // some multichannel AAC bitstreams in encoded/automatic mode, while
-                  // PCM output works. Keep automatic encoded passthrough for every other
-                  // codec (AC3, E-AC3/Atmos, DTS and TrueHD).
-                  val hasAac51 = runCatching {
-                      val parsed = media.parse(Media.Parse.ParseLocal)
-                      parsed && (0 until media.trackCount).any { index ->
-                          val track = media.getTrack(index)
-                          if (track !is Media.AudioTrack || track.channels < 6) {
-                              false
-                          } else {
-                              val codec = (track.codec + " " + track.originalCodec).lowercase()
-                              codec.contains("aac") || codec.contains("mp4a")
-                          }
-                      }
-                  }.onFailure {
-                      android.util.Log.w("GX1-VLC", "Audio metadata pre-parse failed; retaining automatic output", it)
-                  }.getOrDefault(false)
-
-                  if (hasAac51) {
-                      val pcmSelected = mediaPlayer.setAudioOutputDevice("pcm")
-                      android.util.Log.i("GX1-VLC", "AAC multichannel track detected; PCM output selected=$pcmSelected")
-                      if (!pcmSelected) {
-                          mediaPlayer.setAudioOutputDevice(null)
-                          mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)
-                      }
+          assignment = "mediaPlayer.media = media"
+          assignment_pos = s.find(assignment)
+          if assignment_pos < 0:
+              raise SystemExit("Could not locate LibVLC media assignment")
+          try_pos = s.rfind("try {", 0, assignment_pos)
+          if try_pos < 0 or s.find("\n", try_pos) > assignment_pos:
+              raise SystemExit("Could not locate media assignment try block")
+          insert_pos = s.rfind("\n", 0, try_pos) + 1
+          indent = s[insert_pos:try_pos]
+          routing = """// Parse embedded audio metadata before playback. Multichannel AAC
+          // needs PCM on this RockTek HDMI path; keep encoded passthrough for
+          // AC3, E-AC3/Atmos, DTS and TrueHD.
+          val hasAac51 = runCatching {
+              val parsed = media.parse(Media.Parse.ParseLocal)
+              parsed && (0 until media.trackCount).any { index ->
+                  val track = media.getTrack(index)
+                  if (track !is Media.AudioTrack || track.channels < 6) {
+                      false
                   } else {
-                      // Clear any PCM override left by the previous source, then restore
-                      // LibVLC's normal HDMI capability detection and passthrough setting.
-                      mediaPlayer.setAudioOutputDevice(null)
-                      mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)
+                      val codec = (track.codec + " " + track.originalCodec).lowercase()
+                      codec.contains("aac") || codec.contains("mp4a")
                   }
+              }
+          }.onFailure {
+              android.util.Log.w("GX1-VLC", "Audio metadata pre-parse failed; retaining automatic output", it)
+          }.getOrDefault(false)
 
-                  try {
-                      mediaPlayer.media = media
-                  } catch (error: Exception) {"""
-          if anchor not in s:
-              raise SystemExit("Could not locate media assignment for per-source audio routing")
-          s = s.replace(anchor, replacement, 1)
+          if (hasAac51) {
+              val pcmSelected = mediaPlayer.setAudioOutputDevice("pcm")
+              android.util.Log.i("GX1-VLC", "AAC multichannel track detected; PCM output selected=$pcmSelected")
+              if (!pcmSelected) {
+                  mediaPlayer.setAudioOutputDevice(null)
+                  mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)
+              }
+          } else {
+              mediaPlayer.setAudioOutputDevice(null)
+              mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)
+          }
+
+          """.splitlines()
+          routing_text = "".join(indent + line + "\n" for line in routing if line)
+          s = s[:insert_pos] + routing_text + s[insert_pos:]
           required = [
               "media.parse(Media.Parse.ParseLocal)",
               "track is Media.AudioTrack",
