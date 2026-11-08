@@ -1,10 +1,9 @@
 name: Build GX1 Player APK
 # Build subtitle parser escape fix; verify Kotlin character literals
-# Keep pull-request builds enabled for isolated video-surface testing.
 
 on:
   push:
-    branches: [ main, 'test/**' ]
+    branches: [ main ]
     paths:
       - 'gx1-player.zip'
       - '.github/workflows/build.yml'
