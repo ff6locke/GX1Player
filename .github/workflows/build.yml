@@ -1,5 +1,6 @@
 name: Build GX1 Player APK
 # Build subtitle parser escape fix; verify Kotlin character literals
+# Keep pull-request builds enabled for isolated video-surface testing.
 
 on:
   push:
