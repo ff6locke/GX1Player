@@ -6597,6 +6597,74 @@ jobs:
           print(f"Removed forced hardware-decoder override ({count} occurrence(s)).")
           PY
 
+      - name: Route AAC 5.1 to multichannel PCM without changing other codecs
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
+          s = p.read_text()
+          old = "              mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)\n"
+          if old not in s:
+              raise SystemExit("Could not find default LibVLC digital-output setup")
+          s = s.replace(old, "", 1)
+          anchor = """                  try {
+                      mediaPlayer.media = media
+                  } catch (error: Exception) {"""
+          replacement = """                  // Parse the embedded audio metadata before playback so the HDMI output
+                  // can be selected for this source only. RockTek GX1 fails to negotiate
+                  // some multichannel AAC bitstreams in encoded/automatic mode, while
+                  // PCM output works. Keep automatic encoded passthrough for every other
+                  // codec (AC3, E-AC3/Atmos, DTS and TrueHD).
+                  val hasAac51 = runCatching {
+                      val parsed = media.parse(Media.Parse.ParseLocal)
+                      parsed && (0 until media.trackCount).any { index ->
+                          val track = media.getTrack(index)
+                          if (track !is Media.AudioTrack || track.channels < 6) {
+                              false
+                          } else {
+                              val codec = (track.codec + " " + track.originalCodec).lowercase()
+                              codec.contains("aac") || codec.contains("mp4a")
+                          }
+                      }
+                  }.onFailure {
+                      android.util.Log.w("GX1-VLC", "Audio metadata pre-parse failed; retaining automatic output", it)
+                  }.getOrDefault(false)
+
+                  if (hasAac51) {
+                      val pcmSelected = mediaPlayer.setAudioOutputDevice("pcm")
+                      android.util.Log.i("GX1-VLC", "AAC multichannel track detected; PCM output selected=$pcmSelected")
+                      if (!pcmSelected) {
+                          mediaPlayer.setAudioOutputDevice(null)
+                          mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)
+                      }
+                  } else {
+                      // Clear any PCM override left by the previous source, then restore
+                      // LibVLC's normal HDMI capability detection and passthrough setting.
+                      mediaPlayer.setAudioOutputDevice(null)
+                      mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)
+                  }
+
+                  try {
+                      mediaPlayer.media = media
+                  } catch (error: Exception) {"""
+          if anchor not in s:
+              raise SystemExit("Could not locate media assignment for per-source audio routing")
+          s = s.replace(anchor, replacement, 1)
+          required = [
+              "media.parse(Media.Parse.ParseLocal)",
+              "track is Media.AudioTrack",
+              'mediaPlayer.setAudioOutputDevice("pcm")',
+              "mediaPlayer.setAudioOutputDevice(null)",
+              "mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)"
+          ]
+          missing = [item for item in required if item not in s]
+          if missing:
+              raise SystemExit("AAC 5.1 routing verification failed: " + ", ".join(missing))
+          p.write_text(s)
+          print("AAC 5.1 now selects PCM per source; all other audio sources restore automatic digital output.")
+          PY
+
       - name: Package 32-bit and 64-bit ARM variants for Android TV boxes
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
