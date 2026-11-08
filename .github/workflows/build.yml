@@ -6593,6 +6593,85 @@ jobs:
           print("Requested both 32-bit and 64-bit ARM APK native libraries.")
           PY
 
+      - name: Add selectable LibVLC video output modes for HDR testing
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
+          s = p.read_text()
+          old = '''              private val libVlc = LibVLC(appContext, arrayListOf(
+                  "--aout=android_audiotrack",
+                  "-vvv",
+                  "--no-video-title-show"
+              ))'''
+          new = '''              private val libVlc = LibVLC(appContext, arrayListOf(
+                  "--aout=android_audiotrack",
+                  "-vvv",
+                  "--no-video-title-show"
+              ).apply {
+                  when (appContext.getSharedPreferences("gx1_player", Context.MODE_PRIVATE)
+                      .getString("vlc_video_output", "auto")) {
+                      "opengl" -> add("--vout=gles2,none")
+                      "android" -> add("--vout=android_display,none")
+                  }
+              })'''
+          if old in s:
+              s = s.replace(old, new, 1)
+          elif 'getString("vlc_video_output", "auto")' not in s:
+              raise SystemExit("Could not locate LibVLC option list for video-output setting")
+          p.write_text(s)
+
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          old_row = '''                      Triple("▤", "Aspect Ratio", "aspect"),
+                      Triple("⇄", "Repeat", "repeat"),'''
+          new_row = '''                      Triple("▤", "Aspect Ratio", "aspect"),
+                      Triple("▣", "VLC Video Output", "video_output"),
+                      Triple("⇄", "Repeat", "repeat"),'''
+          if old_row in s:
+              s = s.replace(old_row, new_row, 1)
+          elif '"video_output"' not in s:
+              raise SystemExit("Could not locate playback menu rows")
+
+          marker = '''                              "repeat" -> {'''
+          action = '''                              "video_output" -> {
+                                  val labels = arrayOf("Automatic (recommended)", "OpenGL (gles2)", "Android display")
+                                  val values = arrayOf("auto", "opengl", "android")
+                                  val current = prefs.getString("vlc_video_output", "auto")
+                                  AlertDialog.Builder(this)
+                                      .setTitle("VLC Video Output")
+                                      .setSingleChoiceItems(labels, values.indexOf(current).coerceAtLeast(0)) { dialog, which ->
+                                          val selected = values[which]
+                                          prefs.edit().putString("vlc_video_output", selected).apply()
+                                          dialog.dismiss()
+                                          val uri = playingUri ?: mediaUri
+                                          if (uri != null && mainVlcSelected) {
+                                              val position = mainVlcEngine?.currentTimeMs() ?: player?.currentPosition ?: 0L
+                                              prefs.edit().putLong(posKey(uri), position).apply()
+                                              releasePlayer()
+                                              startPlayer()
+                                          } else {
+                                              Toast.makeText(this, "Video output saved; it will apply on next playback.", Toast.LENGTH_LONG).show()
+                                          }
+                                      }
+                                      .setNegativeButton("Cancel", null)
+                                      .show()
+                              }
+          '''
+          if marker in s and '"video_output" -> {' not in s:
+              s = s.replace(marker, action + marker, 1)
+          elif '"video_output" -> {' not in s:
+              raise SystemExit("Could not locate playback menu action switch")
+
+          if 'getString("vlc_video_output", "auto")' not in p.read_text():
+              raise SystemExit("Video output preference verification failed")
+          if 'Triple("▣", "VLC Video Output", "video_output")' not in p.read_text():
+              raise SystemExit("Video output menu row verification failed")
+          p.write_text(s)
+          print("Added Automatic/OpenGL/Android-display LibVLC output selector.")
+          PY
+
       - name: Build separate 32-bit and 64-bit ARM APKs
         working-directory: ${{ env.PROJECT_DIR }}
         env:
