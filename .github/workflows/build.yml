@@ -6655,10 +6655,12 @@ jobs:
               s, count = re.subn(r'(?m)^(\s*)"sleep" -> \{', lambda m: m.group(1) + action + '\n' + m.group(1) + '"sleep" -> {', s, count=1)
               if count != 1:
                   raise SystemExit("Could not locate Sleep Timer menu action")
-          if 'getString("vlc_video_output", "auto")' not in p.read_text():
-              raise SystemExit("Video output preference verification failed")
-          if 'Triple("▣", "VLC Video Output", "video_output")' not in p.read_text():
-              raise SystemExit("Video output menu row verification failed")
+          engine = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt").read_text()
+          activity = Path("app/src/main/java/com/example/gx1player/MainActivity.kt").read_text()
+          if 'getString("vlc_video_output", "auto")' not in engine:
+              raise SystemExit("Video output preference verification failed in LibVLC engine")
+          if 'Triple("▣", "VLC Video Output", "video_output")' not in activity:
+              raise SystemExit("Video output menu row verification failed in MainActivity")
           print("Added selectable LibVLC video output modes.")
           PY
 
