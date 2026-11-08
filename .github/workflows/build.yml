@@ -6652,7 +6652,7 @@ jobs:
           s = s[:insert_pos] + routing_text + s[insert_pos:]
           required = [
               "media.parse(Media.Parse.ParseLocal)",
-              "track is Media.AudioTrack",
+              "Media.AudioTrack",
               'mediaPlayer.setAudioOutputDevice("pcm")',
               "mediaPlayer.setAudioOutputDevice(null)",
               "mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)"
