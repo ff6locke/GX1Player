@@ -5488,6 +5488,13 @@ jobs:
                   }
                   playerView.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_settings)
                       ?.setOnClickListener { showMenu() }
+                  // Route skip-to-start to the actual LibVLC playback engine.
+                  playerView.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_prev)
+                      ?.setOnClickListener {
+                          mainVlcEngine?.seekTo(0L)
+                          clock.seekTo(0L)
+                          playerView.showController()
+                      }
               } catch (e: Exception) {
                   mainVlcEngine?.release()
                   mainVlcEngine = null
