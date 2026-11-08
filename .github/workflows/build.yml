@@ -3684,7 +3684,7 @@ jobs:
                   android.util.Log.i("GX1-VLC", "MAIN attach: attached=${layout.isAttachedToWindow}, size=${layout.width}x${layout.height}, parent=${layout.parent?.javaClass?.simpleName}")
                   if (attachedLayout === layout) return
                   if (attachedLayout != null) runCatching { mediaPlayer.detachViews() }
-                  mediaPlayer.attachViews(layout, null, false, false)
+                  mediaPlayer.attachViews(layout, null, true, false)
                   attachedLayout = layout
               }
 
