@@ -6620,7 +6620,7 @@ jobs:
 
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
-          if '"video_output"' not in s:
+          if 'Triple("▣", "VLC Video Output", "video_output")' not in s:
               s, count = re.subn(
                   r'(?m)^(\s*)Triple\("▤", "Aspect Ratio", "aspect"\),',
                   r'\1Triple("▤", "Aspect Ratio", "aspect"),\n\1Triple("▣", "VLC Video Output", "video_output"),',
