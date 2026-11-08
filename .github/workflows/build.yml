@@ -4597,7 +4597,7 @@ jobs:
               play_index = e.find("fun play()")
               if play_index < 0:
                   raise SystemExit("Engine play() declaration missing")
-              line_start = e.rfind("\\n", 0, play_index) + 1
+              line_start = e.rfind("\n", 0, play_index) + 1
               method = """    fun addExternalSubtitle(uri: Uri): Boolean {
                   checkActive()
                   return mediaPlayer.addSlave(0, uri, true)
