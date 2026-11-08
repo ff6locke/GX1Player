@@ -6621,18 +6621,28 @@ jobs:
           // needs PCM on this RockTek HDMI path; keep encoded passthrough for
           // AC3, E-AC3/Atmos, DTS and TrueHD.
           val hasAac51 = runCatching {
-              val parsed = media.parse(Media.Parse.ParseLocal)
-              parsed && (0 until media.trackCount).any { index ->
-                  val track = media.getTrack(index)
-                  if (track !is Media.AudioTrack || track.channels < 6) {
-                      false
-                  } else {
-                      val codec = (track.codec + " " + track.originalCodec).lowercase()
-                      codec.contains("aac") || codec.contains("mp4a")
-                  }
+              // Use reflection for compatibility with LibVLC Media.Track and IMedia.Track APIs.
+              media.javaClass.methods.firstOrNull {
+                  it.name == "parse" && it.parameterCount == 0
+              }?.invoke(media)
+              val tracks = media.javaClass.methods.firstOrNull {
+                  it.name == "getTracks" && it.parameterCount == 0
+              }?.invoke(media) ?: emptyArray<Any>()
+              val count = java.lang.reflect.Array.getLength(tracks)
+              (0 until count).any { index ->
+                  val track = java.lang.reflect.Array.get(tracks, index) ?: return@any false
+                  val trackType = track.javaClass.simpleName
+                  val channels = runCatching {
+                      track.javaClass.getField("channels").getInt(track)
+                  }.getOrDefault(0)
+                  val codec = listOf("codec", "originalCodec").mapNotNull { field ->
+                      runCatching { track.javaClass.getField(field).get(track) as? String }.getOrNull()
+                  }.joinToString(" ").lowercase()
+                  trackType.contains("AudioTrack") && channels >= 6 &&
+                      (codec.contains("aac") || codec.contains("mp4a"))
               }
           }.onFailure {
-              android.util.Log.w("GX1-VLC", "Audio metadata pre-parse failed; retaining automatic output", it)
+              android.util.Log.w("GX1-VLC", "Audio metadata inspection failed; retaining automatic output", it)
           }.getOrDefault(false)
 
           if (hasAac51) {
@@ -6651,8 +6661,8 @@ jobs:
           routing_text = "".join(indent + line + "\n" for line in routing if line)
           s = s[:insert_pos] + routing_text + s[insert_pos:]
           required = [
-              "media.parse(Media.Parse.ParseLocal)",
-              "Media.AudioTrack",
+              "getTracks",
+              "AudioTrack",
               'mediaPlayer.setAudioOutputDevice("pcm")',
               "mediaPlayer.setAudioOutputDevice(null)",
               "mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)"
