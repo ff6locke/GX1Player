@@ -6652,9 +6652,9 @@ jobs:
                                       .show()
                               }
                   '''
-              s, count = re.subn(r'(?m)^(\s*)"repeat" -> \{', lambda m: m.group(1) + action + '\n' + m.group(1) + '"repeat" -> {', s, count=1)
+              s, count = re.subn(r'(?m)^(\s*)"sleep" -> \{', lambda m: m.group(1) + action + '\n' + m.group(1) + '"sleep" -> {', s, count=1)
               if count != 1:
-                  raise SystemExit("Could not locate Repeat menu action")
+                  raise SystemExit("Could not locate Sleep Timer menu action")
           if 'getString("vlc_video_output", "auto")' not in p.read_text():
               raise SystemExit("Video output preference verification failed")
           if 'Triple("▣", "VLC Video Output", "video_output")' not in p.read_text():
