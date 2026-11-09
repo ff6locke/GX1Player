@@ -6895,12 +6895,15 @@ jobs:
           p.write_text(s)
           main = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = main.read_text()
-          old = '                          "Playback: playing=${mainVlcEngine?.isPlaying()} time=${mainVlcEngine?.currentTimeMs() ?: 0L}ms"'
-          new = old + ' + "\\nEngine: ${mainVlcEngine?.diagnosticStatus() ?: \"no engine\"}"'
           if "Engine: ${mainVlcEngine?.diagnosticStatus()" not in s:
-              if old not in s:
-                  raise SystemExit("On-screen diagnostic text anchor missing")
-              s = s.replace(old, new, 1)
+              lines = s.splitlines()
+              for index, line in enumerate(lines):
+                  if '"Playback: playing=' in line:
+                      lines[index] = line + ' + "\\\\nEngine: ${mainVlcEngine?.diagnosticStatus() ?: \\"no engine\\"}"'
+                      break
+              else:
+                  raise SystemExit("Playback diagnostic line not found")
+              s = "\\n".join(lines) + "\\n"
           main.write_text(s)
           print("Added stage-by-stage LibVLC open/play and event timing to the on-screen diagnostics.")
           PY
