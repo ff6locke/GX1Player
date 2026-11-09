@@ -6872,7 +6872,7 @@ jobs:
           print(f"Configured exactly one ABI: {abi}")
           PY
             rm -rf "$APK_DIR"
-            ./gradlew "$TASK" --no-daemon --stacktrace
+            gradle "$TASK" --no-daemon --stacktrace
             mapfile -t APK_FILES < <(find "$APK_DIR" -maxdepth 1 -type f -name '*.apk' | sort)
             if [ "${#APK_FILES[@]}" -ne 1 ]; then
               echo "Expected one APK for $ABI; found ${#APK_FILES[@]}"
