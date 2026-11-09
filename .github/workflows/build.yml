@@ -7149,6 +7149,32 @@ jobs:
           p.write_text(s)
           print("Added non-reading content-provider descriptor timing and source metadata.")
           PY
+      - name: Diagnostic test with LibVLC hardware video decoding disabled
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
+          s = p.read_text()
+          old = '''    private val libVlc = LibVLC(appContext, arrayListOf(
+          "-vvv",
+          "--no-video-title-show"
+      ))'''
+          new = '''    // Diagnostic build only: force software video decoding to test whether
+      // GX1 hardware-decoder initialization is responsible for first-play delay.
+      private val libVlc = LibVLC(appContext, arrayListOf(
+          "-vvv",
+          "--no-video-title-show",
+          "--avcodec-hw=none"
+      ))'''
+          if "--avcodec-hw=none" in s:
+              raise SystemExit("Hardware-decoding diagnostic option already present")
+          if old not in s:
+              raise SystemExit("Expected LibVLC constructor options were not found")
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+          print("Diagnostic mode enabled: LibVLC software video decoding (--avcodec-hw=none).")
+          PY
       - name: Verify and export final post-instrumentation source
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
