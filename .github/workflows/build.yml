@@ -3389,6 +3389,11 @@ jobs:
                   continue
               if in_string or in_char:
                   ch = source[i]
+                  # A physical newline inside a regular Kotlin string is invalid.
+                  if ch == "\n" and in_string:
+                      out.append(r"\n")
+                      i += 1
+                      continue
                   out.append(ch)
                   if ch == "\\" and i + 1 < len(source):
                       out.append(source[i + 1])
@@ -5189,6 +5194,8 @@ jobs:
                   raise SystemExit("VLC dynamic subtitle ticker start point missing")
               s=s.replace(marker, marker + "\n            handler.postDelayed({ autoLoadMatchingSubtitles() }, 1500L)", 1)
           if "handler.removeCallbacks(vlcDynamicSubtitleTicker)" not in s: s=s.replace("        handler.removeCallbacks(ticker)","        handler.removeCallbacks(ticker)\n        handler.removeCallbacks(vlcDynamicSubtitleTicker)",1)
+          # Repair accidental physical newlines in regular quoted VLC Kotlin strings.
+          s = re.sub(r'joinToString\("\s*\n\s*"\)', r'joinToString("\\n")', s)
           p.write_text(s)
           lines=s.splitlines()
           print("GENERATED VLC SOURCE 245-270:\n" + "\n".join(f"{i+1}: {lines[i]}" for i in range(244,min(270,len(lines)))))
