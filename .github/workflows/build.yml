@@ -7204,10 +7204,14 @@ jobs:
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
           s = p.read_text()
-          for option in ('        "--no-audio",\n', '        "--no-video",\n'):
-              if s.count(option) != 1:
-                  raise SystemExit("Expected exactly one diagnostic option to remove: " + option.strip())
-              s = s.replace(option, "", 1)
+          audio_option = '        "--no-audio",\n'
+          video_option = '        "--no-video"'
+          if s.count(audio_option) != 1:
+              raise SystemExit("Expected exactly one audio diagnostic option to remove")
+          if s.count(video_option) != 1:
+              raise SystemExit("Expected exactly one video diagnostic option to remove")
+          s = s.replace(audio_option, "", 1)
+          s = s.replace(video_option, "", 1)
           if '"--no-sub-autodetect-file"' in s:
               raise SystemExit("Subtitle autodetection diagnostic already present")
           needle = '        "--file-caching=0"'
