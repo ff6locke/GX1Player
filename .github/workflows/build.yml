@@ -3,7 +3,7 @@ name: Build GX1 Player APK
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, test/diagnose-surface-from-576 ]
     paths:
       - 'gx1-player.zip'
       - '.github/workflows/build.yml'
@@ -6687,6 +6687,94 @@ jobs:
           if 'Triple("▣", "VLC Video Output", "video_output")' not in activity:
               raise SystemExit("Video output menu row verification failed in MainActivity")
           print("Added selectable LibVLC video output modes.")
+          PY
+
+      - name: Add first-run LibVLC surface diagnostics (baseline 576)
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+
+          field_anchor = "    private var mainVlcEngine: Gx1LibVlcEngine? = null"
+          if field_anchor not in s:
+              raise SystemExit("Main LibVLC engine field not found")
+          if "private var gx1SurfaceDiagView:" not in s:
+              s = s.replace(field_anchor, field_anchor + """
+              private var gx1SurfaceDiagView: android.widget.TextView? = null
+              private var gx1SurfaceDiagRunnable: Runnable? = null
+          """, 1)
+
+          method = r'''    private fun showGx1SurfaceDiagnostics() {
+              val root = playerView.parent as? android.widget.FrameLayout ?: return
+              gx1SurfaceDiagRunnable?.let { gx1SurfaceDiagView?.removeCallbacks(it) }
+              gx1SurfaceDiagView?.let { (it.parent as? android.view.ViewGroup)?.removeView(it) }
+
+              val panel = android.widget.TextView(this).apply {
+                  setTextColor(Color.WHITE)
+                  textSize = 12f
+                  typeface = android.graphics.Typeface.MONOSPACE
+                  setPadding(12, 8, 12, 8)
+                  setBackgroundColor(0xCC101010.toInt())
+                  elevation = 100f
+                  isClickable = false
+              }
+              gx1SurfaceDiagView = panel
+              root.addView(panel, android.widget.FrameLayout.LayoutParams(
+                  android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                  android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                  Gravity.TOP
+              ))
+
+              fun describe(view: android.view.View): String {
+                  return when (view) {
+                      is android.view.SurfaceView ->
+                          "SurfaceView ${view.width}x${view.height} valid=${view.holder.surface?.isValid}"
+                      is android.view.TextureView ->
+                          "TextureView ${view.width}x${view.height} available=${view.isAvailable}"
+                      is android.view.ViewGroup -> {
+                          val children = (0 until view.childCount).map { describe(view.getChildAt(it)) }.filter { it.isNotBlank() }
+                          if (children.isEmpty()) "children=${view.childCount}" else children.joinToString(" | ")
+                      }
+                      else -> ""
+                  }
+              }
+
+              val started = android.os.SystemClock.elapsedRealtime()
+              val task = object : Runnable {
+                  override fun run() {
+                      if (gx1SurfaceDiagView !== panel) return
+                      val elapsed = (android.os.SystemClock.elapsedRealtime() - started) / 1000L
+                      val layout = mainVlcLayout
+                      val surfaces = describe(layout).ifBlank { "No SurfaceView/TextureView found" }
+                      panel.text = "BASE 576 FIRST-PLAY CHECK  ${elapsed}s\n" +
+                          "VLC layout: attached=${layout.isAttachedToWindow} size=${layout.width}x${layout.height} visible=${layout.visibility == View.VISIBLE}\n" +
+                          "$surfaces\n" +
+                          "Playback: playing=${mainVlcEngine?.isPlaying()} time=${mainVlcEngine?.currentTimeMs() ?: 0L}ms"
+                      if (elapsed < 90L) panel.postDelayed(this, 1000L)
+                  }
+              }
+              gx1SurfaceDiagRunnable = task
+              panel.post(task)
+          }
+
+          '''
+          if "private fun showGx1SurfaceDiagnostics()" not in s:
+              anchor = "    private fun startMainLibVlc(uri: Uri) {"
+              if anchor not in s:
+                  raise SystemExit("startMainLibVlc insertion point not found")
+              s = s.replace(anchor, method + anchor, 1)
+
+          attach = "                  engine.attach(mainVlcLayout)"
+          if attach not in s:
+              raise SystemExit("Main VLC attach call not found")
+          if "showGx1SurfaceDiagnostics()" not in s[s.find(attach):s.find(attach) + 250]:
+              s = s.replace(attach, attach + "\n                  showGx1SurfaceDiagnostics()", 1)
+
+          p.write_text(s)
+          print("Added on-screen 90-second surface readiness diagnostics without changing playback timing.")
           PY
 
       - name: Build separate 32-bit and 64-bit ARM APKs
