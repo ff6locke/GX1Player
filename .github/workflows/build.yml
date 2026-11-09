@@ -7177,7 +7177,7 @@ jobs:
               raise SystemExit("Audio-disabled diagnostic option already present")
           if s.count(needle) != 1:
               raise SystemExit("Expected file-caching diagnostic option exactly once")
-          s = s.replace(needle, needle + ',\\n        "--no-audio"', 1)
+          s = s.replace(needle, needle + ',\n        "--no-audio"', 1)
           p.write_text(s)
           print("Diagnostic mode enabled: LibVLC audio disabled to isolate first-video startup delay.")
           PY
