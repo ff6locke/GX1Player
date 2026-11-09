@@ -6906,7 +6906,7 @@ jobs:
 
           # Do not route normal video selections into LibVLC.
           import re
-          route_pattern = r"(?m)^\\s*if \\(mainVlcSelected\\) \\{\\s*startMainLibVlc\\(uri\\)\\s*return\\s*\\}\\s*"
+          route_pattern = r"(?m)^[ \t]*if \(mainVlcSelected\) \{\s*startMainLibVlc\(uri\)\s*return\s*\}\s*"
           s, route_count = re.subn(route_pattern, "", s, count=1)
           if route_count != 1:
               raise SystemExit("Could not uniquely locate the LibVLC route in startPlayer; refusing unsafe Media3 switch")
