@@ -330,6 +330,61 @@ jobs:
           PY
           echo "TrueHD MAT carrier renderer source installed."
 
+      - name: Add DTS passthrough capability diagnostics (no playback changes)
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          if "private fun logDtsPassthroughCapabilities()" in s:
+              raise SystemExit("DTS diagnostics already present; refusing duplicate insertion")
+          helper = """
+              private fun logDtsPassthroughCapabilities() {
+                  try {
+                      val caps = androidx.media3.exoplayer.audio.AudioCapabilities.getCapabilities(this)
+                      android.util.Log.i("GX1_DTS", "Media3 supportedEncodings=" + caps.supportedEncodings.contentToString())
+                      val audioManager = getSystemService(android.content.Context.AUDIO_SERVICE) as android.media.AudioManager
+                      android.util.Log.i("GX1_DTS", "Android output encodings=" + audioManager.getProperty(android.media.AudioManager.PROPERTY_OUTPUT_FORMATS))
+                      if (android.os.Build.VERSION.SDK_INT >= 29) {
+                          val attrs = android.media.AudioAttributes.Builder()
+                              .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                              .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MOVIE)
+                              .build()
+                          for (encoding in listOf(android.media.AudioFormat.ENCODING_DTS, android.media.AudioFormat.ENCODING_DTS_HD)) {
+                              val format = android.media.AudioFormat.Builder()
+                                  .setEncoding(encoding)
+                                  .setSampleRate(48000)
+                                  .setChannelMask(android.media.AudioFormat.CHANNEL_OUT_5POINT1)
+                                  .build()
+                              android.util.Log.i("GX1_DTS", "directPlayback encoding=" + encoding +
+                                  " supported=" + android.media.AudioTrack.isDirectPlaybackSupported(format, attrs))
+                          }
+                      } else {
+                          android.util.Log.i("GX1_DTS", "Direct playback query unavailable below API 29")
+                      }
+                  } catch (e: Exception) {
+                      android.util.Log.e("GX1_DTS", "Capability query failed", e)
+                  }
+              }
+
+          """
+          class_marker = "class MainActivity"
+          class_pos = s.find(class_marker)
+          if class_pos < 0:
+              raise SystemExit("MainActivity class declaration not found")
+          brace = s.find("{", class_pos)
+          if brace < 0:
+              raise SystemExit("MainActivity class body not found")
+          s = s[:brace + 1] + "\\n" + helper + s[brace + 1:]
+          call_marker = "super.onCreate(savedInstanceState)"
+          if s.count(call_marker) != 1:
+              raise SystemExit("Expected exactly one onCreate super call; refusing unsafe insertion")
+          s = s.replace(call_marker, call_marker + "\\n        logDtsPassthroughCapabilities()", 1)
+          p.write_text(s)
+          print("Added startup-only DTS capability logs; no renderer or playback settings changed.")
+          PY
+
       - name: Inspect passthrough renderer and audio configuration
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
