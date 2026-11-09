@@ -2629,7 +2629,7 @@ jobs:
           PY
       - name: Generate Gradle wrapper
         working-directory: ${{ env.PROJECT_DIR }}
-        run: gradle wrapper --gradle-version "$GRADLE_VERSION" --gradle-distribution-url "https://downloads.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" --no-daemon
+        run: gradle wrapper --gradle-version "$GRADLE_VERSION" --gradle-distribution-url "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" --no-validate-url --no-daemon
 
       - name: Inspect generated Kotlin subtitle declarations
         working-directory: ${{ env.PROJECT_DIR }}
