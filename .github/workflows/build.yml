@@ -343,9 +343,7 @@ jobs:
               private fun logDtsPassthroughCapabilities() {
                   try {
                       val caps = androidx.media3.exoplayer.audio.AudioCapabilities.getCapabilities(this)
-                      android.util.Log.i("GX1_DTS", "Media3 supportedEncodings=" + caps.supportedEncodings.contentToString())
-                      val audioManager = getSystemService(android.content.Context.AUDIO_SERVICE) as android.media.AudioManager
-                      android.util.Log.i("GX1_DTS", "Android output encodings=" + audioManager.getProperty(android.media.AudioManager.PROPERTY_OUTPUT_FORMATS))
+                      android.util.Log.i("GX1_DTS", "Media3 audio capabilities=" + caps.toString())
                       if (android.os.Build.VERSION.SDK_INT >= 29) {
                           val attrs = android.media.AudioAttributes.Builder()
                               .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
@@ -3316,6 +3314,12 @@ jobs:
 
           path = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           source = path.read_text()
+          # Normalize accidental physical newlines in Kotlin subtitle strings in both activities.
+          vlc_path = Path("app/src/main/java/com/example/gx1player/VlcTestActivity.kt")
+          if vlc_path.exists():
+              vlc_source = vlc_path.read_text()
+              vlc_source = re.sub(r'joinToString\("\s*\n\s*"\)', r'joinToString("\\n")', vlc_source)
+              vlc_path.write_text(vlc_source)
           # The home/library overlay and playback title require the root container reference.
           if "private lateinit var rootLayout: FrameLayout" not in source:
               anchor = "    private lateinit var playerView: PlayerView"
