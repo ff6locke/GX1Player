@@ -7000,18 +7000,14 @@ jobs:
                         "val engine = Gx1LibVlcEngine(this) { state -> runOnUiThread {", 1)
           # The generated app may construct or assign the engine under different
           # variable names, so avoid assuming a particular assignment statement.
-          attach_line = "                  engine.attach(mainVlcLayout)"
+          attach_line = "engine.attach(mainVlcLayout)"
           if attach_line not in s:
               raise SystemExit("engine.attach() call not found")
-          s = s.replace(attach_line, attach_line + """
-                  gx1PathAttachedAt = android.os.SystemClock.elapsedRealtime()
-          """, 1)
-          open_line = "                  engine.open(uri, resumeAt, digitalOutput = passthrough)"
+          s = s.replace(attach_line, attach_line + "\\n        gx1PathAttachedAt = android.os.SystemClock.elapsedRealtime()", 1)
+          open_line = "engine.open(uri, resumeAt, digitalOutput = passthrough)"
           if open_line not in s:
               raise SystemExit("engine.open() call not found")
-          s = s.replace(open_line, """
-                  gx1PathOpenCalledAt = android.os.SystemClock.elapsedRealtime()
-          """ + open_line, 1)
+          s = s.replace(open_line, "gx1PathOpenCalledAt = android.os.SystemClock.elapsedRealtime()\\n        " + open_line, 1)
           diag_anchor = 'lines.addAll(mainVlcEngine?.startupTimingLines() ?: listOf("No active main LibVLC session"))'
           if diag_anchor not in s:
               raise SystemExit("Existing LibVLC diagnostics insertion not found")
