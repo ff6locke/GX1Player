@@ -6941,6 +6941,93 @@ jobs:
           print("Added first-play timings to the existing in-app Audio diagnostics screen.")
           PY
 
+      - name: Measure app startup path before LibVLC
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          if "gx1PathSelectStartedAt" in s:
+              raise SystemExit("App startup path timing already exists")
+          # Start measuring as soon as a media URI is selected, then follow the
+          # call chain through engine construction, surface attachment and open().
+          fields = """    @Volatile private var gx1PathSelectStartedAt = 0L
+              @Volatile private var gx1PathStartPlayerAt = 0L
+              @Volatile private var gx1PathMainVlcAt = 0L
+              @Volatile private var gx1PathEngineCreatedAt = 0L
+              @Volatile private var gx1PathAttachedAt = 0L
+              @Volatile private var gx1PathOpenCalledAt = 0L
+
+              private fun gx1PathElapsed(at: Long): String =
+                  if (at == 0L || gx1PathSelectStartedAt == 0L) "not reached"
+                  else (at - gx1PathSelectStartedAt).toString() + " ms"
+
+              private fun gx1PathTimingLines(): List<String> = listOf(
+                  "URI selected: " + gx1PathElapsed(gx1PathSelectStartedAt),
+                  "startPlayer entered: " + gx1PathElapsed(gx1PathStartPlayerAt),
+                  "startMainLibVlc entered: " + gx1PathElapsed(gx1PathMainVlcAt),
+                  "LibVLC engine created: " + gx1PathElapsed(gx1PathEngineCreatedAt),
+                  "Video surface attached: " + gx1PathElapsed(gx1PathAttachedAt),
+                  "engine.open() called: " + gx1PathElapsed(gx1PathOpenCalledAt)
+              )
+
+          """
+          anchor = "    private fun selectMedia(uri: Uri) {"
+          if anchor not in s:
+              raise SystemExit("selectMedia(uri) anchor not found")
+          s = s.replace(anchor, fields + anchor + """
+                  gx1PathSelectStartedAt = android.os.SystemClock.elapsedRealtime()
+                  gx1PathStartPlayerAt = 0L
+                  gx1PathMainVlcAt = 0L
+                  gx1PathEngineCreatedAt = 0L
+                  gx1PathAttachedAt = 0L
+                  gx1PathOpenCalledAt = 0L
+          """, 1)
+          start_anchor = "    private fun startPlayer() {"
+          if start_anchor not in s:
+              raise SystemExit("startPlayer() anchor not found")
+          s = s.replace(start_anchor, start_anchor + """
+                  gx1PathStartPlayerAt = android.os.SystemClock.elapsedRealtime()
+          """, 1)
+          main_anchor = "    private fun startMainLibVlc(uri: Uri) {"
+          if main_anchor not in s:
+              raise SystemExit("startMainLibVlc(uri) anchor not found")
+          s = s.replace(main_anchor, main_anchor + """
+                  gx1PathMainVlcAt = android.os.SystemClock.elapsedRealtime()
+          """, 1)
+          s = s.replace("val engine = Gx1LibVlcEngine(this) { state -> runOnUiThread {",
+                        "val engine = Gx1LibVlcEngine(this) { state -> runOnUiThread {", 1)
+          engine_line = "                  mainVlcEngine = engine"
+          if engine_line not in s:
+              raise SystemExit("mainVlcEngine assignment not found")
+          s = s.replace(engine_line, engine_line + """
+                  gx1PathEngineCreatedAt = android.os.SystemClock.elapsedRealtime()
+          """, 1)
+          attach_line = "                  engine.attach(mainVlcLayout)"
+          if attach_line not in s:
+              raise SystemExit("engine.attach() call not found")
+          s = s.replace(attach_line, attach_line + """
+                  gx1PathAttachedAt = android.os.SystemClock.elapsedRealtime()
+          """, 1)
+          open_line = "                  engine.open(uri, resumeAt, digitalOutput = passthrough)"
+          if open_line not in s:
+              raise SystemExit("engine.open() call not found")
+          s = s.replace(open_line, """
+                  gx1PathOpenCalledAt = android.os.SystemClock.elapsedRealtime()
+          """ + open_line, 1)
+          diag_anchor = 'lines.addAll(mainVlcEngine?.startupTimingLines() ?: listOf("No active main LibVLC session"))'
+          if diag_anchor not in s:
+              raise SystemExit("Existing LibVLC diagnostics insertion not found")
+          s = s.replace(diag_anchor, diag_anchor + """
+                  lines.add("")
+                  lines.add("App startup path (milliseconds from URI selection)")
+                  lines.addAll(gx1PathTimingLines())
+          """, 1)
+          p.write_text(s)
+          print("Added app-level timing from media selection through engine.open().")
+          PY
+
       - name: Build separate 32-bit and 64-bit ARM APKs
         working-directory: ${{ env.PROJECT_DIR }}
         env:
