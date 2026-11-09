@@ -7149,21 +7149,23 @@ jobs:
           p.write_text(s)
           print("Added non-reading content-provider descriptor timing and source metadata.")
           PY
-      - name: Diagnostic test with LibVLC hardware video decoding disabled
+      - name: Diagnostic test with LibVLC file caching disabled
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
           s = p.read_text()
+          hw = '        "--avcodec-hw=none",\n'
+          if hw not in s:
+              raise SystemExit("Expected previous software-decoding diagnostic option not found")
+          s = s.replace(hw, "", 1)
           needle = '        "--no-video-title-show"'
-          if "--avcodec-hw=none" in s:
-              raise SystemExit("Hardware-decoding diagnostic option already present")
           if s.count(needle) != 1:
               raise SystemExit("Expected single LibVLC default option not found; count=" + str(s.count(needle)))
-          s = s.replace(needle, needle + ',\n        "--avcodec-hw=none"', 1)
+          s = s.replace(needle, needle + ',\n        "--file-caching=0"', 1)
           p.write_text(s)
-          print("Diagnostic mode enabled: LibVLC software video decoding (--avcodec-hw=none).")
+          print("Diagnostic mode enabled: default hardware decoding, LibVLC file caching set to 0 ms.")
           PY
       - name: Verify and export final post-instrumentation source
         working-directory: ${{ env.PROJECT_DIR }}
