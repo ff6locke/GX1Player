@@ -6903,7 +6903,7 @@ jobs:
                       break
               else:
                   raise SystemExit("Playback diagnostic line not found")
-              s = "\\n".join(lines) + "\\n"
+              s = "\n".join(lines) + "\n"
           main.write_text(s)
           print("Added stage-by-stage LibVLC open/play and event timing to the on-screen diagnostics.")
           PY
