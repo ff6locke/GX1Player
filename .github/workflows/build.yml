@@ -6775,7 +6775,7 @@ jobs:
           if attach_pos < 0:
               raise SystemExit("Active main VLC attach call not found")
           if "showGx1SurfaceDiagnostics()" not in s[attach_pos:attach_pos + 300]:
-              s = s[:attach_pos] + s[attach_pos:].replace(attach, attach + "\\n                  showGx1SurfaceDiagnostics()", 1)
+              s = s[:attach_pos] + s[attach_pos:].replace(attach, attach + "\n                  showGx1SurfaceDiagnostics()", 1)
 
           p.write_text(s)
           print("Added on-screen 90-second surface readiness diagnostics without changing playback timing.")
