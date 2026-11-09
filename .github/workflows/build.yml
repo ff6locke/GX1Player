@@ -5688,6 +5688,32 @@ jobs:
           p.write_text(s)
           print('Media3 PlayerView controller now drives LibVLC; separate VLC control strip removed.')
           PY
+
+      - name: Restore isolated VLC test entry for DTS passthrough comparison
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          if "private fun launchVlcTest()" not in s:
+              raise SystemExit("Standalone VLC test activity launcher is missing")
+          if not Path("app/src/main/java/com/example/gx1player/VlcTestActivity.kt").exists():
+              raise SystemExit("VlcTestActivity.kt is missing")
+          tile = 'Triple("ⓘ", "Audio diagnostics", "audio_diagnostics"),'
+          if tile not in s:
+              raise SystemExit("Could not find Audio diagnostics menu tile to anchor VLC test entry")
+          vlc_tile = 'Triple("VLC", "VLC test – Play current video", "vlc_test"),'
+          if vlc_tile not in s:
+              s = s.replace(tile, tile + "\\n                      " + vlc_tile, 1)
+          dispatch = '"audio_diagnostics" -> showAudioDiagnostics()'
+          if dispatch not in s:
+              raise SystemExit("Could not find audio diagnostics action to anchor VLC test action")
+          if '"vlc_test" -> launchVlcTest()' not in s:
+              s = s.replace(dispatch, dispatch + '\\n                              "vlc_test" -> launchVlcTest()', 1)
+          p.write_text(s)
+          print("Restored a separate VLC test menu entry; main playback engine remains unchanged.")
+          PY
       - name: Add external subtitle loading to the main LibVLC subtitle menu
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
