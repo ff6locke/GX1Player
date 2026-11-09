@@ -7014,7 +7014,7 @@ jobs:
           old = 'android.util.Log.i("GX1-VLC", "MAIN LibVLC event=\u0024{event.type}, vout=\u0024voutInfo")'
           new = '''val eventAfterMs = android.os.SystemClock.elapsedRealtime() - openStartedAtMs
                       val eventLabel = event.type.toString()
-                      libVlcEventTrace = (libVlcEventTrace + eventLabel + "@" + eventAfterMs + "ms; ").takeLast(1600)
+                      libVlcEventTrace = (libVlcEventTrace + eventLabel + "@" + eventAfterMs + "ms,vout=" + voutInfo + "; ").takeLast(1600)
                       android.util.Log.i("GX1_FIRST_PLAY_TIMING", "LibVLC event=" + eventLabel + " after ms=" + eventAfterMs + ", vout=" + voutInfo)'''
           if old not in s:
               raise SystemExit("Generic LibVLC event log anchor missing")
