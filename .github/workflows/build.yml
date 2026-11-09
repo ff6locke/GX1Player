@@ -376,7 +376,7 @@ jobs:
           brace = s.find("{", class_pos)
           if brace < 0:
               raise SystemExit("MainActivity class body not found")
-          s = s[:brace + 1] + "\\n" + helper + s[brace + 1:]
+          s = s[:brace + 1] + "\n" + helper + s[brace + 1:]
           call_marker = "super.onCreate(savedInstanceState)"
           if s.count(call_marker) != 1:
               raise SystemExit("Expected exactly one onCreate super call; refusing unsafe insertion")
@@ -1535,7 +1535,7 @@ jobs:
               "                      android.view.Gravity.TOP or android.view.Gravity.CENTER_HORIZONTAL))"
           ]
           lines[i:i+2] = replacement
-          p.write_text("\\n".join(lines) + "\\n")
+          p.write_text("\n".join(lines) + "\n")
           print("Gear menu now scrolls vertically and keeps Settings reachable.")
           PY
 
@@ -2840,7 +2840,7 @@ jobs:
               entries.forEach { labels.add((if (it.isDirectory) "📁  " else "▶  ") + it.name) }
               if (labels.isEmpty()) labels.add("(No folders or media files)")
               val title = (if (selectingLibrary) "Choose Library folder" else "GX1 Library") +
-                  "\\n" + current.absolutePath
+                  "\n" + current.absolutePath
               val builder = AlertDialog.Builder(this).setTitle(title)
                   .setItems(labels.toTypedArray()) { _, which ->
                       val parentOffset = if (current.parentFile != null) 1 else 0
@@ -3335,7 +3335,7 @@ jobs:
           # Repair two Kotlin string literals that may contain accidental physical newlines.
           source = re.sub(
               r'joinToString\("\s*\n\s*"\)',
-              r'joinToString("\\n")',
+              r'joinToString("\n")',
               source
           )
           source = re.sub(
@@ -3358,7 +3358,7 @@ jobs:
           in_line_comment = False
           while i < len(source):
               if in_line_comment:
-                  if source.startswith(r"\\n", i):
+                  if source.startswith(r"\n", i):
                       out.append("\n")
                       i += 3
                       in_line_comment = False
@@ -3416,7 +3416,7 @@ jobs:
                   i += 1
                   in_char = True
                   continue
-              if source.startswith(r"\\n", i):
+              if source.startswith(r"\n", i):
                   out.append("\n")
                   i += 3
                   continue
@@ -4674,7 +4674,7 @@ jobs:
           activity = Path("app/src/main/java/com/example/gx1player/VlcTestActivity.kt")
           t = activity.read_text()
           t = t.replace("import androidx.activity.result.contract.ActivityResultContracts\\n", "")
-          t = re.sub(r"\\s*private val loadSubtitle1 = registerForActivityResult.*?\\n\\s*}\\n\\s*private val loadSubtitle2 = registerForActivityResult.*?\\n\\s*}\\n\\s*private fun attachExternalSubtitle\\(uri: Uri\\?, slot: String\\) \\{.*?\\n\\s*}\\n", "\\n", t, flags=re.S)
+          t = re.sub(r"\\s*private val loadSubtitle1 = registerForActivityResult.*?\\n\\s*}\\n\\s*private val loadSubtitle2 = registerForActivityResult.*?\\n\\s*}\\n\\s*private fun attachExternalSubtitle\\(uri: Uri\\?, slot: String\\) \\{.*?\\n\\s*}\\n", "\n", t, flags=re.S)
 
           if "private fun showExternalSubtitlePicker(slot: Int" not in t:
               anchor = "    private fun showAudioTracks() {"
@@ -4905,7 +4905,7 @@ jobs:
                           val now = engine?.currentTimeMs() ?: 0L
                           val active = vlcSubtitles.filter { it.enabled }
                               .flatMap { sub -> sub.cues.filter { now >= it.start && now < it.end } }
-                          vlcSubtitleView.text = active.joinToString("\\n") { it.text }
+                          vlcSubtitleView.text = active.joinToString("\n") { it.text }
                           vlcSubtitleView.visibility = if (active.isEmpty()) View.GONE else View.VISIBLE
                       }
                       handler.postDelayed(this, 100L)
