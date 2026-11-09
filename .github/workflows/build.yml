@@ -3835,27 +3835,30 @@ jobs:
                   android.util.Log.i("GX1-VLC", "Opened media using ${uri.scheme} source; digitalOutput=$digitalOutput")
                   mediaPlayer.play()
                   publish(opening = true, error = null)
-                  // Some transport-stream files play correctly in LibVLC but report
-                  // mediaPlayer.length == 0. Probe Android's container metadata off the UI
-                  // thread so Media3 can still display duration and enable seeking.
-                  Thread({
-                      val retriever = android.media.MediaMetadataRetriever()
-                      val extracted = try {
-                          retriever.setDataSource(appContext, uri)
-                          retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
-                              ?.toLongOrNull() ?: 0L
-                      } catch (_: Exception) {
-                          0L
-                      } finally {
-                          runCatching { retriever.release() }
+                  // Only transport-stream files need the Android metadata fallback.
+                  // Running MediaMetadataRetriever against large MKV/MP4 files can scan
+                  // substantial media data during first playback and compete with LibVLC
+                  // for storage I/O. Let LibVLC provide duration for normal containers.
+                  if (uri.lastPathSegment?.substringAfterLast('.', "")?.lowercase() == "ts") {
+                      Thread({
+                          val retriever = android.media.MediaMetadataRetriever()
+                          val extracted = try {
+                              retriever.setDataSource(appContext, uri)
+                              retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
+                                  ?.toLongOrNull() ?: 0L
+                          } catch (_: Exception) {
+                              0L
+                          } finally {
+                              runCatching { retriever.release() }
+                          }
+                          if (durationGeneration == sourceGeneration && extracted > 0L) {
+                              durationHintMs = extracted
+                              publish()
+                          }
+                      }, "gx1-duration-probe").apply {
+                          isDaemon = true
+                          start()
                       }
-                      if (durationGeneration == sourceGeneration && extracted > 0L) {
-                          durationHintMs = extracted
-                          publish()
-                      }
-                  }, "gx1-duration-probe").apply {
-                      isDaemon = true
-                      start()
                   }
               }
 
