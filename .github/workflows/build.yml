@@ -6009,7 +6009,6 @@ jobs:
           # Final safety repair for generated Kotlin source.
           import re
           s = s.replace("mainVlcLayout = VLCVideoLayout(this).apply {\n              setBackgroundColor(Color.BLACK)\n              visibility = View.GONE\n          }", "mainVlcLayout = VLCVideoLayout(this)")
-          s = re.sub(r"buildMediaItem\(uri\)", "MediaItem.fromUri(uri)", s)
           p.write_text(s)
           print("Main player now uses VLC Test-style external subtitle checkboxes and simultaneous ASS/SRT overlays.")
           PY
