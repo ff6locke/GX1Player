@@ -6992,6 +6992,38 @@ jobs:
           nl -ba app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt | sed -n '45,70p'
           echo "=== Buffering event handler ==="
           grep -n -A12 -B3 'MediaPlayer.Event.Buffering' app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt
+      - name: Record all LibVLC preparation events
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
+          s = p.read_text()
+          field = "@Volatile private var bufferingProgressTrace = \"\""
+          if field not in s:
+              raise SystemExit("Buffering trace field missing; refusing event instrumentation")
+          if "libVlcEventTrace" in s:
+              raise SystemExit("LibVLC event trace already exists")
+          s = s.replace(field, field + "\\n    @Volatile private var libVlcEventTrace = \"\"", 1)
+          open_reset = "bufferingProgressTrace = \"\""
+          if open_reset not in s:
+              raise SystemExit("Open trace reset anchor missing")
+          s = s.replace(open_reset, open_reset + "\\n        libVlcEventTrace = \"\"", 1)
+          old = 'android.util.Log.i("GX1-VLC", "MAIN LibVLC event=\u0024{event.type}, vout=\u0024voutInfo")'
+          new = '''val eventAfterMs = android.os.SystemClock.elapsedRealtime() - openStartedAtMs
+                      val eventLabel = event.type.toString()
+                      libVlcEventTrace = (libVlcEventTrace + eventLabel + "@" + eventAfterMs + "ms; ").takeLast(1600)
+                      android.util.Log.i("GX1_FIRST_PLAY_TIMING", "LibVLC event=" + eventLabel + " after ms=" + eventAfterMs + ", vout=" + voutInfo)'''
+          if old not in s:
+              raise SystemExit("Generic LibVLC event log anchor missing")
+          s = s.replace(old, new, 1)
+          output = '"Buffering percentage timeline: " + if (bufferingProgressTrace.isBlank()) "no updates" else bufferingProgressTrace'
+          if output not in s:
+              raise SystemExit("Buffering diagnostic output anchor missing")
+          s = s.replace(output, output + ',\\n            "LibVLC event timeline: " + if (libVlcEventTrace.isBlank()) "no events" else libVlcEventTrace', 1)
+          p.write_text(s)
+          print("Added timestamped timeline for every LibVLC event; playback behavior unchanged.")
+          PY
       - name: Measure app startup path before LibVLC
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
