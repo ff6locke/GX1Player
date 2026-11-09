@@ -3541,7 +3541,6 @@ jobs:
                   try {
                       Log.i("GX1-VLC", "Starting LibVLC test for URI scheme=${uri.scheme}, type=${contentResolver.getType(uri)}")
                       val vlc = LibVLC(this, arrayListOf(
-                          "--aout=android_audiotrack",
                           "-vvv",
                           "--no-video-title-show"
                       ))
@@ -3728,7 +3727,6 @@ jobs:
               // integration so the two paths do not behave differently on the GX1.
               private val appContext = context.applicationContext
               private val libVlc = LibVLC(appContext, arrayListOf(
-                  "--aout=android_audiotrack",
                   "-vvv",
                   "--no-video-title-show"
               ))
@@ -4101,7 +4099,7 @@ jobs:
                   setContentView(root)
 
                   try {
-                      val vlc = LibVLC(this, arrayListOf("--aout=android_audiotrack", "--no-video-title-show"))
+                      val vlc = LibVLC(this, arrayListOf("--no-video-title-show"))
                       libVlc = vlc
                       val mp = MediaPlayer(vlc)
                       player = mp
