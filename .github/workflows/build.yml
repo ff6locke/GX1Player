@@ -7156,11 +7156,9 @@ jobs:
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
           s = p.read_text()
-          hw = '        "--avcodec-hw=none",\n'
-          if hw not in s:
-              raise SystemExit("Expected previous software-decoding diagnostic option not found")
-          s = s.replace(hw, "", 1)
           needle = '        "--no-video-title-show"'
+          if "--file-caching=0" in s:
+              raise SystemExit("File-caching diagnostic option already present")
           if s.count(needle) != 1:
               raise SystemExit("Expected single LibVLC default option not found; count=" + str(s.count(needle)))
           s = s.replace(needle, needle + ',\n        "--file-caching=0"', 1)
