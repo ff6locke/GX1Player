@@ -7154,20 +7154,14 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
           s = p.read_text()
+          needle = '        "--no-video-title-show"'
           if "--avcodec-hw=none" in s:
               raise SystemExit("Hardware-decoding diagnostic option already present")
-          pattern = r'(?s)(    private val libVlc = LibVLC\(appContext, arrayListOf\(\n)(.*?)(\n    \)\))'
-          match = re.search(pattern, s)
-          if not match:
-              raise SystemExit("Expected LibVLC constructor options were not found")
-          options = match.group(2)
-          if '"--no-video-title-show"' not in options:
-              raise SystemExit("Expected LibVLC default option was not found")
-          options = options + '\n        "--avcodec-hw=none",'
-          s = s[:match.start()] + match.group(1) + options + match.group(3) + s[match.end():]
+          if s.count(needle) != 1:
+              raise SystemExit("Expected single LibVLC default option not found; count=" + str(s.count(needle)))
+          s = s.replace(needle, needle + ',\n        "--avcodec-hw=none"', 1)
           p.write_text(s)
           print("Diagnostic mode enabled: LibVLC software video decoding (--avcodec-hw=none).")
           PY
