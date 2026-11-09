@@ -6905,16 +6905,11 @@ jobs:
           s = p.read_text()
 
           # Do not route normal video selections into LibVLC.
-          route = """        if (mainVlcSelected) {
-                      startMainLibVlc(uri)
-                      return
-                  }
-
-          """
-          if route in s:
-              s = s.replace(route, "", 1)
-          elif "startMainLibVlc(uri)" in s[s.find("private fun startPlayer()"):s.find("private fun buildMediaItem")]:
-              raise SystemExit("Unexpected LibVLC route shape; refusing unsafe Media3 switch")
+          import re
+          route_pattern = r"(?m)^\\s*if \\(mainVlcSelected\\) \\{\\s*startMainLibVlc\\(uri\\)\\s*return\\s*\\}\\s*"
+          s, route_count = re.subn(route_pattern, "", s, count=1)
+          if route_count != 1:
+              raise SystemExit("Could not uniquely locate the LibVLC route in startPlayer; refusing unsafe Media3 switch")
 
           # The LibVLC surface was added above PlayerView and the Media3 video
           # content was hidden. Restore the actual Media3 video surface.
