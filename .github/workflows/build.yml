@@ -6954,14 +6954,11 @@ jobs:
           if "bufferingProgressTrace" in s:
               raise SystemExit("Buffering progress trace already exists")
           s = s.replace(field, field + "\n    @Volatile private var bufferingProgressTrace = \"\"", 1)
-          reset = "bufferingEventAfterMs = -1L"
-          pos = s.find(reset)
-          if pos < 0:
-              raise SystemExit("Buffering timing reset not found")
-          line_end = s.find("\n", pos)
-          if line_end < 0:
-              raise SystemExit("Could not locate end of buffering reset line")
-          s = s[:line_end] + "\n                  bufferingProgressTrace = \"\"" + s[line_end:]
+          # Reset trace at the beginning of each open() call, not beside the field declaration.
+          open_reset = "openStartedAtMs = android.os.SystemClock.elapsedRealtime()"
+          if open_reset not in s:
+              raise SystemExit("LibVLC open timestamp anchor not found")
+          s = s.replace(open_reset, open_reset + "\n        bufferingProgressTrace = \"\"", 1)
           anchor = "MediaPlayer.Event.Buffering -> {"
           a = s.find(anchor)
           if a < 0:
