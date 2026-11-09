@@ -6987,6 +6987,14 @@ jobs:
           p.write_text(s)
           print("Added timestamped LibVLC buffering percentage diagnostics.")
           PY
+      - name: Inspect LibVLC buffering diagnostic source
+        if: always()
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          echo "=== Gx1LibVlcEngine.kt lines 45-70 ==="
+          nl -ba app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt | sed -n '45,70p'
+          echo "=== Buffering event handler ==="
+          grep -n -A12 -B3 'MediaPlayer.Event.Buffering' app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt
       - name: Measure app startup path before LibVLC
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
