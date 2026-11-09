@@ -7006,9 +7006,11 @@ jobs:
               raise SystemExit("LibVLC event trace already exists")
           s = s.replace(field, field + "\n    @Volatile private var libVlcEventTrace = \"\"", 1)
           open_reset = "bufferingProgressTrace = \"\""
-          if open_reset not in s:
-              raise SystemExit("Open trace reset anchor missing")
-          s = s.replace(open_reset, open_reset + "\n        libVlcEventTrace = \"\"", 1)
+          open_start = s.find("fun open(")
+          open_reset_at = s.find(open_reset, open_start)
+          if open_start < 0 or open_reset_at < 0:
+              raise SystemExit("Open trace reset anchor missing inside open()")
+          s = s[:open_reset_at] + open_reset + "\n        libVlcEventTrace = \"\"" + s[open_reset_at + len(open_reset):]
           old = 'android.util.Log.i("GX1-VLC", "MAIN LibVLC event=\u0024{event.type}, vout=\u0024voutInfo")'
           new = '''val eventAfterMs = android.os.SystemClock.elapsedRealtime() - openStartedAtMs
                       val eventLabel = event.type.toString()
