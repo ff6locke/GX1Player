@@ -4,7 +4,7 @@ name: Build GX1 Player APK
 
 on:
   push:
-    branches: [ main, test/prewarm-libvlc-b585 ]
+    branches: [ main ]
     paths:
       - 'gx1-player.zip'
       - '.github/workflows/build.yml'
