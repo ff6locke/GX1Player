@@ -7197,6 +7197,26 @@ jobs:
           p.write_text(s)
           print("Diagnostic mode enabled: LibVLC video disabled to isolate audio-only startup.")
           PY
+      - name: Test normal playback without automatic sidecar subtitle detection
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
+          s = p.read_text()
+          for option in ('        "--no-audio",\n', '        "--no-video",\n'):
+              if s.count(option) != 1:
+                  raise SystemExit("Expected exactly one diagnostic option to remove: " + option.strip())
+              s = s.replace(option, "", 1)
+          if '"--no-sub-autodetect-file"' in s:
+              raise SystemExit("Subtitle autodetection diagnostic already present")
+          needle = '        "--file-caching=0"'
+          if s.count(needle) != 1:
+              raise SystemExit("Expected file-caching option exactly once")
+          s = s.replace(needle, needle + ',\n        "--no-sub-autodetect-file"', 1)
+          p.write_text(s)
+          print("Normal audio/video restored; automatic sidecar subtitle detection disabled.")
+          PY
       - name: Verify and export final post-instrumentation source
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
