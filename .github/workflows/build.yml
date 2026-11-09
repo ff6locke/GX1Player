@@ -7001,6 +7001,39 @@ jobs:
           print("Restored Media3 content frame and video surfaces after ExoPlayer attachment.")
           PY
 
+      - name: Ensure Media3 media item builder is present
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          if "private fun buildMediaItem(uri: Uri): MediaItem" not in s:
+              anchor = "    private fun releasePlayer() {"
+              if anchor not in s:
+                  raise SystemExit("Cannot safely restore buildMediaItem: releasePlayer insertion point missing")
+              method = """    private fun buildMediaItem(uri: Uri): MediaItem {
+                  val builder = MediaItem.Builder().setUri(uri)
+                  if (displayName(uri).endsWith(".mkv", ignoreCase = true)) {
+                      builder.setMimeType(MimeTypes.APPLICATION_MATROSKA)
+                  }
+                  val subtitleConfigs = listOfNotNull(
+                      subtitle1Uri?.let { subtitleConfiguration(it, "Subtitle 1") }
+                  )
+                  if (subtitleConfigs.isNotEmpty()) {
+                      builder.setSubtitleConfigurations(subtitleConfigs)
+                  }
+                  return builder.build()
+              }
+
+          """
+              s = s.replace(anchor, method + anchor, 1)
+              p.write_text(s)
+              print("Restored missing Media3 buildMediaItem() helper.")
+          else:
+              print("Media3 buildMediaItem() helper already present.")
+          PY
+
       - name: Export final generated source after all playback patches
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
