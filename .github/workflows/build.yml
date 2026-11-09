@@ -6962,9 +6962,9 @@ jobs:
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
           start = s.find("private fun startPlayer()")
-          end = s.find("private fun buildMediaItem", start)
+          end = s.find("private fun hideMainVlcMedia3VideoContent", start)
           if start < 0 or end < 0:
-              raise SystemExit("Could not isolate startPlayer()")
+              raise SystemExit("Could not isolate startPlayer() using the following method boundary")
           part = s[start:end]
           anchor = "        playerView.visibility = View.VISIBLE"
           if anchor not in part:
