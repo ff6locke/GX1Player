@@ -6893,19 +6893,7 @@ jobs:
               1
           )
           p.write_text(s)
-          main = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
-          s = main.read_text()
-          if "Engine: ${mainVlcEngine?.diagnosticStatus()" not in s:
-              lines = s.splitlines()
-              for index, line in enumerate(lines):
-                  if '"Playback: playing=' in line:
-                      lines[index] = line + ' + "\\\\nEngine: ${mainVlcEngine?.diagnosticStatus() ?: \\"no engine\\"}"'
-                      break
-              else:
-                  raise SystemExit("Playback diagnostic line not found")
-              s = "\n".join(lines) + "\n"
-          main.write_text(s)
-          print("Added stage-by-stage LibVLC open/play and event timing to the on-screen diagnostics.")
+          print("Added stage-by-stage LibVLC open/play and event timing to the build log.")
           PY
 
       - name: Build separate 32-bit and 64-bit ARM APKs
