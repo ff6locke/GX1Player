@@ -6849,6 +6849,65 @@ jobs:
           print("Added selectable LibVLC video output modes.")
           PY
 
+      - name: Show LibVLC startup timing inside the app
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          engine = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
+          s = engine.read_text()
+          anchors = [
+              ("@Volatile private var openStartedAtMs = 0L",
+               "@Volatile private var openStartedAtMs = 0L\n              @Volatile private var mediaCreatedAfterMs = -1L\n              @Volatile private var mediaAssignedAfterMs = -1L\n              @Volatile private var playCalledAfterMs = -1L\n              @Volatile private var playingEventAfterMs = -1L"),
+              ("openStartedAtMs = android.os.SystemClock.elapsedRealtime()",
+               "openStartedAtMs = android.os.SystemClock.elapsedRealtime()\n                  mediaCreatedAfterMs = -1L\n                  mediaAssignedAfterMs = -1L\n                  playCalledAfterMs = -1L\n                  playingEventAfterMs = -1L"),
+              ("android.util.Log.i(\"GX1_FIRST_PLAY_TIMING\", \"media created after ms=\" + (android.os.SystemClock.elapsedRealtime() - openStartedAtMs))",
+               "mediaCreatedAfterMs = android.os.SystemClock.elapsedRealtime() - openStartedAtMs\n                      android.util.Log.i(\"GX1_FIRST_PLAY_TIMING\", \"media created after ms=\" + mediaCreatedAfterMs)"),
+              ("android.util.Log.i(\"GX1_FIRST_PLAY_TIMING\", \"media assigned after ms=\" + (android.os.SystemClock.elapsedRealtime() - openStartedAtMs))",
+               "mediaAssignedAfterMs = android.os.SystemClock.elapsedRealtime() - openStartedAtMs\n                      android.util.Log.i(\"GX1_FIRST_PLAY_TIMING\", \"media assigned after ms=\" + mediaAssignedAfterMs)"),
+              ("android.util.Log.i(\"GX1_FIRST_PLAY_TIMING\", \"play called after ms=\" + (android.os.SystemClock.elapsedRealtime() - openStartedAtMs))",
+               "playCalledAfterMs = android.os.SystemClock.elapsedRealtime() - openStartedAtMs\n                  android.util.Log.i(\"GX1_FIRST_PLAY_TIMING\", \"play called after ms=\" + playCalledAfterMs)"),
+              ("android.util.Log.i(\"GX1_FIRST_PLAY_TIMING\", \"Playing event after ms=\" + (android.os.SystemClock.elapsedRealtime() - openStartedAtMs))",
+               "playingEventAfterMs = android.os.SystemClock.elapsedRealtime() - openStartedAtMs\n                              android.util.Log.i(\"GX1_FIRST_PLAY_TIMING\", \"Playing event after ms=\" + playingEventAfterMs)"),
+          ]
+          for old, new in anchors:
+              if old not in s:
+                  raise SystemExit("Engine timing anchor missing: " + old[:90])
+              s = s.replace(old, new, 1)
+          method = """    fun startupTimingLines(): List<String> {
+                  if (openStartedAtMs == 0L) return listOf("No LibVLC video has been opened in this session")
+                  fun show(value: Long): String = if (value >= 0L) "$value ms" else "not reached"
+                  return listOf(
+                      "Media object created: ${show(mediaCreatedAfterMs)}",
+                      "Media assigned: ${show(mediaAssignedAfterMs)}",
+                      "play() called: ${show(playCalledAfterMs)}",
+                      "LibVLC Playing event: ${show(playingEventAfterMs)}"
+                  )
+              }
+
+          """
+          release_anchor = "    fun release() {"
+          if release_anchor not in s:
+              raise SystemExit("Could not find engine release() insertion point")
+          if "fun startupTimingLines()" not in s:
+              s = s.replace(release_anchor, method + release_anchor, 1)
+          engine.write_text(s)
+
+          activity = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = activity.read_text()
+          title = 'lines.add("HDMI / Android audio capabilities")'
+          if title not in s:
+              raise SystemExit("Audio diagnostics title anchor missing")
+          addition = '''lines.add("HDMI / Android audio capabilities")
+                  lines.add("")
+                  lines.add("LibVLC startup timing (milliseconds)")
+                  lines.addAll(mainVlcEngine?.startupTimingLines() ?: listOf("No active main LibVLC session"))
+          '''
+          s = s.replace(title, addition, 1)
+          activity.write_text(s)
+          print("Added first-play timings to the existing in-app Audio diagnostics screen.")
+          PY
+
       - name: Instrument first-play startup timing
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
