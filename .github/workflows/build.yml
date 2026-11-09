@@ -6849,6 +6849,35 @@ jobs:
           print("Added selectable LibVLC video output modes.")
           PY
 
+      - name: Instrument first-play startup timing
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
+          s = p.read_text()
+          if "GX1_FIRST_PLAY_TIMING" in s:
+              raise SystemExit("Timing instrumentation already exists")
+          replacements = [
+              ("private var activeDigitalOutput = true",
+               "private var activeDigitalOutput = true\n              @Volatile private var openStartedAtMs = 0L"),
+              ("fun open(uri: Uri, startPositionMs: Long = 0L, digitalOutput: Boolean = true) {",
+               "fun open(uri: Uri, startPositionMs: Long = 0L, digitalOutput: Boolean = true) {\n                  openStartedAtMs = android.os.SystemClock.elapsedRealtime()\n                  android.util.Log.i(\"GX1_FIRST_PLAY_TIMING\", \"open entered\")"),
+              ("mediaPlayer.media = media",
+               "android.util.Log.i(\"GX1_FIRST_PLAY_TIMING\", \"media created after ms=\" + (android.os.SystemClock.elapsedRealtime() - openStartedAtMs))\n                      mediaPlayer.media = media\n                      android.util.Log.i(\"GX1_FIRST_PLAY_TIMING\", \"media assigned after ms=\" + (android.os.SystemClock.elapsedRealtime() - openStartedAtMs))"),
+              ("mediaPlayer.play()",
+               "mediaPlayer.play()\n                  android.util.Log.i(\"GX1_FIRST_PLAY_TIMING\", \"play called after ms=\" + (android.os.SystemClock.elapsedRealtime() - openStartedAtMs))"),
+              ("MediaPlayer.Event.Playing -> {",
+               "MediaPlayer.Event.Playing -> {\n                              android.util.Log.i(\"GX1_FIRST_PLAY_TIMING\", \"Playing event after ms=\" + (android.os.SystemClock.elapsedRealtime() - openStartedAtMs))"),
+          ]
+          for old, new in replacements:
+              if old not in s:
+                  raise SystemExit("Expected playback anchor missing: " + old[:70])
+              s = s.replace(old, new, 1)
+          p.write_text(s)
+          print("Added startup timing logs without changing playback behavior.")
+          PY
+
       - name: Show LibVLC startup timing inside the app
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
@@ -6906,35 +6935,6 @@ jobs:
           s = s.replace(title, addition, 1)
           activity.write_text(s)
           print("Added first-play timings to the existing in-app Audio diagnostics screen.")
-          PY
-
-      - name: Instrument first-play startup timing
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
-          s = p.read_text()
-          if "GX1_FIRST_PLAY_TIMING" in s:
-              raise SystemExit("Timing instrumentation already exists")
-          replacements = [
-              ("private var activeDigitalOutput = true",
-               "private var activeDigitalOutput = true\n              @Volatile private var openStartedAtMs = 0L"),
-              ("fun open(uri: Uri, startPositionMs: Long = 0L, digitalOutput: Boolean = true) {",
-               "fun open(uri: Uri, startPositionMs: Long = 0L, digitalOutput: Boolean = true) {\n                  openStartedAtMs = android.os.SystemClock.elapsedRealtime()\n                  android.util.Log.i(\"GX1_FIRST_PLAY_TIMING\", \"open entered\")"),
-              ("mediaPlayer.media = media",
-               "android.util.Log.i(\"GX1_FIRST_PLAY_TIMING\", \"media created after ms=\" + (android.os.SystemClock.elapsedRealtime() - openStartedAtMs))\n                      mediaPlayer.media = media\n                      android.util.Log.i(\"GX1_FIRST_PLAY_TIMING\", \"media assigned after ms=\" + (android.os.SystemClock.elapsedRealtime() - openStartedAtMs))"),
-              ("mediaPlayer.play()",
-               "mediaPlayer.play()\n                  android.util.Log.i(\"GX1_FIRST_PLAY_TIMING\", \"play called after ms=\" + (android.os.SystemClock.elapsedRealtime() - openStartedAtMs))"),
-              ("MediaPlayer.Event.Playing -> {",
-               "MediaPlayer.Event.Playing -> {\n                              android.util.Log.i(\"GX1_FIRST_PLAY_TIMING\", \"Playing event after ms=\" + (android.os.SystemClock.elapsedRealtime() - openStartedAtMs))"),
-          ]
-          for old, new in replacements:
-              if old not in s:
-                  raise SystemExit("Expected playback anchor missing: " + old[:70])
-              s = s.replace(old, new, 1)
-          p.write_text(s)
-          print("Added startup timing logs without changing playback behavior.")
           PY
 
       - name: Build separate 32-bit and 64-bit ARM APKs
