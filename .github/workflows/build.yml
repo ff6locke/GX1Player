@@ -6942,10 +6942,11 @@ jobs:
           PY
 
       - name: Record LibVLC buffering percentage timeline
-        working-directory: \${{ env.PROJECT_DIR }}
+        working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
           s = p.read_text()
           field = "@Volatile private var bufferingEventAfterMs = -1L"
@@ -6953,39 +6954,29 @@ jobs:
               raise SystemExit("Buffering timing field not found")
           if "bufferingProgressTrace" in s:
               raise SystemExit("Buffering progress trace already exists")
-          s = s.replace(field, field + '\n              @Volatile private var bufferingProgressTrace = ""', 1)
-          reset = "bufferingEventAfterMs = -1L\n"
+          s = s.replace(field, field + '\\n              @Volatile private var bufferingProgressTrace = ""', 1)
+          reset = "bufferingEventAfterMs = -1L\\n"
           if reset not in s:
               raise SystemExit("Buffering timing reset not found")
-          s = s.replace(reset, reset + '                  bufferingProgressTrace = ""\n', 1)
-          old = '''MediaPlayer.Event.Buffering -> {
-                                  if (bufferingEventAfterMs < 0L) bufferingEventAfterMs = android.os.SystemClock.elapsedRealtime() - openStartedAtMs
-                                  android.util.Log.i("GX1_FIRST_PLAY_TIMING", "Buffering event after ms=" + bufferingEventAfterMs)
-                              }'''
-          new = '''MediaPlayer.Event.Buffering -> {
-                                  val bufferingAtMs = android.os.SystemClock.elapsedRealtime() - openStartedAtMs
-                                  val bufferingPercent = event.buffering.toInt()
-                                  bufferingProgressTrace = (bufferingProgressTrace +
-                                      bufferingPercent.toString() + "%@" + bufferingAtMs.toString() + "ms; ").takeLast(1200)
-                                  if (bufferingEventAfterMs < 0L) bufferingEventAfterMs = bufferingAtMs
-                                  android.util.Log.i("GX1_FIRST_PLAY_TIMING",
-                                      "Buffering " + bufferingPercent + "% after ms=" + bufferingAtMs)
-                              }'''
-          if old not in s:
-              raise SystemExit("Exact LibVLC Buffering event handler not found")
-          s = s.replace(old, new, 1)
-          output = '''"LibVLC Playing event: \${show(playingEventAfterMs)}"
-                  )'''
-          replacement = '''"LibVLC Playing event: \${show(playingEventAfterMs)}",
-                      "Buffering percentage timeline: " + if (bufferingProgressTrace.isBlank()) "no updates" else bufferingProgressTrace
-                  )'''
-          if output not in s:
+          s = s.replace(reset, reset + '                  bufferingProgressTrace = ""\\n', 1)
+          pattern = r'(?m)^(\\s*)MediaPlayer\\.Event\\.Buffering -> \\{\\n.*?^\\1\\}'
+          match = re.search(pattern, s, re.S)
+          if not match:
+              raise SystemExit("Could not locate LibVLC Buffering event handler")
+          indent = match.group(1)
+          handler = indent + "MediaPlayer.Event.Buffering -> {\\n" + indent + "    val bufferingAtMs = android.os.SystemClock.elapsedRealtime() - openStartedAtMs\\n" + indent + "    val bufferingPercent = event.buffering.toInt()\\n" + indent + "    bufferingProgressTrace = (bufferingProgressTrace + bufferingPercent.toString() + \\\"%@\\\" + bufferingAtMs.toString() + \\\"ms; \\\").takeLast(1200)\\n" + indent + "    if (bufferingEventAfterMs < 0L) bufferingEventAfterMs = bufferingAtMs\\n" + indent + "    android.util.Log.i(\\\"GX1_FIRST_PLAY_TIMING\\\", \\\"Buffering \\\" + bufferingPercent + \\\"% after ms=\\\" + bufferingAtMs)\\n" + indent + "}"
+          s = s[:match.start()] + handler + s[match.end():]
+          output_pattern = r'(?m)^(\\s*)"LibVLC Playing event: \\$\\{show\\(playingEventAfterMs\\)\\}"\\s*$'
+          output_match = re.search(output_pattern, s)
+          if not output_match:
               raise SystemExit("Startup timing output list anchor not found")
-          s = s.replace(output, replacement, 1)
+          i = output_match.start()
+          line = output_match.group(0)
+          extra = line + ",\\n" + output_match.group(1) + '"Buffering percentage timeline: " + if (bufferingProgressTrace.isBlank()) "no updates" else bufferingProgressTrace'
+          s = s[:i] + extra + s[output_match.end():]
           p.write_text(s)
-          print("Added timestamped LibVLC buffering percentage diagnostics.")
+          print("Added timestamped LibVLC buffering percentage diagnostics using indentation-independent matching.")
           PY
-
       - name: Measure app startup path before LibVLC
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
