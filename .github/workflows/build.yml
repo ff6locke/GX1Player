@@ -3,7 +3,7 @@ name: Build GX1 Player APK
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, test/diagnose-surface-from-576 ]
     paths:
       - 'gx1-player.zip'
       - '.github/workflows/build.yml'
@@ -2637,7 +2637,7 @@ jobs:
           PY
       - name: Generate Gradle wrapper
         working-directory: ${{ env.PROJECT_DIR }}
-        run: gradle wrapper --gradle-version "$GRADLE_VERSION" --no-daemon
+        run: gradle wrapper --gradle-version "$GRADLE_VERSION" --gradle-distribution-url "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" --no-validate-url --no-daemon
 
       - name: Inspect generated Kotlin subtitle declarations
         working-directory: ${{ env.PROJECT_DIR }}
@@ -6017,7 +6017,6 @@ jobs:
           # Final safety repair for generated Kotlin source.
           import re
           s = s.replace("mainVlcLayout = VLCVideoLayout(this).apply {\n              setBackgroundColor(Color.BLACK)\n              visibility = View.GONE\n          }", "mainVlcLayout = VLCVideoLayout(this)")
-          s = re.sub(r"buildMediaItem\(uri\)", "MediaItem.fromUri(uri)", s)
           p.write_text(s)
           print("Main player now uses VLC Test-style external subtitle checkboxes and simultaneous ASS/SRT overlays.")
           PY
@@ -6774,6 +6773,370 @@ jobs:
           print("Added selectable LibVLC video output modes.")
           PY
 
+      - name: Add first-run LibVLC surface diagnostics (baseline 576)
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+
+          field_anchor = "    private var mainVlcEngine: Gx1LibVlcEngine? = null"
+          if field_anchor not in s:
+              raise SystemExit("Main LibVLC engine field not found")
+          if "private var gx1SurfaceDiagView:" not in s:
+              s = s.replace(field_anchor, field_anchor + """
+              private var gx1SurfaceDiagView: android.widget.TextView? = null
+              private var gx1SurfaceDiagRunnable: Runnable? = null
+          """, 1)
+
+          method = r'''    private fun showGx1SurfaceDiagnostics() {
+              val root = playerView.parent as? android.widget.FrameLayout ?: return
+              gx1SurfaceDiagRunnable?.let { gx1SurfaceDiagView?.removeCallbacks(it) }
+              gx1SurfaceDiagView?.let { (it.parent as? android.view.ViewGroup)?.removeView(it) }
+
+              val panel = android.widget.TextView(this).apply {
+                  setTextColor(Color.WHITE)
+                  textSize = 12f
+                  typeface = android.graphics.Typeface.MONOSPACE
+                  setPadding(12, 8, 12, 8)
+                  setBackgroundColor(0xCC101010.toInt())
+                  elevation = 100f
+                  isClickable = false
+              }
+              gx1SurfaceDiagView = panel
+              root.addView(panel, android.widget.FrameLayout.LayoutParams(
+                  android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                  android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                  Gravity.TOP
+              ))
+
+              fun describe(view: android.view.View): String {
+                  return when (view) {
+                      is android.view.SurfaceView ->
+                          "SurfaceView ${view.width}x${view.height} valid=${view.holder.surface?.isValid}"
+                      is android.view.TextureView ->
+                          "TextureView ${view.width}x${view.height} available=${view.isAvailable}"
+                      is android.view.ViewGroup -> {
+                          val children = (0 until view.childCount).map { describe(view.getChildAt(it)) }.filter { it.isNotBlank() }
+                          if (children.isEmpty()) "children=${view.childCount}" else children.joinToString(" | ")
+                      }
+                      else -> ""
+                  }
+              }
+
+              val started = android.os.SystemClock.elapsedRealtime()
+              val task = object : Runnable {
+                  override fun run() {
+                      if (gx1SurfaceDiagView !== panel) return
+                      val elapsed = (android.os.SystemClock.elapsedRealtime() - started) / 1000L
+                      val layout = mainVlcLayout
+                      val surfaces = describe(layout).ifBlank { "No SurfaceView/TextureView found" }
+                      panel.text = "BASE 576 FIRST-PLAY CHECK  ${elapsed}s\n" +
+                          "VLC layout: attached=${layout.isAttachedToWindow} size=${layout.width}x${layout.height} visible=${layout.visibility == View.VISIBLE}\n" +
+                          "$surfaces\n" +
+                          "Playback: playing=${mainVlcEngine?.isPlaying()} time=${mainVlcEngine?.currentTimeMs() ?: 0L}ms"
+                      if (elapsed < 90L) panel.postDelayed(this, 1000L)
+                  }
+              }
+              gx1SurfaceDiagRunnable = task
+              panel.post(task)
+          }
+
+          '''
+          if "private fun showGx1SurfaceDiagnostics()" not in s:
+              anchor = "    private fun startMainLibVlc(uri: Uri) {"
+              if anchor not in s:
+                  raise SystemExit("startMainLibVlc insertion point not found")
+              s = s.replace(anchor, method + anchor, 1)
+
+          startup = s.find("private fun startMainLibVlc(uri: Uri)")
+          if startup < 0:
+              raise SystemExit("Active startMainLibVlc method not found")
+          attach = "engine.attach(mainVlcLayout)"
+          attach_pos = s.find(attach, startup)
+          if attach_pos < 0:
+              raise SystemExit("Active main VLC attach call not found")
+          if "showGx1SurfaceDiagnostics()" not in s[attach_pos:attach_pos + 300]:
+              s = s[:attach_pos] + s[attach_pos:].replace(attach, attach + "\n                  showGx1SurfaceDiagnostics()", 1)
+
+          p.write_text(s)
+          print("Added on-screen 90-second surface readiness diagnostics without changing playback timing.")
+          PY
+
+
+      - name: Prepare LibVLC video surface on home screen
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+
+          # Warm the actual main-player VLC surface after the home screen is attached.
+          home_anchor = "        setContentView(root)"
+          warm = """        setContentView(root)
+                  // Prepare LibVLC and its video output while the home screen is visible.
+                  // This gives Android time to create a valid Surface before first playback.
+                  mainVlcLayout.post {
+                      if (mainVlcEngine == null) {
+                          val warmEngine = Gx1LibVlcEngine(this) { state -> runOnUiThread {
+                              if (state.error != null) Toast.makeText(this, state.error, Toast.LENGTH_LONG).show()
+                              if (state.ended) playingUri?.let { prefs.edit().remove(posKey(it)).apply() }
+                          } }
+                          mainVlcEngine = warmEngine
+                          try {
+                              warmEngine.attach(mainVlcLayout)
+                              android.util.Log.i("GX1-VLC", "Home-screen VLC surface prepared: ${mainVlcLayout.width}x${mainVlcLayout.height}")
+                          } catch (error: Exception) {
+                              android.util.Log.e("GX1-VLC", "Home-screen surface preparation failed", error)
+                              warmEngine.release()
+                              if (mainVlcEngine === warmEngine) mainVlcEngine = null
+                          }
+                      }
+                  }"""
+          if "Home-screen VLC surface prepared:" not in s:
+              if home_anchor not in s:
+                  raise SystemExit("Main home-screen setContentView(root) anchor missing")
+              s = s.replace(home_anchor, warm, 1)
+
+          # Reuse the warmed engine when a video is selected; do not recreate LibVLC.
+          start = s.find("    private fun startMainLibVlc(uri: Uri) {")
+          if start < 0:
+              raise SystemExit("startMainLibVlc method missing")
+          create = s.find("        val engine = Gx1LibVlcEngine(this)", start)
+          attach = s.find("        engine.attach(mainVlcLayout)", create)
+          if create < 0 or attach < 0:
+              raise SystemExit("Main LibVLC engine creation/attach block missing")
+          end = attach + len("        engine.attach(mainVlcLayout)")
+          replacement = """        val engine = mainVlcEngine ?: Gx1LibVlcEngine(this) { state -> runOnUiThread {
+                          if (state.error != null) Toast.makeText(this, state.error, Toast.LENGTH_LONG).show()
+                          if (state.ended) prefs.edit().remove(posKey(uri)).apply()
+                      } }.also { mainVlcEngine = it }
+                      engine.attach(mainVlcLayout)"""
+          s = s[:create] + replacement + s[end:]
+          p.write_text(s)
+          print("Prepared and attached the main LibVLC surface on the home screen; playback reuses that engine.")
+          PY
+
+      - name: Add LibVLC first-play timing diagnostics
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
+          s = p.read_text()
+          field = "    private var activeDigitalOutput = true"
+          addition = """    private var activeDigitalOutput = true
+              @Volatile private var openStartedAtMs = 0L
+              @Volatile private var lastDiagnostic = "idle"
+
+              private fun markDiagnostic(stage: String) {
+                  val elapsed = if (openStartedAtMs == 0L) 0L else
+                      android.os.SystemClock.elapsedRealtime() - openStartedAtMs
+                  lastDiagnostic = "$stage +${elapsed}ms"
+                  android.util.Log.i("GX1-VLC-TIMING", lastDiagnostic)
+              }
+
+              fun diagnosticStatus(): String = lastDiagnostic
+          """
+          if "fun diagnosticStatus(): String" not in s:
+              if field not in s:
+                  raise SystemExit("LibVLC diagnostic field anchor missing")
+              s = s.replace(field, addition, 1)
+          s = s.replace(
+              '                      android.util.Log.i("GX1-VLC", "MAIN LibVLC event=${event.type}, vout=$voutInfo")',
+              '                      markDiagnostic("event:${event.type} vout=$voutInfo")\n                      android.util.Log.i("GX1-VLC", "MAIN LibVLC event=${event.type}, vout=$voutInfo")',
+              1
+          )
+          s = s.replace(
+              '                  checkActive()\n                  activeUri = uri',
+              '                  checkActive()\n                  openStartedAtMs = android.os.SystemClock.elapsedRealtime()\n                  markDiagnostic("open-enter scheme=${uri.scheme}")\n                  activeUri = uri',
+              1
+          )
+          s = s.replace(
+              '                  runCatching { mediaPlayer.stop() }',
+              '                  markDiagnostic("before-stop")\n                  runCatching { mediaPlayer.stop() }\n                  markDiagnostic("after-stop")',
+              1
+          )
+          s = s.replace(
+              '                  val media = if (uri.scheme == "content") {',
+              '                  markDiagnostic("before-media-create")\n                  val media = if (uri.scheme == "content") {',
+              1
+          )
+          s = s.replace(
+              '                  try {\n                      mediaPlayer.media = media',
+              '                  markDiagnostic("after-media-create")\n                  try {\n                      markDiagnostic("before-set-media")\n                      mediaPlayer.media = media\n                      markDiagnostic("after-set-media")',
+              1
+          )
+          s = s.replace(
+              '                  mediaPlayer.play()\n                  publish(opening = true, error = null)',
+              '                  markDiagnostic("before-play-call")\n                  mediaPlayer.play()\n                  markDiagnostic("play-call-returned")\n                  publish(opening = true, error = null)',
+              1
+          )
+          p.write_text(s)
+          print("Added stage-by-stage LibVLC open/play and event timing to the build log.")
+          PY
+
+      - name: Restore Media3 as the only main playback engine
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+
+          # Do not route normal video selections into LibVLC.
+          import re
+          route_pattern = r"(?m)^[ \t]*if \(mainVlcSelected\) \{\s*startMainLibVlc\(uri\)\s*return\s*\}\s*"
+          s, route_count = re.subn(route_pattern, "", s, count=1)
+          if route_count != 1:
+              raise SystemExit("Could not uniquely locate the LibVLC route in startPlayer; refusing unsafe Media3 switch")
+
+          # The LibVLC surface was added above PlayerView and the Media3 video
+          # content was hidden. Restore the actual Media3 video surface.
+          anchor = "        val uri = mediaUri ?: return"
+          if anchor not in s:
+              raise SystemExit("Media3 startPlayer URI anchor missing")
+          restore = anchor + """
+                  if (::mainVlcLayout.isInitialized) mainVlcLayout.visibility = View.GONE
+                  playerView.visibility = View.VISIBLE
+                  playerView.setBackgroundColor(Color.BLACK)
+                  playerView.findViewById<android.view.View>(
+                      androidx.media3.ui.R.id.exo_content_frame
+                  )?.visibility = View.VISIBLE
+                  playerView.findViewById<android.view.View>(
+                      androidx.media3.ui.R.id.exo_shutter
+                  )?.visibility = View.VISIBLE
+                  playerView.findViewById<android.view.View>(
+                      androidx.media3.ui.R.id.exo_artwork
+                  )?.visibility = View.VISIBLE
+                  // Restore any Media3 SurfaceView/TextureView hidden by the
+                  // earlier LibVLC overlay experiment. Restoring only the
+                  // content frame is insufficient if the actual video surface
+                  // remains GONE.
+                  fun restoreMedia3VideoSurfaces(group: android.view.ViewGroup) {
+                      for (index in 0 until group.childCount) {
+                          val child = group.getChildAt(index)
+                          if (child is android.view.SurfaceView || child is android.view.TextureView) {
+                              child.visibility = View.VISIBLE
+                          } else if (child is android.view.ViewGroup) {
+                              restoreMedia3VideoSurfaces(child)
+                          }
+                      }
+                  }
+                  restoreMedia3VideoSurfaces(playerView)
+          """
+          if "mainVlcLayout.visibility = View.GONE" not in s[s.find("private fun startPlayer()"):s.find("private fun buildMediaItem")]:
+              s = s.replace(anchor, restore, 1)
+
+          # Keep the stored selector from silently reactivating the failed engine.
+          s = s.replace("mainVlcSelected = true", "mainVlcSelected = false", 1)
+          p.write_text(s)
+          print("Main video selection now uses Media3 ExoPlayer and its own visible video surface.")
+          PY
+
+      - name: Restore Media3 video frame immediately after player attachment
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          start = s.find("private fun startPlayer()")
+          end = s.find("private fun hideMainVlcMedia3VideoContent", start)
+          if start < 0 or end < 0:
+              raise SystemExit("Could not isolate startPlayer() using the following method boundary")
+          part = s[start:end]
+          anchor = "        playerView.visibility = View.VISIBLE"
+          if anchor not in part:
+              raise SystemExit("Could not find PlayerView visibility assignment in startPlayer()")
+          restore = anchor + """
+                  // The initial LibVLC migration hides Media3's content frame.
+                  // Restore the video rendering hierarchy after attaching ExoPlayer.
+                  if (::mainVlcLayout.isInitialized) mainVlcLayout.visibility = View.GONE
+                  playerView.setBackgroundColor(Color.BLACK)
+                  playerView.findViewById<android.view.View>(
+                      androidx.media3.ui.R.id.exo_content_frame
+                  )?.visibility = View.VISIBLE
+                  playerView.findViewById<android.view.View>(
+                      androidx.media3.ui.R.id.exo_shutter
+                  )?.visibility = View.VISIBLE
+                  playerView.findViewById<android.view.View>(
+                      androidx.media3.ui.R.id.exo_artwork
+                  )?.visibility = View.VISIBLE
+                  fun restoreAttachedVideoSurfaces(group: android.view.ViewGroup) {
+                      for (index in 0 until group.childCount) {
+                          val child = group.getChildAt(index)
+                          if (child is android.view.SurfaceView || child is android.view.TextureView) {
+                              child.visibility = View.VISIBLE
+                          } else if (child is android.view.ViewGroup) {
+                              restoreAttachedVideoSurfaces(child)
+                          }
+                      }
+                  }
+                  restoreAttachedVideoSurfaces(playerView)
+          """
+          if "Restore the video rendering hierarchy after attaching ExoPlayer" not in part:
+              part = part.replace(anchor, restore, 1)
+              s = s[:start] + part + s[end:]
+          p.write_text(s)
+          print("Restored Media3 content frame and video surfaces after ExoPlayer attachment.")
+          PY
+
+      - name: Ensure Media3 media item builder is present
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          if "private fun buildMediaItem(uri: Uri): MediaItem" not in s:
+              anchor = "    private fun releasePlayer() {"
+              if anchor not in s:
+                  raise SystemExit("Cannot safely restore buildMediaItem: releasePlayer insertion point missing")
+              method = """    private fun buildMediaItem(uri: Uri): MediaItem {
+                  val builder = MediaItem.Builder().setUri(uri)
+                  if (displayName(uri).endsWith(".mkv", ignoreCase = true)) {
+                      builder.setMimeType(MimeTypes.APPLICATION_MATROSKA)
+                  }
+                  val subtitleConfigs = listOfNotNull(
+                      subtitle1Uri?.let { subtitleConfiguration(it, "Subtitle 1") }
+                  )
+                  if (subtitleConfigs.isNotEmpty()) {
+                      builder.setSubtitleConfigurations(subtitleConfigs)
+                  }
+                  return builder.build()
+              }
+
+          """
+              s = s.replace(anchor, method + anchor, 1)
+              p.write_text(s)
+              print("Restored missing Media3 buildMediaItem() helper.")
+          else:
+              print("Media3 buildMediaItem() helper already present.")
+          PY
+
+      - name: Export final generated source after all playback patches
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          set -euo pipefail
+          mkdir -p final-source-review
+          cp -R app/src/main/java/com/example/gx1player final-source-review/
+          cp app/build.gradle.kts final-source-review/
+          cp app/src/main/AndroidManifest.xml final-source-review/
+          zip -qr gx1-final-generated-source.zip final-source-review
+
+      - name: Upload final generated source for playback inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: gx1-final-source-review
+          path: ${{ env.PROJECT_DIR }}/gx1-final-generated-source.zip
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Build separate 32-bit and 64-bit ARM APKs
         working-directory: ${{ env.PROJECT_DIR }}
         env:
@@ -6809,7 +7172,7 @@ jobs:
           print(f"Configured exactly one ABI: {abi}")
           PY
             rm -rf "$APK_DIR"
-            ./gradlew "$TASK" --no-daemon --stacktrace
+            gradle "$TASK" --no-daemon --stacktrace
             mapfile -t APK_FILES < <(find "$APK_DIR" -maxdepth 1 -type f -name '*.apk' | sort)
             if [ "${#APK_FILES[@]}" -ne 1 ]; then
               echo "Expected one APK for $ABI; found ${#APK_FILES[@]}"
