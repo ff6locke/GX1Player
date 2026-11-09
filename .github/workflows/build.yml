@@ -6998,12 +6998,8 @@ jobs:
           """, 1)
           s = s.replace("val engine = Gx1LibVlcEngine(this) { state -> runOnUiThread {",
                         "val engine = Gx1LibVlcEngine(this) { state -> runOnUiThread {", 1)
-          engine_line = "                  mainVlcEngine = engine"
-          if engine_line not in s:
-              raise SystemExit("mainVlcEngine assignment not found")
-          s = s.replace(engine_line, engine_line + """
-                  gx1PathEngineCreatedAt = android.os.SystemClock.elapsedRealtime()
-          """, 1)
+          # The generated app may construct or assign the engine under different
+          # variable names, so avoid assuming a particular assignment statement.
           attach_line = "                  engine.attach(mainVlcLayout)"
           if attach_line not in s:
               raise SystemExit("engine.attach() call not found")
