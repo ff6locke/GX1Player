@@ -6837,6 +6837,74 @@ jobs:
           print("Prepared and attached the main LibVLC surface on the home screen; playback reuses that engine.")
           PY
 
+      - name: Add LibVLC first-play timing diagnostics
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
+          s = p.read_text()
+          field = "    private var activeDigitalOutput = true"
+          addition = """    private var activeDigitalOutput = true
+              @Volatile private var openStartedAtMs = 0L
+              @Volatile private var lastDiagnostic = "idle"
+
+              private fun markDiagnostic(stage: String) {
+                  val elapsed = if (openStartedAtMs == 0L) 0L else
+                      android.os.SystemClock.elapsedRealtime() - openStartedAtMs
+                  lastDiagnostic = "$stage +${elapsed}ms"
+                  android.util.Log.i("GX1-VLC-TIMING", lastDiagnostic)
+              }
+
+              fun diagnosticStatus(): String = lastDiagnostic
+          """
+          if "fun diagnosticStatus(): String" not in s:
+              if field not in s:
+                  raise SystemExit("LibVLC diagnostic field anchor missing")
+              s = s.replace(field, addition, 1)
+          s = s.replace(
+              '                      android.util.Log.i("GX1-VLC", "MAIN LibVLC event=${event.type}, vout=$voutInfo")',
+              '                      markDiagnostic("event:${event.type} vout=$voutInfo")\n                      android.util.Log.i("GX1-VLC", "MAIN LibVLC event=${event.type}, vout=$voutInfo")',
+              1
+          )
+          s = s.replace(
+              '                  checkActive()\n                  activeUri = uri',
+              '                  checkActive()\n                  openStartedAtMs = android.os.SystemClock.elapsedRealtime()\n                  markDiagnostic("open-enter scheme=${uri.scheme}")\n                  activeUri = uri',
+              1
+          )
+          s = s.replace(
+              '                  runCatching { mediaPlayer.stop() }',
+              '                  markDiagnostic("before-stop")\n                  runCatching { mediaPlayer.stop() }\n                  markDiagnostic("after-stop")',
+              1
+          )
+          s = s.replace(
+              '                  val media = if (uri.scheme == "content") {',
+              '                  markDiagnostic("before-media-create")\n                  val media = if (uri.scheme == "content") {',
+              1
+          )
+          s = s.replace(
+              '                  try {\n                      mediaPlayer.media = media',
+              '                  markDiagnostic("after-media-create")\n                  try {\n                      markDiagnostic("before-set-media")\n                      mediaPlayer.media = media\n                      markDiagnostic("after-set-media")',
+              1
+          )
+          s = s.replace(
+              '                  mediaPlayer.play()\n                  publish(opening = true, error = null)',
+              '                  markDiagnostic("before-play-call")\n                  mediaPlayer.play()\n                  markDiagnostic("play-call-returned")\n                  publish(opening = true, error = null)',
+              1
+          )
+          p.write_text(s)
+          main = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = main.read_text()
+          old = '                          "Playback: playing=${mainVlcEngine?.isPlaying()} time=${mainVlcEngine?.currentTimeMs() ?: 0L}ms"'
+          new = old + ' + "\\nEngine: ${mainVlcEngine?.diagnosticStatus() ?: \"no engine\"}"'
+          if "Engine: ${mainVlcEngine?.diagnosticStatus()" not in s:
+              if old not in s:
+                  raise SystemExit("On-screen diagnostic text anchor missing")
+              s = s.replace(old, new, 1)
+          main.write_text(s)
+          print("Added stage-by-stage LibVLC open/play and event timing to the on-screen diagnostics.")
+          PY
+
       - name: Build separate 32-bit and 64-bit ARM APKs
         working-directory: ${{ env.PROJECT_DIR }}
         env:
