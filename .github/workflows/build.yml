@@ -6867,6 +6867,8 @@ jobs:
                "android.util.Log.i(\"GX1_FIRST_PLAY_TIMING\", \"media created after ms=\" + (android.os.SystemClock.elapsedRealtime() - openStartedAtMs))\n                      mediaPlayer.media = media\n                      android.util.Log.i(\"GX1_FIRST_PLAY_TIMING\", \"media assigned after ms=\" + (android.os.SystemClock.elapsedRealtime() - openStartedAtMs))"),
               ("mediaPlayer.play()",
                "mediaPlayer.play()\n                  android.util.Log.i(\"GX1_FIRST_PLAY_TIMING\", \"play called after ms=\" + (android.os.SystemClock.elapsedRealtime() - openStartedAtMs))"),
+              ("when (event.type) {",
+               "when (event.type) {\n                              MediaPlayer.Event.Opening -> {\n                                  openingEventAfterMs = android.os.SystemClock.elapsedRealtime() - openStartedAtMs\n                                  android.util.Log.i(\"GX1_FIRST_PLAY_TIMING\", \"Opening event after ms=\" + openingEventAfterMs)\n                              }\n                              MediaPlayer.Event.Buffering -> {\n                                  if (bufferingEventAfterMs < 0L) bufferingEventAfterMs = android.os.SystemClock.elapsedRealtime() - openStartedAtMs\n                                  android.util.Log.i(\"GX1_FIRST_PLAY_TIMING\", \"Buffering event after ms=\" + bufferingEventAfterMs)\n                              }"),
               ("MediaPlayer.Event.Playing -> {",
                "MediaPlayer.Event.Playing -> {\n                              android.util.Log.i(\"GX1_FIRST_PLAY_TIMING\", \"Playing event after ms=\" + (android.os.SystemClock.elapsedRealtime() - openStartedAtMs))"),
           ]
@@ -6887,9 +6889,9 @@ jobs:
           s = engine.read_text()
           anchors = [
               ("@Volatile private var openStartedAtMs = 0L",
-               "@Volatile private var openStartedAtMs = 0L\n              @Volatile private var mediaCreatedAfterMs = -1L\n              @Volatile private var mediaAssignedAfterMs = -1L\n              @Volatile private var playCalledAfterMs = -1L\n              @Volatile private var playingEventAfterMs = -1L"),
+               "@Volatile private var openStartedAtMs = 0L\n              @Volatile private var mediaCreatedAfterMs = -1L\n              @Volatile private var mediaAssignedAfterMs = -1L\n              @Volatile private var playCalledAfterMs = -1L\n              @Volatile private var openingEventAfterMs = -1L\n              @Volatile private var bufferingEventAfterMs = -1L\n              @Volatile private var playingEventAfterMs = -1L"),
               ("openStartedAtMs = android.os.SystemClock.elapsedRealtime()",
-               "openStartedAtMs = android.os.SystemClock.elapsedRealtime()\n                  mediaCreatedAfterMs = -1L\n                  mediaAssignedAfterMs = -1L\n                  playCalledAfterMs = -1L\n                  playingEventAfterMs = -1L"),
+               "openStartedAtMs = android.os.SystemClock.elapsedRealtime()\n                  mediaCreatedAfterMs = -1L\n                  mediaAssignedAfterMs = -1L\n                  playCalledAfterMs = -1L\n                  openingEventAfterMs = -1L\n                  bufferingEventAfterMs = -1L\n                  playingEventAfterMs = -1L"),
               ("android.util.Log.i(\"GX1_FIRST_PLAY_TIMING\", \"media created after ms=\" + (android.os.SystemClock.elapsedRealtime() - openStartedAtMs))",
                "mediaCreatedAfterMs = android.os.SystemClock.elapsedRealtime() - openStartedAtMs\n                      android.util.Log.i(\"GX1_FIRST_PLAY_TIMING\", \"media created after ms=\" + mediaCreatedAfterMs)"),
               ("android.util.Log.i(\"GX1_FIRST_PLAY_TIMING\", \"media assigned after ms=\" + (android.os.SystemClock.elapsedRealtime() - openStartedAtMs))",
@@ -6910,6 +6912,8 @@ jobs:
                       "Media object created: ${show(mediaCreatedAfterMs)}",
                       "Media assigned: ${show(mediaAssignedAfterMs)}",
                       "play() called: ${show(playCalledAfterMs)}",
+                      "LibVLC Opening event: ${show(openingEventAfterMs)}",
+                      "First Buffering event: ${show(bufferingEventAfterMs)}",
                       "LibVLC Playing event: ${show(playingEventAfterMs)}"
                   )
               }
