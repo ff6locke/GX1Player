@@ -6781,6 +6781,62 @@ jobs:
           print("Added on-screen 90-second surface readiness diagnostics without changing playback timing.")
           PY
 
+
+      - name: Prepare LibVLC video surface on home screen
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+
+          # Warm the actual main-player VLC surface after the home screen is attached.
+          home_anchor = "        setContentView(root)"
+          warm = """        setContentView(root)
+                  // Prepare LibVLC and its video output while the home screen is visible.
+                  // This gives Android time to create a valid Surface before first playback.
+                  mainVlcLayout.post {
+                      if (mainVlcEngine == null) {
+                          val warmEngine = Gx1LibVlcEngine(this) { state -> runOnUiThread {
+                              if (state.error != null) Toast.makeText(this, state.error, Toast.LENGTH_LONG).show()
+                              if (state.ended) playingUri?.let { prefs.edit().remove(posKey(it)).apply() }
+                          } }
+                          mainVlcEngine = warmEngine
+                          try {
+                              warmEngine.attach(mainVlcLayout)
+                              android.util.Log.i("GX1-VLC", "Home-screen VLC surface prepared: ${mainVlcLayout.width}x${mainVlcLayout.height}")
+                          } catch (error: Exception) {
+                              android.util.Log.e("GX1-VLC", "Home-screen surface preparation failed", error)
+                              warmEngine.release()
+                              if (mainVlcEngine === warmEngine) mainVlcEngine = null
+                          }
+                      }
+                  }"""
+          if "Home-screen VLC surface prepared:" not in s:
+              if home_anchor not in s:
+                  raise SystemExit("Main home-screen setContentView(root) anchor missing")
+              s = s.replace(home_anchor, warm, 1)
+
+          # Reuse the warmed engine when a video is selected; do not recreate LibVLC.
+          start = s.find("    private fun startMainLibVlc(uri: Uri) {")
+          if start < 0:
+              raise SystemExit("startMainLibVlc method missing")
+          create = s.find("        val engine = Gx1LibVlcEngine(this)", start)
+          attach = s.find("        engine.attach(mainVlcLayout)", create)
+          if create < 0 or attach < 0:
+              raise SystemExit("Main LibVLC engine creation/attach block missing")
+          end = attach + len("        engine.attach(mainVlcLayout)")
+          replacement = """        val engine = mainVlcEngine ?: Gx1LibVlcEngine(this) { state -> runOnUiThread {
+                          if (state.error != null) Toast.makeText(this, state.error, Toast.LENGTH_LONG).show()
+                          if (state.ended) prefs.edit().remove(posKey(uri)).apply()
+                      } }.also { mainVlcEngine = it }
+                      engine.attach(mainVlcLayout)"""
+          s = s[:create] + replacement + s[end:]
+          p.write_text(s)
+          print("Prepared and attached the main LibVLC surface on the home screen; playback reuses that engine.")
+          PY
+
       - name: Build separate 32-bit and 64-bit ARM APKs
         working-directory: ${{ env.PROJECT_DIR }}
         env:
