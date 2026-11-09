@@ -7004,11 +7004,11 @@ jobs:
               raise SystemExit("Buffering trace field missing; refusing event instrumentation")
           if "libVlcEventTrace" in s:
               raise SystemExit("LibVLC event trace already exists")
-          s = s.replace(field, field + "\\n    @Volatile private var libVlcEventTrace = \"\"", 1)
+          s = s.replace(field, field + "\n    @Volatile private var libVlcEventTrace = \"\"", 1)
           open_reset = "bufferingProgressTrace = \"\""
           if open_reset not in s:
               raise SystemExit("Open trace reset anchor missing")
-          s = s.replace(open_reset, open_reset + "\\n        libVlcEventTrace = \"\"", 1)
+          s = s.replace(open_reset, open_reset + "\n        libVlcEventTrace = \"\"", 1)
           old = 'android.util.Log.i("GX1-VLC", "MAIN LibVLC event=\u0024{event.type}, vout=\u0024voutInfo")'
           new = '''val eventAfterMs = android.os.SystemClock.elapsedRealtime() - openStartedAtMs
                       val eventLabel = event.type.toString()
@@ -7020,7 +7020,7 @@ jobs:
           output = '"Buffering percentage timeline: " + if (bufferingProgressTrace.isBlank()) "no updates" else bufferingProgressTrace'
           if output not in s:
               raise SystemExit("Buffering diagnostic output anchor missing")
-          s = s.replace(output, output + ',\\n            "LibVLC event timeline: " + if (libVlcEventTrace.isBlank()) "no events" else libVlcEventTrace', 1)
+          s = s.replace(output, output + ',\n            "LibVLC event timeline: " + if (libVlcEventTrace.isBlank()) "no events" else libVlcEventTrace', 1)
           p.write_text(s)
           print("Added timestamped timeline for every LibVLC event; playback behavior unchanged.")
           PY
