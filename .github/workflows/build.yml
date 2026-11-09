@@ -7154,24 +7154,20 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
           s = p.read_text()
-          old = '''    private val libVlc = LibVLC(appContext, arrayListOf(
-          "-vvv",
-          "--no-video-title-show"
-      ))'''
-          new = '''    // Diagnostic build only: force software video decoding to test whether
-      // GX1 hardware-decoder initialization is responsible for first-play delay.
-      private val libVlc = LibVLC(appContext, arrayListOf(
-          "-vvv",
-          "--no-video-title-show",
-          "--avcodec-hw=none"
-      ))'''
           if "--avcodec-hw=none" in s:
               raise SystemExit("Hardware-decoding diagnostic option already present")
-          if old not in s:
+          pattern = r'(?s)(    private val libVlc = LibVLC\(appContext, arrayListOf\(\n)(.*?)(\n    \)\))'
+          match = re.search(pattern, s)
+          if not match:
               raise SystemExit("Expected LibVLC constructor options were not found")
-          s = s.replace(old, new, 1)
+          options = match.group(2)
+          if '"--no-video-title-show"' not in options:
+              raise SystemExit("Expected LibVLC default option was not found")
+          options = options + '\n        "--avcodec-hw=none",'
+          s = s[:match.start()] + match.group(1) + options + match.group(3) + s[match.end():]
           p.write_text(s)
           print("Diagnostic mode enabled: LibVLC software video decoding (--avcodec-hw=none).")
           PY
