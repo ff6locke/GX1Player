@@ -6896,6 +6896,54 @@ jobs:
           print("Added stage-by-stage LibVLC open/play and event timing to the build log.")
           PY
 
+      - name: Restore Media3 as the only main playback engine
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+
+          # Do not route normal video selections into LibVLC.
+          route = """        if (mainVlcSelected) {
+                      startMainLibVlc(uri)
+                      return
+                  }
+
+          """
+          if route in s:
+              s = s.replace(route, "", 1)
+          elif "startMainLibVlc(uri)" in s[s.find("private fun startPlayer()"):s.find("private fun buildMediaItem")]:
+              raise SystemExit("Unexpected LibVLC route shape; refusing unsafe Media3 switch")
+
+          # The LibVLC surface was added above PlayerView and the Media3 video
+          # content was hidden. Restore the actual Media3 video surface.
+          anchor = "        val uri = mediaUri ?: return"
+          if anchor not in s:
+              raise SystemExit("Media3 startPlayer URI anchor missing")
+          restore = anchor + """
+                  if (::mainVlcLayout.isInitialized) mainVlcLayout.visibility = View.GONE
+                  playerView.visibility = View.VISIBLE
+                  playerView.setBackgroundColor(Color.BLACK)
+                  playerView.findViewById<android.view.View>(
+                      androidx.media3.ui.R.id.exo_content_frame
+                  )?.visibility = View.VISIBLE
+                  playerView.findViewById<android.view.View>(
+                      androidx.media3.ui.R.id.exo_shutter
+                  )?.visibility = View.VISIBLE
+                  playerView.findViewById<android.view.View>(
+                      androidx.media3.ui.R.id.exo_artwork
+                  )?.visibility = View.VISIBLE
+          """
+          if "mainVlcLayout.visibility = View.GONE" not in s[s.find("private fun startPlayer()"):s.find("private fun buildMediaItem")]:
+              s = s.replace(anchor, restore, 1)
+
+          # Keep the stored selector from silently reactivating the failed engine.
+          s = s.replace("mainVlcSelected = true", "mainVlcSelected = false", 1)
+          p.write_text(s)
+          print("Main video selection now uses Media3 ExoPlayer and its own visible video surface.")
+          PY
+
       - name: Build separate 32-bit and 64-bit ARM APKs
         working-directory: ${{ env.PROJECT_DIR }}
         env:
