@@ -7181,6 +7181,22 @@ jobs:
           p.write_text(s)
           print("Diagnostic mode enabled: LibVLC audio disabled to isolate first-video startup delay.")
           PY
+      - name: Diagnostic test with LibVLC video disabled
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
+          s = p.read_text()
+          needle = '        "--no-audio"'
+          if '"--no-video"' in s:
+              raise SystemExit("Video-disabled diagnostic option already present")
+          if s.count(needle) != 1:
+              raise SystemExit("Expected audio-disabled option exactly once")
+          s = s.replace(needle, needle + ',\\n        "--no-video"', 1)
+          p.write_text(s)
+          print("Diagnostic mode enabled: LibVLC video disabled to isolate audio-only startup.")
+          PY
       - name: Verify and export final post-instrumentation source
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
