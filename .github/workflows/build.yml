@@ -7105,6 +7105,30 @@ jobs:
           print("Added app-level timing from media selection through engine.open().")
           PY
 
+      - name: Verify and export final post-instrumentation source
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          set -e
+          ENGINE=app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt
+          ACTIVITY=app/src/main/java/com/example/gx1player/MainActivity.kt
+          echo "=== Event trace engine declarations and reset ==="
+          grep -n -E 'libVlcEventTrace|openStartedAtMs|MAIN LibVLC event' "$ENGINE"
+          echo "=== Diagnostics display line ==="
+          grep -n -E 'LibVLC event timeline|Buffering percentage timeline' "$ACTIVITY"
+          grep -q 'libVlcEventTrace' "$ENGINE"
+          grep -q 'LibVLC event timeline' "$ACTIVITY"
+          mkdir -p ../gx1-final-source-review
+          cp "$ENGINE" ../gx1-final-source-review/Gx1LibVlcEngine.kt
+          cp "$ACTIVITY" ../gx1-final-source-review/MainActivity.kt
+          cd ..
+          zip -qr gx1-final-source-review.zip gx1-final-source-review
+      - name: Upload final post-instrumentation source review
+        uses: actions/upload-artifact@v4
+        with:
+          name: gx1-final-source-review
+          path: gx1-final-source-review.zip
+          if-no-files-found: error
+          retention-days: 30
       - name: Build separate 32-bit and 64-bit ARM APKs
         working-directory: ${{ env.PROJECT_DIR }}
         env:
