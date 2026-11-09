@@ -2996,6 +2996,32 @@ jobs:
                   lines.add("Reported encodings:")
                   lines.addAll(encodings.map { encoding -> "  • " + encodingName(encoding) })
                   lines.add("")
+                  lines.add("Android direct HDMI playback test (48 kHz, 5.1):")
+                  if (android.os.Build.VERSION.SDK_INT >= 29) {
+                      val attrs = android.media.AudioAttributes.Builder()
+                          .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                          .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MOVIE)
+                          .build()
+                      for (encoding in intArrayOf(
+                          android.media.AudioFormat.ENCODING_DTS,
+                          android.media.AudioFormat.ENCODING_DTS_HD,
+                          android.media.AudioFormat.ENCODING_AC3,
+                          android.media.AudioFormat.ENCODING_E_AC3
+                      )) {
+                          val format = android.media.AudioFormat.Builder()
+                              .setEncoding(encoding)
+                              .setSampleRate(48000)
+                              .setChannelMask(android.media.AudioFormat.CHANNEL_OUT_5POINT1)
+                              .build()
+                          val direct = runCatching {
+                              android.media.AudioTrack.isDirectPlaybackSupported(format, attrs)
+                          }.getOrDefault(false)
+                          lines.add("  ${encodingName(encoding)}: ${if (direct) "YES" else "NO"}")
+                      }
+                  } else {
+                      lines.add("  Not available below Android 10 (API 29)")
+                  }
+                  lines.add("")
                   lines.add("Current Media3 audio tracks:")
                   val audioGroups = player?.currentTracks?.groups?.filter {
                       it.type == androidx.media3.common.C.TRACK_TYPE_AUDIO
