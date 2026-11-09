@@ -6721,81 +6721,37 @@ jobs:
           print(f"Removed forced hardware-decoder override ({count} occurrence(s)).")
           PY
 
-      - name: Route AAC 5.1 to multichannel PCM without changing other codecs
+      - name: Configure LibVLC digital output after media assignment
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
           s = p.read_text()
-          import re
-          s, removed = re.subn(r"(?m)^\s*mediaPlayer\.setAudioDigitalOutputEnabled\(digitalOutput\)\s*\n", "", s, count=1)
-          if removed != 1:
-              raise SystemExit("Could not find exactly one default LibVLC digital-output setup")
-          assignment = "mediaPlayer.media = media"
-          assignment_pos = s.find(assignment)
-          if assignment_pos < 0:
-              raise SystemExit("Could not locate LibVLC media assignment")
-          try_pos = s.rfind("try {", 0, assignment_pos)
-          if try_pos < 0 or s.find("\n", try_pos) > assignment_pos:
-              raise SystemExit("Could not locate media assignment try block")
-          insert_pos = s.rfind("\n", 0, try_pos) + 1
-          indent = s[insert_pos:try_pos]
-          routing = """// Parse embedded audio metadata before playback. Multichannel AAC
-          // needs PCM on this RockTek HDMI path; keep encoded passthrough for
-          // AC3, E-AC3/Atmos, DTS and TrueHD.
-          val hasAac51 = runCatching {
-              // Use reflection for compatibility with LibVLC Media.Track and IMedia.Track APIs.
-              media.javaClass.methods.firstOrNull {
-                  it.name == "parse" && it.parameterCount == 0
-              }?.invoke(media)
-              val tracks = media.javaClass.methods.firstOrNull {
-                  it.name == "getTracks" && it.parameterCount == 0
-              }?.invoke(media) ?: emptyArray<Any>()
-              val count = java.lang.reflect.Array.getLength(tracks)
-              (0 until count).any { index ->
-                  val track = java.lang.reflect.Array.get(tracks, index) ?: return@any false
-                  val trackType = track.javaClass.simpleName
-                  val channels = runCatching {
-                      track.javaClass.getField("channels").getInt(track)
-                  }.getOrDefault(0)
-                  val codec = listOf("codec", "originalCodec").mapNotNull { field ->
-                      runCatching { track.javaClass.getField(field).get(track) as? String }.getOrNull()
-                  }.joinToString(" ").lowercase()
-                  trackType.contains("AudioTrack") && channels >= 6 &&
-                      (codec.contains("aac") || codec.contains("mp4a"))
-              }
-          }.onFailure {
-              android.util.Log.w("GX1-VLC", "Audio metadata inspection failed; retaining automatic output", it)
-          }.getOrDefault(false)
-
-          if (hasAac51) {
-              val pcmSelected = mediaPlayer.setAudioOutputDevice("pcm")
-              android.util.Log.i("GX1-VLC", "AAC multichannel track detected; PCM output selected=$pcmSelected")
-              if (!pcmSelected) {
-                  mediaPlayer.setAudioOutputDevice(null)
-                  mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)
-              }
-          } else {
-              mediaPlayer.setAudioOutputDevice(null)
-              mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)
-          }
-
-          """.splitlines()
-          routing_text = "".join(indent + line + "\n" for line in routing if line)
-          s = s[:insert_pos] + routing_text + s[insert_pos:]
-          required = [
-              "getTracks",
-              "AudioTrack",
-              'mediaPlayer.setAudioOutputDevice("pcm")',
-              "mediaPlayer.setAudioOutputDevice(null)",
-              "mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)"
-          ]
-          missing = [item for item in required if item not in s]
-          if missing:
-              raise SystemExit("AAC 5.1 routing verification failed: " + ", ".join(missing))
+          # Match the standalone VLC test sequence: assign media first, then
+          # enable digital output, then start playback. Do not call
+          # setAudioOutputDevice("pcm") or setAudioOutputDevice(null): those
+          # device overrides can produce LibVLC's "aout invalid" failure.
+          s = re.sub(
+              r'(?m)^\\s*mediaPlayer\\.setAudioOutputDevice\\([^\\n]*\\)\\s*\\n',
+              '',
+              s
+          )
+          s = re.sub(
+              r'(?m)^\\s*mediaPlayer\\.setAudioDigitalOutputEnabled\\(digitalOutput\\)\\s*\\n',
+              '',
+              s
+          )
+          anchor = "mediaPlayer.media = media"
+          if anchor not in s:
+              raise SystemExit("Could not find LibVLC media assignment")
+          if "mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)" not in s:
+              s = s.replace(anchor, anchor + "\\n                  mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)", 1)
+          if "setAudioOutputDevice(" in s:
+              raise SystemExit("Unexpected explicit LibVLC audio-device override remains")
           p.write_text(s)
-          print("AAC 5.1 now selects PCM per source; all other audio sources restore automatic digital output.")
+          print("LibVLC now follows standalone test order without explicit audio-device overrides.")
           PY
 
       - name: Package 32-bit and 64-bit ARM variants for Android TV boxes
