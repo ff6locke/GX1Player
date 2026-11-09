@@ -7193,7 +7193,7 @@ jobs:
               raise SystemExit("Video-disabled diagnostic option already present")
           if s.count(needle) != 1:
               raise SystemExit("Expected audio-disabled option exactly once")
-          s = s.replace(needle, needle + ',\\n        "--no-video"', 1)
+          s = s.replace(needle, needle + ',\n        "--no-video"', 1)
           p.write_text(s)
           print("Diagnostic mode enabled: LibVLC video disabled to isolate audio-only startup.")
           PY
