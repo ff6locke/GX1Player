@@ -6954,6 +6954,24 @@ jobs:
           print("Main video selection now uses Media3 ExoPlayer and its own visible video surface.")
           PY
 
+      - name: Export final generated source after all playback patches
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          set -euo pipefail
+          mkdir -p final-source-review
+          cp -R app/src/main/java/com/example/gx1player final-source-review/
+          cp app/build.gradle.kts final-source-review/
+          cp app/src/main/AndroidManifest.xml final-source-review/
+          zip -qr gx1-final-generated-source.zip final-source-review
+
+      - name: Upload final generated source for playback inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: gx1-final-source-review
+          path: ${{ env.PROJECT_DIR }}/gx1-final-generated-source.zip
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Build separate 32-bit and 64-bit ARM APKs
         working-directory: ${{ env.PROJECT_DIR }}
         env:
