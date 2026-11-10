@@ -7323,24 +7323,27 @@ jobs:
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
           s = p.read_text()
 
-          field = "              private var activeUri: Uri? = null"
-          field_new = field + "\n              // Keep the Media alive until the next source or engine release so its parse events remain observable.\n              private var activeDiagnosticMedia: Media? = null"
+          import re
+          field_match = re.search(r'(?m)^(\s*)private var activeUri: Uri\? = null$', s)
           if "activeDiagnosticMedia" not in s:
-              if s.count(field) != 1:
+              if not field_match:
                   raise SystemExit("Could not locate activeUri field")
-              s = s.replace(field, field_new, 1)
+              indent = field_match.group(1)
+              field_new = field_match.group(0) + "\n" + indent + "// Keep the Media alive until the next source or engine release so its parse events remain observable.\n" + indent + "private var activeDiagnosticMedia: Media? = null"
+              s = s[:field_match.start()] + field_new + s[field_match.end():]
 
-          open_anchor = "                  activeUri = uri"
-          open_new = """                  activeDiagnosticMedia?.let { oldMedia ->
-                      runCatching { oldMedia.setEventListener(null) }
-                      runCatching { oldMedia.release() }
-                  }
-                  activeDiagnosticMedia = null
-                  activeUri = uri"""
+          open_match = re.search(r'(?m)^(\s*)activeUri = uri$', s)
           if "activeDiagnosticMedia?.let { oldMedia" not in s:
-              if s.count(open_anchor) != 1:
+              if not open_match:
                   raise SystemExit("Could not locate open() source-switch anchor")
-              s = s.replace(open_anchor, open_new, 1)
+              indent = open_match.group(1)
+              open_new = indent + """activeDiagnosticMedia?.let { oldMedia ->
+          """ + indent + """    runCatching { oldMedia.setEventListener(null) }
+          """ + indent + """    runCatching { oldMedia.release() }
+          """ + indent + """}
+          """ + indent + """activeDiagnosticMedia = null
+          """ + indent + """activeUri = uri"""
+              s = s[:open_match.start()] + open_new + s[open_match.end():]
 
           media_anchor = """                  try {
                       mediaPlayer.media = media
