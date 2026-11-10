@@ -7345,7 +7345,31 @@ jobs:
           """ + indent + """activeUri = uri"""
               s = s[:open_match.start()] + open_new + s[open_match.end():]
 
-          media_match = re.search(r'(?m)^(\s*)try \{\n\s*mediaPlayer\.media = media\n\s*\} catch \(error: Exception\) \{
+          media_match = re.search(r'(?m)^(\\s*)try \\{\\n\\s*mediaPlayer\\.media = media\\n\\s*\\} catch \\(error: Exception\\) \\{$', s)
+          if "Media parse listener attached" not in s:
+              if not media_match:
+                  raise SystemExit("Could not locate media assignment try/catch")
+              indent = media_match.group(1)
+              media_new = """                  activeDiagnosticMedia = media
+                  media.setEventListener { event ->
+                      val afterMs = if (openStartedAtMs > 0L)
+                          android.os.SystemClock.elapsedRealtime() - openStartedAtMs else -1L
+                      val parsedStatus = runCatching {
+                          media.javaClass.methods.firstOrNull { it.name == "getParsedStatus" }
+                              ?.invoke(media)?.toString() ?: "not-exposed"
+                      }.getOrDefault("query-failed")
+                      android.util.Log.i("GX1_FIRST_PLAY_TIMING",
+                          "Media event type=\u001b{event.type} after ms=$afterMs, parsedStatus=$parsedStatus")
+                  }
+                  android.util.Log.i("GX1_FIRST_PLAY_TIMING",
+                      "Media parse listener attached after ms=" +
+                          (android.os.SystemClock.elapsedRealtime() - openStartedAtMs))
+                  try {
+                      mediaPlayer.media = media
+                  } catch (error: Exception) {"""
+              media_new = media_new.replace("\\u001b{event.type}", "${event.type}")
+              media_new = media_new.replace("\\n                  ", "\\n" + indent)
+              s = s[:media_match.start()] + media_new + s[media_match.end():]
 
           catch_anchor = """                      activeAssetDescriptor = null
                       media.release()
