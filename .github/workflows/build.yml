@@ -7127,7 +7127,7 @@ jobs:
           if start < 0 or end < 0:
               raise SystemExit("Could not locate LibVLC constructor boundaries; refusing unsafe edit")
           # Return to the exact empty-options configuration that initialized successfully in Build 706.
-          restored = '    private val libVlc = LibVLC(appContext, arrayListOf<String>())\n'
+          restored = '    private val libVlc = LibVLC(appContext, arrayListOf<String>("--no-sub-autodetect-file"))\n'
           s = s[:start] + restored + s[end:]
           p.write_text(s)
           print("Restored the prior LibVLC options and Android video-output selection.")
