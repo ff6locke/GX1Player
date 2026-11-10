@@ -7315,51 +7315,42 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
 
-          # startPlayer() itself calls releasePlayer(), which saves the old
-          # position. Release first, then clear the saved position, then reopen.
+          # Release the previous player before clearing its persisted position.
           start = s.find('add("Restart current video")')
           end = s.find('add("History")', start)
           if start < 0 or end < 0:
-              raise SystemExit("Could not isolate Restart current video menu handler")
+              raise SystemExit("Could not isolate Restart current video handler")
           block = s[start:end]
-          expected = 'prefs.edit().remove(posKey(uri)).apply()'
-          if expected not in block:
-              raise SystemExit("Restart saved-position clear not found")
-          block = block.replace(
-              '            prefs.edit().remove(posKey(uri)).apply()',
-              '            releasePlayer()\n            prefs.edit().remove(posKey(uri)).apply()',
-              1
-          )
-          s = s[:start] + block + s[end:]
+          pattern = r'(?m)^(\\s*)prefs\\.edit\\(\\)\\.remove\\(posKey\\(uri\\)\\)\\.apply\\(\\)$'
+          if "releasePlayer()" not in block:
+              block, count = re.subn(pattern, r'\\1releasePlayer()\\n\\1prefs.edit().remove(posKey(uri)).apply()', block, count=1)
+              if count != 1:
+                  raise SystemExit("Could not insert release before restart position reset")
+              s = s[:start] + block + s[end:]
 
-          # Remove the diagnostic and standalone VLC test entries from the menu.
-          removals = [
-              '                      Triple("ⓘ", "Audio diagnostics", "audio_diagnostics"),',
-              '                      Triple("VLC", "Play current video with VLC", "vlc_test"),',
-              '                    "audio_diagnostics" -> showAudioDiagnostics()',
-              '                              "vlc_test" -> launchVlcTest()'
-          ]
-          for item in removals:
-              if item not in s:
-                  raise SystemExit("Expected menu item/action not found: " + item.strip())
-              s = s.replace(item, "", 1)
+          # Remove menu rows and dispatch cases by stable action key, not label.
+          s, tile_count = re.subn(r'(?m)^\\s*Triple\\([^\\n]*,\\s*"audio_diagnostics"\\),?\\s*\\n?', '', s, count=1)
+          s, action_count = re.subn(r'(?m)^\\s*"audio_diagnostics"\\s*->\\s*showAudioDiagnostics\\(\\),?\\s*\\n?', '', s, count=1)
+          if tile_count != 1 or action_count != 1:
+              raise SystemExit(f"Audio diagnostics menu removal mismatch: tile={tile_count}, action={action_count}")
+          s, vlc_tile_count = re.subn(r'(?m)^\\s*Triple\\([^\\n]*,\\s*"vlc_test"\\),?\\s*\\n?', '', s, count=1)
+          s, vlc_action_count = re.subn(r'(?m)^\\s*"vlc_test"\\s*->\\s*launchVlcTest\\(\\),?\\s*\\n?', '', s, count=1)
+          if vlc_tile_count != 1 or vlc_action_count != 1:
+              raise SystemExit(f"VLC test menu removal mismatch: tile={vlc_tile_count}, action={vlc_action_count}")
 
           start = s.find('add("Restart current video")')
           end = s.find('add("History")', start)
           block = s[start:end]
           release_at = block.find("releasePlayer()")
-          clear_at = block.find(expected)
+          clear_at = block.find("prefs.edit().remove(posKey(uri)).apply()")
           if release_at < 0 or clear_at < 0 or release_at > clear_at:
-              raise SystemExit("Restart order verification failed")
-          if "audio_diagnostics" in s or "showAudioDiagnostics()" in s:
-              raise SystemExit("Audio diagnostics menu action remains")
-          if '"vlc_test"' in s or "launchVlcTest()" in s:
-              raise SystemExit("VLC test menu action remains")
+              raise SystemExit("Restart release/clear order verification failed")
           p.write_text(s)
-          print("Restart releases the old player before clearing its saved position; diagnostic and VLC-test menu entries removed.")
+          print("Verified restart release-before-reset order; removed audio diagnostics and VLC test menu rows/actions.")
           PY
 
       - name: Verify and export final post-instrumentation source
