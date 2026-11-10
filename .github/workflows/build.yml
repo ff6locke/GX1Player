@@ -7278,12 +7278,11 @@ jobs:
           set -e
           ENGINE=app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt
           ACTIVITY=app/src/main/java/com/example/gx1player/MainActivity.kt
-          echo "=== Event trace engine declarations and reset ==="
-          grep -n -E 'libVlcEventTrace|openStartedAtMs|MAIN LibVLC event' "$ENGINE"
-          echo "=== Diagnostics display line ==="
-          grep -n -E 'LibVLC event timeline|Buffering percentage timeline' "$ENGINE"
-          grep -q 'libVlcEventTrace' "$ENGINE"
-          grep -q 'LibVLC event timeline' "$ENGINE"
+          echo "=== LibVLC startup timing instrumentation ==="
+          grep -n -E 'openStartedAtMs|MAIN LibVLC event|GX1-VLC' "$ENGINE"
+          grep -q 'openStartedAtMs' "$ENGINE"
+          echo "=== Audio diagnostics and native log capture ==="
+          grep -n -E 'Audio diagnostics|LibVLC native log|Share log' "$ACTIVITY" || true
           mkdir -p ../gx1-final-source-review
           cp "$ENGINE" ../gx1-final-source-review/Gx1LibVlcEngine.kt
           cp "$ACTIVITY" ../gx1-final-source-review/MainActivity.kt
