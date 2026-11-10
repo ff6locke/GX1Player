@@ -7251,7 +7251,7 @@ jobs:
           # Start with LibVLC's built-in defaults and no command-line options.
           # This isolates native engine creation from every custom VLC option and
           # from the app's saved video-output preference.
-          restored = '''    private val libVlc = LibVLC(appContext, arrayListOf().apply {})
+          restored = '''    private val libVlc = LibVLC(appContext, arrayListOf<String>())
           '''
           s = s[:start] + restored + s[end:]
           p.write_text(s)
