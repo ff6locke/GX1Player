@@ -7352,7 +7352,7 @@ jobs:
           s = p.read_text()
           if "LibVLC native log (this app process)" not in s:
               builder = re.search(
-                  r'(?m)^(\\s*)AlertDialog\\.Builder\\(this\\)\\s*\\n(?=\\s*\\.setTitle\\("Audio diagnostics"\\))',
+                  r'(?m)^(\\s*).*Builder\\(this\\)\\s*\\n(?=\\s*\\.setTitle\\("Audio diagnostics"\\))',
                   s
               )
               if not builder:
