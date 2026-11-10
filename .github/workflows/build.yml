@@ -7315,42 +7315,46 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
 
-          # Release the previous player before clearing its persisted position.
-          start = s.find('add("Restart current video")')
-          end = s.find('add("History")', start)
-          if start < 0 or end < 0:
-              raise SystemExit("Could not isolate Restart current video handler")
-          block = s[start:end]
-          pattern = r'(?m)^(\\s*)prefs\\.edit\\(\\)\\.remove\\(posKey\\(uri\\)\\)\\.apply\\(\\)$'
-          if "releasePlayer()" not in block:
-              block, count = re.subn(pattern, r'\\1releasePlayer()\\n\\1prefs.edit().remove(posKey(uri)).apply()', block, count=1)
-              if count != 1:
-                  raise SystemExit("Could not insert release before restart position reset")
-              s = s[:start] + block + s[end:]
+          # The actual handler has been verified in the source dump. Release the
+          # ended player first, then clear its persisted position, then reopen.
+          old = '''        add("Restart current video") {
+                      mediaUri?.let { uri ->
+                          prefs.edit().remove(posKey(uri)).apply()
+                          startPlayer()
+                      }
+                  }'''
+          new = '''        add("Restart current video") {
+                      mediaUri?.let { uri ->
+                          releasePlayer()
+                          prefs.edit().remove(posKey(uri)).apply()
+                          startPlayer()
+                      }
+                  }'''
+          if old not in s:
+              raise SystemExit("Restart handler did not match the verified source; no changes made")
+          s = s.replace(old, new, 1)
 
-          # Remove menu rows and dispatch cases by stable action key, not label.
-          s, tile_count = re.subn(r'(?m)^\\s*Triple\\([^\\n]*,\\s*"audio_diagnostics"\\),?\\s*\\n?', '', s, count=1)
-          s, action_count = re.subn(r'(?m)^\\s*"audio_diagnostics"\\s*->\\s*showAudioDiagnostics\\(\\),?\\s*\\n?', '', s, count=1)
-          if tile_count != 1 or action_count != 1:
-              raise SystemExit(f"Audio diagnostics menu removal mismatch: tile={tile_count}, action={action_count}")
-          s, vlc_tile_count = re.subn(r'(?m)^\\s*Triple\\([^\\n]*,\\s*"vlc_test"\\),?\\s*\\n?', '', s, count=1)
-          s, vlc_action_count = re.subn(r'(?m)^\\s*"vlc_test"\\s*->\\s*launchVlcTest\\(\\),?\\s*\\n?', '', s, count=1)
-          if vlc_tile_count != 1 or vlc_action_count != 1:
-              raise SystemExit(f"VLC test menu removal mismatch: tile={vlc_tile_count}, action={vlc_action_count}")
+          # Remove only the two diagnostic rows and their dispatch entries.
+          remove_lines = (
+              'Triple("ⓘ", "Audio diagnostics", "audio_diagnostics"),',
+              '"audio_diagnostics" -> showAudioDiagnostics()',
+              'Triple("VLC", "LibVLC TrueHD test", "vlc_test"),',
+              '"vlc_test" -> launchVlcTest()',
+          )
+          for line in remove_lines:
+              if line not in s:
+                  raise SystemExit("Expected diagnostic entry missing: " + line)
+              s = s.replace(line, "", 1)
 
-          start = s.find('add("Restart current video")')
-          end = s.find('add("History")', start)
-          block = s[start:end]
-          release_at = block.find("releasePlayer()")
-          clear_at = block.find("prefs.edit().remove(posKey(uri)).apply()")
-          if release_at < 0 or clear_at < 0 or release_at > clear_at:
-              raise SystemExit("Restart release/clear order verification failed")
+          if '"Audio diagnostics"' in s or '"LibVLC TrueHD test"' in s:
+              raise SystemExit("Diagnostic menu label still present")
+          if s.count('add("Restart current video")') != 1:
+              raise SystemExit("Restart handler count changed unexpectedly")
           p.write_text(s)
-          print("Verified restart release-before-reset order; removed audio diagnostics and VLC test menu rows/actions.")
+          print("Restart now releases the finished player before clearing saved position; removed Audio diagnostics and VLC test menu entries.")
           PY
 
       - name: Verify and export final post-instrumentation source
