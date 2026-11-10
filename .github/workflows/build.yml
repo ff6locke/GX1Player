@@ -7315,97 +7315,6 @@ jobs:
           p.write_text(s)
           print("Added timestamped LibVLC event, audio-output configuration, and stop-stage diagnostics only.")
           PY
-      - name: Capture LibVLC media parsing and track discovery timing
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
-          s = p.read_text()
-
-          import re
-          field_match = re.search(r'(?m)^(\s*)private var activeUri: Uri\? = null$', s)
-          if "activeDiagnosticMedia" not in s:
-              if not field_match:
-                  raise SystemExit("Could not locate activeUri field")
-              indent = field_match.group(1)
-              field_new = field_match.group(0) + "\n" + indent + "// Keep the Media alive until the next source or engine release so its parse events remain observable.\n" + indent + "private var activeDiagnosticMedia: Media? = null"
-              s = s[:field_match.start()] + field_new + s[field_match.end():]
-
-          open_match = re.search(r'(?m)^(\s*)activeUri = uri$', s)
-          if "activeDiagnosticMedia?.let { oldMedia" not in s:
-              if not open_match:
-                  raise SystemExit("Could not locate open() source-switch anchor")
-              indent = open_match.group(1)
-              open_new = indent + """activeDiagnosticMedia?.let { oldMedia ->
-          """ + indent + """    runCatching { oldMedia.setEventListener(null) }
-          """ + indent + """    runCatching { oldMedia.release() }
-          """ + indent + """}
-          """ + indent + """activeDiagnosticMedia = null
-          """ + indent + """activeUri = uri"""
-              s = s[:open_match.start()] + open_new + s[open_match.end():]
-
-          media_match = re.search(r'(?m)^(\s*)try \{\n\s*mediaPlayer\.media = media\n\s*\} catch \(error: Exception\) \{$', s)
-          if "Media parse listener attached" not in s:
-              if not media_match:
-                  raise SystemExit("Could not locate media assignment try/catch")
-              indent = media_match.group(1)
-              media_new = """                  activeDiagnosticMedia = media
-                  media.setEventListener { event ->
-                      val afterMs = if (openStartedAtMs > 0L)
-                          android.os.SystemClock.elapsedRealtime() - openStartedAtMs else -1L
-                      val parsedStatus = runCatching {
-                          media.javaClass.methods.firstOrNull { it.name == "getParsedStatus" }
-                              ?.invoke(media)?.toString() ?: "not-exposed"
-                      }.getOrDefault("query-failed")
-                      android.util.Log.i("GX1_FIRST_PLAY_TIMING",
-                          "Media event type=" + event.type + " after ms=$afterMs, parsedStatus=$parsedStatus")
-                  }
-                  android.util.Log.i("GX1_FIRST_PLAY_TIMING",
-                      "Media parse listener attached after ms=" +
-                          (android.os.SystemClock.elapsedRealtime() - openStartedAtMs))
-                  try {
-                      mediaPlayer.media = media
-                  } catch (error: Exception) {"""
-              s = s[:media_match.start()] + media_new + s[media_match.end():]
-
-          catch_anchor = """                      activeAssetDescriptor = null
-                      media.release()
-                      throw error"""
-          catch_new = """                      activeAssetDescriptor = null
-                      activeDiagnosticMedia = null
-                      media.release()
-                      throw error"""
-          if s.count(catch_anchor) != 1:
-              raise SystemExit("Could not locate media assignment error cleanup")
-          s = s.replace(catch_anchor, catch_new, 1)
-
-          release_media = """                  media.release()
-                  android.util.Log.i("GX1-VLC", "Opened media using ${uri.scheme} source; digitalOutput=$digitalOutput")"""
-          release_media_new = """                  // activeDiagnosticMedia owns this Media until the next open() or release().
-                  android.util.Log.i("GX1-VLC", "Opened media using ${uri.scheme} source; digitalOutput=$digitalOutput")"""
-          if s.count(release_media) != 1:
-              raise SystemExit("Could not locate post-assignment Media.release()")
-          s = s.replace(release_media, release_media_new, 1)
-
-          engine_release = """                  runCatching { mediaPlayer.detachViews() }
-                  attachedLayout = null
-                  mediaPlayer.release()"""
-          engine_release_new = """                  runCatching { mediaPlayer.detachViews() }
-                  attachedLayout = null
-                  activeDiagnosticMedia?.let { media ->
-                      runCatching { media.setEventListener(null) }
-                      runCatching { media.release() }
-                  }
-                  activeDiagnosticMedia = null
-                  mediaPlayer.release()"""
-          if s.count(engine_release) != 1:
-              raise SystemExit("Could not locate engine release() cleanup")
-          s = s.replace(engine_release, engine_release_new, 1)
-
-          p.write_text(s)
-          print("Added Media event/parse status/track inventory timing without changing media options or decoder settings.")
-          PY
       - name: Verify and export final post-instrumentation source
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
@@ -7415,9 +7324,6 @@ jobs:
           echo "=== LibVLC startup timing instrumentation ==="
           grep -n -E 'openStartedAtMs|MAIN LibVLC event|GX1-VLC' "$ENGINE"
           grep -q 'openStartedAtMs' "$ENGINE"
-          grep -q 'Media parse listener attached' "$ENGINE"
-          grep -q 'Media event type=' "$ENGINE"
-          grep -q 'activeDiagnosticMedia' "$ENGINE"
           echo "=== Audio diagnostics and native log capture ==="
           grep -n -E 'Audio diagnostics|LibVLC native log|Share log' "$ACTIVITY" || true
           mkdir -p ../gx1-final-source-review
