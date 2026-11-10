@@ -7351,34 +7351,41 @@ jobs:
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
           if "LibVLC native log (this app process)" not in s:
-              title = re.search(r'(?m)^(\s*)\.setTitle\("Audio diagnostics"\)', s)
-              if not title:
-                  raise SystemExit("Audio diagnostics title not found")
-              indent = title.group(1)
-              patch = """                  lines.add("")
-                  lines.add("LibVLC native log (this app process)")
-                  val nativeLog = runCatching {
-                      val command = arrayOf("logcat", "-d", "-v", "time",
-                          "--pid=" + android.os.Process.myPid().toString(), "*:V")
-                      val process = Runtime.getRuntime().exec(command)
-                      val output = process.inputStream.bufferedReader().use { it.readText() }
-                      process.waitFor()
-                      output.lineSequence()
-                          .filter { line ->
-                              val lower = line.lowercase()
-                              listOf("vlc", "libvlc", "vout", "decoder", "avcodec",
-                                  "mediacodec", "video output", "surface", "gx1_first_play_timing")
-                                  .any { lower.contains(it) }
-                          }
-                          .toList().takeLast(80).joinToString("\\n")
-                  }.getOrElse { "Could not read app logcat: " + (it.message ?: it.javaClass.simpleName) }
-                  lines.add(if (nativeLog.isBlank()) "  No matching native log lines captured" else nativeLog)
+              builder = re.search(
+                  r'(?m)^(\\s*)AlertDialog\\.Builder\\(this\\)\\s*\\n(?=\\s*\\.setTitle\\("Audio diagnostics"\\))',
+                  s
+              )
+              if not builder:
+                  raise SystemExit("Audio diagnostics AlertDialog builder chain not found")
+              indent = builder.group(1)
+              patch = """lines.add("")
+          lines.add("LibVLC native log (this app process)")
+          val nativeLog = runCatching {
+              val command = arrayOf("logcat", "-d", "-v", "time",
+                  "--pid=" + android.os.Process.myPid().toString(), "*:V")
+              val process = Runtime.getRuntime().exec(command)
+              val output = process.inputStream.bufferedReader().use { it.readText() }
+              process.waitFor()
+              output.lineSequence()
+                  .filter { line ->
+                      val lower = line.lowercase()
+                      listOf("vlc", "libvlc", "vout", "decoder", "avcodec",
+                          "mediacodec", "video output", "surface", "gx1_first_play_timing")
+                          .any { lower.contains(it) }
+                  }
+                  .toList().takeLast(80).joinToString("\\n")
+          }.getOrElse { "Could not read app logcat: " + (it.message ?: it.javaClass.simpleName) }
+          lines.add(if (nativeLog.isBlank()) "  No matching native log lines captured" else nativeLog)
           """
-              s = s[:title.start()] + patch + s[title.start():]
+              patch = "".join(indent + line if line.strip() else line
+                              for line in patch.splitlines(keepends=True))
+              s = s[:builder.start()] + patch + s[builder.start():]
           if 'setNeutralButton("Share log")' not in s:
               title = s.find('.setTitle("Audio diagnostics")')
-              button = re.search(r'(?m)^(\s*)\.setPositiveButton\(', s[title:])
-              if title < 0 or not button:
+              if title < 0:
+                  raise SystemExit("Audio diagnostics title not found")
+              button = re.search(r'(?m)^(\\s*)\\.setPositiveButton\\(', s[title:])
+              if not button:
                   raise SystemExit("Could not locate Audio diagnostics positive button")
               pos = title + button.start()
               indent = button.group(1)
@@ -7393,7 +7400,7 @@ jobs:
           """
               s = s[:pos] + share + s[pos:]
           p.write_text(s)
-          print("Added native LibVLC log capture and one-tap Share log export.")
+          print("Added native LibVLC log capture before the Audio diagnostics dialog builder, plus Share log.")
           PY
       - name: Verify and export final post-instrumentation source
         working-directory: ${{ env.PROJECT_DIR }}
