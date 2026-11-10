@@ -7222,13 +7222,20 @@ jobs:
               output.lineSequence()
                   .filter { line ->
                       val lower = line.lowercase()
-                      listOf("vlc", "libvlc", "vout", "decoder", "avcodec",
-                           "mediacodec", "video output", "surface", "gx1_first_play_timing",
-                           "audio", "aout", "alsa", "opensles", "pcm", "audio output",
-                           "audio track", "sink", "underrun", "dts", "truehd", "e-ac3")
-                           .any { lower.contains(it) }
+                      val noisyUiLine = listOf("surfaceview", "blastbufferqueue",
+                          "surfacecomposerclient", "vri[", "sv[", "surfacecontrol")
+                          .any { lower.contains(it) }
+                      !noisyUiLine && listOf(
+                          "vlc", "libvlc", "vout", "decoder", "avcodec", "ffmpeg",
+                          "mediacodec", "ccodec", "codec", "c2.qti", "hevc", "h264",
+                          "demux", "matroska", "mkv", "stream", "input", "probe",
+                          "fontconfig", "gx1_first_play_timing", "audio", "aout",
+                          "alsa", "opensles", "pcm", "audio output", "audio track",
+                          "sink", "underrun", "dts", "truehd", "e-ac3", "subtitle",
+                          "clock", "buffering", "packet")
+                          .any { lower.contains(it) }
                    }
-                   .toList().takeLast(500).joinToString("\\n")
+                   .toList().takeLast(1000).joinToString("\\n")
           }.getOrElse { "Could not read app logcat: " + (it.message ?: it.javaClass.simpleName) }
           lines.add(if (nativeLog.isBlank()) "  No matching native log lines captured" else nativeLog)
           """
