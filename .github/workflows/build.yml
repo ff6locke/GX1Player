@@ -7315,11 +7315,10 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
 
-          # The actual handler has been verified in the source dump. Release the
-          # ended player first, then clear its persisted position, then reopen.
           old = '''        add("Restart current video") {
                       mediaUri?.let { uri ->
                           prefs.edit().remove(posKey(uri)).apply()
@@ -7333,28 +7332,23 @@ jobs:
                           startPlayer()
                       }
                   }'''
-          if old not in s:
-              raise SystemExit("Restart handler did not match the verified source; no changes made")
-          s = s.replace(old, new, 1)
+          if old in s:
+              s = s.replace(old, new, 1)
+          elif new not in s:
+              raise SystemExit("Restart handler did not match either original or already-fixed source")
 
-          # Remove only the two diagnostic rows and their dispatch entries.
-          remove_lines = (
-              'Triple("ⓘ", "Audio diagnostics", "audio_diagnostics"),',
-              '"audio_diagnostics" -> showAudioDiagnostics()',
-              'Triple("VLC", "LibVLC TrueHD test", "vlc_test"),',
-              '"vlc_test" -> launchVlcTest()',
-          )
-          for line in remove_lines:
-              if line not in s:
-                  raise SystemExit("Expected diagnostic entry missing: " + line)
-              s = s.replace(line, "", 1)
-
-          if '"Audio diagnostics"' in s or '"LibVLC TrueHD test"' in s:
-              raise SystemExit("Diagnostic menu label still present")
-          if s.count('add("Restart current video")') != 1:
-              raise SystemExit("Restart handler count changed unexpectedly")
+          # Remove the diagnostic row and dispatch. The VLC test item may
+          # already be absent in this source revision, so remove it if present.
+          s, n1 = re.subn(r'(?m)^\s*Triple\([^\n]*"Audio diagnostics"[^\n]*\),?\n', '', s, count=1)
+          s, n2 = re.subn(r'(?m)^\s*"audio_diagnostics"\s*->\s*showAudioDiagnostics\(\)\s*\n?', '', s, count=1)
+          if n1 != 1 or n2 != 1:
+              raise SystemExit(f"Audio diagnostics removal incomplete (row={n1}, action={n2})")
+          s = re.sub(r'(?m)^\s*Triple\([^\n]*"vlc_test"[^\n]*\),?\n', '', s, count=1)
+          s = re.sub(r'(?m)^\s*"vlc_test"\s*->\s*launchVlcTest\(\)\s*\n?', '', s, count=1)
+          if "Audio diagnostics" in s or '"audio_diagnostics"' in s or '"vlc_test"' in s:
+              raise SystemExit("A diagnostic menu reference remains")
           p.write_text(s)
-          print("Restart now releases the finished player before clearing saved position; removed Audio diagnostics and VLC test menu entries.")
+          print("Fixed restart ordering and removed diagnostic menu references.")
           PY
 
       - name: Verify and export final post-instrumentation source
