@@ -7381,6 +7381,37 @@ jobs:
           p.write_text(s)
           print("Added read-only, current-process logcat capture to the Audio diagnostics dialog.")
           PY
+      - name: Add one-tap export for Audio diagnostics
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          if 'setNeutralButton("Share log")' in s:
+              raise SystemExit("Audio diagnostics export button already exists")
+          title = s.find('.setTitle("Audio diagnostics")')
+          if title < 0:
+              raise SystemExit("Audio diagnostics dialog title not found")
+          button = re.search(r'(?m)^(\s*)\.setPositiveButton\(', s[title:])
+          if not button:
+              raise SystemExit("Could not find positive button in Audio diagnostics dialog")
+          pos = title + button.start()
+          indent = button.group(1)
+          patch = indent + """.setNeutralButton("Share log") { _, _ ->
+          """ + indent + """    val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+          """ + indent + """        type = "text/plain"
+          """ + indent + """        putExtra(android.content.Intent.EXTRA_SUBJECT, "GX1Player Audio diagnostics")
+          """ + indent + """        putExtra(android.content.Intent.EXTRA_TEXT, lines.joinToString("\\n"))
+          """ + indent + """    }
+          """ + indent + """    startActivity(android.content.Intent.createChooser(shareIntent, "Export diagnostics"))
+          """ + indent + """}
+          """
+          s = s[:pos] + patch + s[pos:]
+          p.write_text(s)
+          print("Added Share log button using Android share sheet; exports the full diagnostics text.")
+          PY
       - name: Verify and export final post-instrumentation source
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
