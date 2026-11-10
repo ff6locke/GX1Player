@@ -7248,20 +7248,10 @@ jobs:
           end = s.find("    private val mediaPlayer = MediaPlayer(libVlc)", start)
           if start < 0 or end < 0:
               raise SystemExit("Could not locate LibVLC constructor boundaries; refusing unsafe edit")
-          restored = '''    private val libVlc = LibVLC(appContext, arrayListOf(
-                  "-vvv",
-                  "--no-video-title-show",
-                  "--avformat-probesize=32768",
-                  "--avformat-analyzeduration=1000000",
-                  "--file-caching=0",
-                  "--no-sub-autodetect-file",
-              ).apply {
-                  when (appContext.getSharedPreferences("gx1_player", Context.MODE_PRIVATE)
-                      .getString("vlc_video_output", "auto")) {
-                      "opengl" -> add("--vout=gles2,none")
-                      "auto", "android" -> add("--vout=android_display,none")
-                  }
-              })
+          # Start with LibVLC's built-in defaults and no command-line options.
+          # This isolates native engine creation from every custom VLC option and
+          # from the app's saved video-output preference.
+          restored = '''    private val libVlc = LibVLC(appContext, arrayListOf().apply {})
           '''
           s = s[:start] + restored + s[end:]
           p.write_text(s)
