@@ -7254,7 +7254,7 @@ jobs:
               source = source[:pos] + share + source[pos:]
           if 'setNegativeButton("Save TXT")' not in source:
               title = source.find('.setTitle("Audio diagnostics")')
-              button = re.search(r'(?m)^(\\s*)\\.setPositiveButton\\(', source[title:])
+              button = re.search(r'(?m)^(\s*)\.setPositiveButton\(', source[title:])
               if not button:
                   raise SystemExit("Could not locate Audio diagnostics positive button for TXT export")
               pos = title + button.start()
