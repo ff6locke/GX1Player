@@ -1,4 +1,5 @@
 name: Build GX1 Player APK
+# Replay seek fix: explicitly restart LibVLC after EndReached
 # Build subtitle parser escape fix; verify Kotlin character literals
 
 on:
