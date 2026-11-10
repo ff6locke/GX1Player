@@ -7223,10 +7223,12 @@ jobs:
                   .filter { line ->
                       val lower = line.lowercase()
                       listOf("vlc", "libvlc", "vout", "decoder", "avcodec",
-                          "mediacodec", "video output", "surface", "gx1_first_play_timing")
-                          .any { lower.contains(it) }
-                  }
-                  .toList().takeLast(80).joinToString("\\n")
+                           "mediacodec", "video output", "surface", "gx1_first_play_timing",
+                           "audio", "aout", "alsa", "opensles", "pcm", "audio output",
+                           "audio track", "sink", "underrun", "dts", "truehd", "e-ac3")
+                           .any { lower.contains(it) }
+                   }
+                   .toList().takeLast(500).joinToString("\\n")
           }.getOrElse { "Could not read app logcat: " + (it.message ?: it.javaClass.simpleName) }
           lines.add(if (nativeLog.isBlank()) "  No matching native log lines captured" else nativeLog)
           """
