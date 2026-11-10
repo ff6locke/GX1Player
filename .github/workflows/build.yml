@@ -7310,6 +7310,47 @@ jobs:
           p.write_text(s)
           print("Added timestamped LibVLC event, audio-output configuration, and stop-stage diagnostics only.")
           PY
+      - name: Fix restart-from-beginning and hide diagnostic menu entries
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          old = '''        add("Restart current video") {
+                  mediaUri?.let { uri ->
+                      prefs.edit().remove(posKey(uri)).apply()
+                      startPlayer()
+                  }
+              }'''
+          new = '''        add("Restart current video") {
+                  mediaUri?.let { uri ->
+                      // Release first: releasePlayer() saves the old playback position.
+                      // Clear it only after release, then start from the beginning.
+                      releasePlayer()
+                      prefs.edit().remove(posKey(uri)).apply()
+                      startPlayer()
+                  }
+              }'''
+          if old in s:
+              s = s.replace(old, new, 1)
+          elif new not in s:
+              raise SystemExit("Restart current video handler not found; refusing unsafe edit")
+          s = s.replace('Triple("ⓘ", "Audio diagnostics", "audio_diagnostics"),', '')
+          s = s.replace('Triple("VLC", "VLC test – Play current video", "vlc_test"),', '')
+          s = re.sub(r'(?m)^\\s*"audio_diagnostics" -> showAudioDiagnostics\\(\\)\\s*\\n', '', s)
+          s = re.sub(r'(?m)^\\s*"vlc_test" -> launchVlcTest\\(\\)\\s*\\n', '', s)
+          if 'add("Restart current video")' not in s or 'releasePlayer()' not in s[s.find('add("Restart current video")'):s.find('add("Restart current video")')+500]:
+              raise SystemExit("Restart handler verification failed")
+          if 'Triple("ⓘ", "Audio diagnostics", "audio_diagnostics")' in s or '"audio_diagnostics" -> showAudioDiagnostics()' in s:
+              raise SystemExit("Audio diagnostics menu entry remains")
+          if 'Triple("VLC", "VLC test – Play current video", "vlc_test")' in s or '"vlc_test" -> launchVlcTest()' in s:
+              raise SystemExit("VLC test menu entry remains")
+          p.write_text(s)
+          print("Restart now clears saved position after releasing the old player; diagnostic-only menu entries removed.")
+          PY
+
       - name: Verify and export final post-instrumentation source
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
