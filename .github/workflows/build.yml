@@ -7267,6 +7267,42 @@ jobs:
           p.write_text(s)
           print("Restored the prior LibVLC options and Android video-output selection.")
           PY
+      - name: Report exact LibVLC startup failure stage
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
+          s = p.read_text()
+          old = "    private val libVlc = LibVLC(appContext, arrayListOf("
+          new = "    private val libVlc = try { LibVLC(appContext, arrayListOf("
+          if s.count(old) != 1:
+              raise SystemExit("Expected exactly one LibVLC constructor")
+          s = s.replace(old, new, 1)
+          end = """                  "auto", "android" -> add("--vout=android_display,none")
+                  }
+              })
+          private val mediaPlayer = MediaPlayer(libVlc)"""
+          replacement = """                  "auto", "android" -> add("--vout=android_display,none")
+                  }
+              }) } catch (t: Throwable) {
+                  throw IllegalStateException(
+                      "LibVLC instance creation failed: " + t.javaClass.name + ": " + (t.message ?: "no message"),
+                      t
+                  )
+              }
+          private val mediaPlayer = try { MediaPlayer(libVlc) } catch (t: Throwable) {
+              throw IllegalStateException(
+                  "LibVLC MediaPlayer creation failed: " + t.javaClass.name + ": " + (t.message ?: "no message"),
+                  t
+              )
+          }"""
+          if s.count(end) != 1:
+              raise SystemExit("Could not locate restored LibVLC options end block")
+          s = s.replace(end, replacement, 1)
+          p.write_text(s)
+          print("LibVLC instance and MediaPlayer creation now report distinct exception stages.")
+          PY
       - name: Verify and export final post-instrumentation source
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
