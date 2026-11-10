@@ -7274,34 +7274,31 @@ jobs:
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
           s = p.read_text()
-          old = "    private val libVlc = LibVLC(appContext, arrayListOf("
-          new = "    private val libVlc = try { LibVLC(appContext, arrayListOf("
-          if s.count(old) != 1:
-              raise SystemExit("Expected exactly one LibVLC constructor")
-          s = s.replace(old, new, 1)
-          end = """                  "auto", "android" -> add("--vout=android_display,none")
-                  }
-              })
-          private val mediaPlayer = MediaPlayer(libVlc)"""
-          replacement = """                  "auto", "android" -> add("--vout=android_display,none")
-                  }
-              }) } catch (t: Throwable) {
+          start_marker = "    private val libVlc = LibVLC("
+          player_marker = "    private val mediaPlayer = MediaPlayer(libVlc)"
+          if s.count(start_marker) != 1 or s.count(player_marker) != 1:
+              raise SystemExit("Expected one LibVLC property and one MediaPlayer property")
+          start = s.index(start_marker)
+          player = s.index(player_marker, start)
+          close = s.rfind("})", start, player)
+          if close < 0:
+              raise SystemExit("Could not locate LibVLC options closure before MediaPlayer")
+          constructor = s[start:close + 2]
+          constructor = constructor.replace(start_marker, "    private val libVlc = try { LibVLC(", 1)
+          wrapped = constructor + """ } catch (t: Throwable) {
                   throw IllegalStateException(
                       "LibVLC instance creation failed: " + t.javaClass.name + ": " + (t.message ?: "no message"),
                       t
                   )
-              }
-          private val mediaPlayer = try { MediaPlayer(libVlc) } catch (t: Throwable) {
-              throw IllegalStateException(
-                  "LibVLC MediaPlayer creation failed: " + t.javaClass.name + ": " + (t.message ?: "no message"),
-                  t
-              )
-          }"""
-          if s.count(end) != 1:
-              raise SystemExit("Could not locate restored LibVLC options end block")
-          s = s.replace(end, replacement, 1)
+              }"""
+          s = s[:start] + wrapped + "\n" + s[close + 2:player] + """    private val mediaPlayer = try { MediaPlayer(libVlc) } catch (t: Throwable) {
+                  throw IllegalStateException(
+                      "LibVLC MediaPlayer creation failed: " + t.javaClass.name + ": " + (t.message ?: "no message"),
+                      t
+                  )
+              }""" + s[player + len(player_marker):]
           p.write_text(s)
-          print("LibVLC instance and MediaPlayer creation now report distinct exception stages.")
+          print("LibVLC and MediaPlayer construction now report distinct failure stages.")
           PY
       - name: Verify and export final post-instrumentation source
         working-directory: ${{ env.PROJECT_DIR }}
