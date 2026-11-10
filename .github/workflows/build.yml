@@ -7351,13 +7351,12 @@ jobs:
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
           if "LibVLC native log (this app process)" not in s:
-              builder = re.search(
-                  r'(?m)^(\\s*).*Builder\\(this\\)\\s*\\n(?=\\s*\\.setTitle\\("Audio diagnostics"\\))',
-                  s
-              )
-              if not builder:
-                  raise SystemExit("Audio diagnostics AlertDialog builder chain not found")
-              indent = builder.group(1)
+              title = s.find('.setTitle("Audio diagnostics")')
+              builder_pos = s.rfind("AlertDialog.Builder(this)", 0, title)
+              if title < 0 or builder_pos < 0:
+                  raise SystemExit("Audio diagnostics dialog builder not found before title")
+              line_start = s.rfind("\\n", 0, builder_pos) + 1
+              indent = s[line_start:builder_pos]
               patch = """lines.add("")
           lines.add("LibVLC native log (this app process)")
           val nativeLog = runCatching {
