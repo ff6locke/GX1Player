@@ -7091,7 +7091,7 @@ jobs:
           engine_assign = "mainVlcEngine = engine"
           if engine_assign not in s:
               raise SystemExit("mainVlcEngine assignment anchor not found")
-          s = s.replace(engine_assign, engine_assign + "\\n        gx1PathEngineCreatedAt = android.os.SystemClock.elapsedRealtime()", 1)
+          s = s.replace(engine_assign, engine_assign + "\n        gx1PathEngineCreatedAt = android.os.SystemClock.elapsedRealtime()", 1)
           attach_line = "engine.attach(mainVlcLayout)"
           if attach_line not in s:
               raise SystemExit("engine.attach() call not found")
