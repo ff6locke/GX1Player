@@ -7085,6 +7085,13 @@ jobs:
                         "val engine = Gx1LibVlcEngine(this) { state -> runOnUiThread {", 1)
           # The generated app may construct or assign the engine under different
           # variable names, so avoid assuming a particular assignment statement.
+          # Record successful completion of the Gx1LibVlcEngine constructor.
+          # The prior diagnostic declared this timestamp but never assigned it,
+          # so "not reached" was misleading even when construction succeeded.
+          engine_assign = "mainVlcEngine = engine"
+          if engine_assign not in s:
+              raise SystemExit("mainVlcEngine assignment anchor not found")
+          s = s.replace(engine_assign, engine_assign + "\\n        gx1PathEngineCreatedAt = android.os.SystemClock.elapsedRealtime()", 1)
           attach_line = "engine.attach(mainVlcLayout)"
           if attach_line not in s:
               raise SystemExit("engine.attach() call not found")
