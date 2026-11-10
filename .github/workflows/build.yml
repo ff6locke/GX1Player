@@ -7345,9 +7345,156 @@ jobs:
           """ + indent + """activeUri = uri"""
               s = s[:open_match.start()] + open_new + s[open_match.end():]
 
-          media_anchor = """                  try {
-                      mediaPlayer.media = media
-                  } catch (error: Exception) {"""
+          media_match = re.search(r'(?m)^(\s*)try \{\n\s*mediaPlayer\.media = media\n\s*\} catch \(error: Exception\) \{
+
+          catch_anchor = """                      activeAssetDescriptor = null
+                      media.release()
+                      throw error"""
+          catch_new = """                      activeAssetDescriptor = null
+                      activeDiagnosticMedia = null
+                      media.release()
+                      throw error"""
+          if s.count(catch_anchor) != 1:
+              raise SystemExit("Could not locate media assignment error cleanup")
+          s = s.replace(catch_anchor, catch_new, 1)
+
+          release_media = """                  media.release()
+                  android.util.Log.i("GX1-VLC", "Opened media using ${uri.scheme} source; digitalOutput=$digitalOutput")"""
+          release_media_new = """                  // activeDiagnosticMedia owns this Media until the next open() or release().
+                  android.util.Log.i("GX1-VLC", "Opened media using ${uri.scheme} source; digitalOutput=$digitalOutput")"""
+          if s.count(release_media) != 1:
+              raise SystemExit("Could not locate post-assignment Media.release()")
+          s = s.replace(release_media, release_media_new, 1)
+
+          engine_release = """                  runCatching { mediaPlayer.detachViews() }
+                  attachedLayout = null
+                  mediaPlayer.release()"""
+          engine_release_new = """                  runCatching { mediaPlayer.detachViews() }
+                  attachedLayout = null
+                  activeDiagnosticMedia?.let { media ->
+                      runCatching { media.setEventListener(null) }
+                      runCatching { media.release() }
+                  }
+                  activeDiagnosticMedia = null
+                  mediaPlayer.release()"""
+          if s.count(engine_release) != 1:
+              raise SystemExit("Could not locate engine release() cleanup")
+          s = s.replace(engine_release, engine_release_new, 1)
+
+          p.write_text(s)
+          print("Added Media event/parse status/track inventory timing without changing media options or decoder settings.")
+          PY
+      - name: Verify and export final post-instrumentation source
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          set -e
+          ENGINE=app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt
+          ACTIVITY=app/src/main/java/com/example/gx1player/MainActivity.kt
+          echo "=== LibVLC startup timing instrumentation ==="
+          grep -n -E 'openStartedAtMs|MAIN LibVLC event|GX1-VLC' "$ENGINE"
+          grep -q 'openStartedAtMs' "$ENGINE"
+          grep -q 'Media parse listener attached' "$ENGINE"
+          grep -q 'Media event type=' "$ENGINE"
+          grep -q 'activeDiagnosticMedia' "$ENGINE"
+          echo "=== Audio diagnostics and native log capture ==="
+          grep -n -E 'Audio diagnostics|LibVLC native log|Share log' "$ACTIVITY" || true
+          mkdir -p ../gx1-final-source-review
+          cp "$ENGINE" ../gx1-final-source-review/Gx1LibVlcEngine.kt
+          cp "$ACTIVITY" ../gx1-final-source-review/MainActivity.kt
+          cd ..
+          zip -qr gx1-final-source-review.zip gx1-final-source-review
+      - name: Upload final post-instrumentation source review
+        uses: actions/upload-artifact@v4
+        with:
+          name: gx1-final-source-review
+          path: gx1-final-source-review.zip
+          if-no-files-found: error
+          retention-days: 30
+      - name: Build separate 32-bit and 64-bit ARM APKs
+        working-directory: ${{ env.PROJECT_DIR }}
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          chmod +x ./gradlew
+          if [ "$BUILD_KIND" = "release" ]; then
+            TASK=":app:assembleRelease"
+          else
+            TASK=":app:assembleDebug"
+          fi
+          APK_DIR="app/build/outputs/apk/${BUILD_KIND}"
+          for ABI in armeabi-v7a arm64-v8a; do
+            echo "===== Building $ABI ====="
+            python3 - "$ABI" <<'PY'
+          from pathlib import Path
+          import re, sys
+          abi = sys.argv[1]
+          p = Path("app/build.gradle.kts")
+          s = p.read_text()
+          # Remove all previous ABI filters, including the old one-line and multiline patches.
+          s = re.sub(r'(?m)^\s*ndk\s*\{\s*abiFilters\s*\+=\s*setOf\([^\n]*\)\s*\}\s*\n?', '', s)
+          s = re.sub(r'(?m)^\s*abiFilters\s*\+=\s*setOf\([^\n]*\)\s*\n?', '', s)
+          marker = "    defaultConfig {"
+          if marker not in s:
+              raise SystemExit("Could not find defaultConfig")
+          block = f'    defaultConfig {{\n        ndk {{ abiFilters += setOf("{abi}") }}'
+          s = s.replace(marker, block, 1)
+          p.write_text(s)
+          print(f"Configured exactly one ABI: {abi}")
+          PY
+            rm -rf "$APK_DIR"
+            ./gradlew "$TASK" --no-daemon --stacktrace
+            mapfile -t APK_FILES < <(find "$APK_DIR" -maxdepth 1 -type f -name '*.apk' | sort)
+            if [ "${#APK_FILES[@]}" -ne 1 ]; then
+              echo "Expected one APK for $ABI; found ${#APK_FILES[@]}"
+              printf '%s\\n' "${APK_FILES[@]}"
+              exit 1
+            fi
+            if [ "$ABI" = "armeabi-v7a" ]; then
+              cp "${APK_FILES[0]}" "$GITHUB_WORKSPACE/GX1Player-VLC-32bit.apk"
+            else
+              cp "${APK_FILES[0]}" "$GITHUB_WORKSPACE/GX1Player-VLC-64bit.apk"
+            fi
+          done
+          ls -lh "$GITHUB_WORKSPACE"/GX1Player-VLC-*.apk
+
+      - name: Verify APK architectures
+        run: |
+          set -e
+          for APK in GX1Player-VLC-32bit.apk GX1Player-VLC-64bit.apk; do
+            test -s "$APK"
+            echo "===== $APK ====="
+            unzip -l "$APK" | grep -E 'lib/(armeabi-v7a|arm64-v8a)/.*libvlc(jni)?[.]so'
+          done
+          unzip -l GX1Player-VLC-32bit.apk | grep -q 'lib/armeabi-v7a/libvlc.so'
+          if unzip -l GX1Player-VLC-32bit.apk | grep -q 'lib/arm64-v8a/libvlc.so'; then
+            echo "32-bit APK unexpectedly contains ARM64 libraries"
+            exit 1
+          fi
+          unzip -l GX1Player-VLC-64bit.apk | grep -q 'lib/arm64-v8a/libvlc.so'
+          if unzip -l GX1Player-VLC-64bit.apk | grep -q 'lib/armeabi-v7a/libvlc.so'; then
+            echo "64-bit APK unexpectedly contains ARMv7 libraries"
+            exit 1
+          fi
+
+      - name: Upload 32-bit APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: gx1-player-VLC-32bit-b${{ github.run_number }}
+          path: GX1Player-VLC-32bit.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload 64-bit APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: gx1-player-VLC-64bit-b${{ github.run_number }}
+          path: GX1Player-VLC-64bit.apk
+          if-no-files-found: error
+          retention-days: 30
+, s)
           media_new = """                  activeDiagnosticMedia = media
                   media.setEventListener { event ->
                       val afterMs = if (openStartedAtMs > 0L)
@@ -7384,9 +7531,11 @@ jobs:
                       mediaPlayer.media = media
                   } catch (error: Exception) {"""
           if "Media parse listener attached" not in s:
-              if s.count(media_anchor) != 1:
-                  raise SystemExit("Could not locate unique media assignment try/catch")
-              s = s.replace(media_anchor, media_new, 1)
+              if not media_match:
+                  raise SystemExit("Could not locate media assignment try/catch using whitespace-safe match")
+              indent = media_match.group(1)
+              replacement = media_new.replace("\n                  ", "\n" + indent)
+              s = s[:media_match.start()] + replacement + s[media_match.end():]
 
           catch_anchor = """                      activeAssetDescriptor = null
                       media.release()
