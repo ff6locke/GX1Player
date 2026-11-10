@@ -7248,8 +7248,8 @@ jobs:
           end = s.find("    private val mediaPlayer = MediaPlayer(libVlc)", start)
           if start < 0 or end < 0:
               raise SystemExit("Could not locate LibVLC constructor boundaries; refusing unsafe edit")
-          # Preserve only the two probing options under test.
-          restored = '    private val libVlc = LibVLC(appContext, arrayListOf("--avformat-probesize=32768", "--avformat-analyzeduration=1000000"))\n'
+          # Return to the exact empty-options configuration that initialized successfully in Build 706.
+          restored = '    private val libVlc = LibVLC(appContext, arrayListOf<String>())\n'
           s = s[:start] + restored + s[end:]
           p.write_text(s)
           print("Restored the prior LibVLC options and Android video-output selection.")
