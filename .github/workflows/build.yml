@@ -7027,50 +7027,6 @@ jobs:
           print("Added app-level timing from media selection through engine.open().")
           PY
 
-      - name: Record content URI provider access timing
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
-          s = p.read_text()
-          field = '@Volatile private var libVlcEventTrace = ""'
-          if field not in s:
-              raise SystemExit("LibVLC event trace field missing")
-          if "sourceAccessDiagnostics" in s:
-              raise SystemExit("Source access diagnostics already exist")
-          s = s.replace(field, field + '\n    @Volatile private var sourceAccessDiagnostics = "not measured"', 1)
-          open_anchor = "        activeUri = uri"
-          if open_anchor not in s:
-              raise SystemExit("open(uri) source assignment anchor missing")
-          probe = """        val sourceProbeStartedAt = android.os.SystemClock.elapsedRealtime()
-                  val sourceMimeType = runCatching { appContext.contentResolver.getType(uri) }.getOrNull() ?: "unknown"
-                  val sourceDescriptorInfo = if (uri.scheme == "content") {
-                      runCatching {
-                          val descriptor = appContext.contentResolver.openAssetFileDescriptor(uri, "r")
-                              ?: throw java.io.IOException("provider returned no descriptor")
-                          val info = "opened; length=" + descriptor.length +
-                              "; startOffset=" + descriptor.startOffset +
-                              "; fdValid=" + descriptor.fileDescriptor.valid()
-                          descriptor.close()
-                          info
-                      }.getOrElse { "open failed: " + (it.message ?: it.javaClass.simpleName) }
-                  } else "not a content URI"
-                  val sourceProbeMs = android.os.SystemClock.elapsedRealtime() - sourceProbeStartedAt
-                  sourceAccessDiagnostics = "Source scheme=" + (uri.scheme ?: "none") +
-                      "; authority=" + (uri.authority ?: "none") +
-                      "; mime=" + sourceMimeType +
-                      "; provider descriptor=" + sourceDescriptorInfo +
-                      "; probe elapsed=" + sourceProbeMs + "ms"
-          """
-          s = s.replace(open_anchor, open_anchor + "\n" + probe, 1)
-          output = '"LibVLC Playing event: ${show(playingEventAfterMs)}"'
-          if output not in s:
-              raise SystemExit("Startup diagnostics output anchor missing")
-          s = s.replace(output, output + ',\n            "Source access: " + sourceAccessDiagnostics', 1)
-          p.write_text(s)
-          print("Added non-reading content-provider descriptor timing and source metadata.")
-          PY
       - name: Diagnostic test with LibVLC file caching disabled
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
