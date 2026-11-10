@@ -7194,25 +7194,6 @@ jobs:
           p.write_text(s)
           print("Replaced truncated Toast with a dialog showing the full exception cause chain.")
           PY
-      - name: Diagnostic test with per-media local file caching disabled
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
-          s = p.read_text()
-          needle = "                  mediaCreatedAfterMs = android.os.SystemClock.elapsedRealtime() - openStartedAtMs"
-          if s.count(needle) != 1:
-              raise SystemExit("Expected exactly one media-created timing insertion point")
-          patch = """                  if (uri.scheme == "file") {
-                      media.addOption(":file-caching=0")
-                      android.util.Log.i("GX1_FIRST_PLAY_TIMING", "Diagnostic local file-caching=0 applied")
-                  }
-          """
-          s = s.replace(needle, patch + needle, 1)
-          p.write_text(s)
-          print("Applied per-media file-caching=0 only to local file sources; LibVLC constructor and audio/video settings unchanged.")
-          PY
       - name: Capture LibVLC native startup log in Audio diagnostics
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
