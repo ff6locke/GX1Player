@@ -7349,14 +7349,16 @@ jobs:
           from pathlib import Path
           import re
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
-          s = p.read_text()
-          if "LibVLC native log (this app process)" not in s:
-              title = s.find('.setTitle("Audio diagnostics")')
-              builder_pos = s.rfind("AlertDialog.Builder(this)", 0, title)
-              if title < 0 or builder_pos < 0:
-                  raise SystemExit("Audio diagnostics dialog builder not found before title")
-              line_start = s.rfind("\\n", 0, builder_pos) + 1
-              indent = s[line_start:builder_pos]
+          source = p.read_text()
+          title = source.find('.setTitle("Audio diagnostics")')
+          if title < 0:
+              raise SystemExit("Audio diagnostics title not found")
+          if "LibVLC native log (this app process)" not in source:
+              builder_pos = source.rfind("AlertDialog.Builder(this)", 0, title)
+              if builder_pos < 0:
+                  raise SystemExit("Audio diagnostics builder not found before title")
+              line_start = source.rfind(chr(10), 0, builder_pos) + 1
+              indent = source[line_start:builder_pos]
               patch = """lines.add("")
           lines.add("LibVLC native log (this app process)")
           val nativeLog = runCatching {
@@ -7378,12 +7380,10 @@ jobs:
           """
               patch = "".join(indent + line if line.strip() else line
                               for line in patch.splitlines(keepends=True))
-              s = s[:builder_pos] + patch + s[builder_pos:]
-          if 'setNeutralButton("Share log")' not in s:
-              title = s.find('.setTitle("Audio diagnostics")')
-              if title < 0:
-                  raise SystemExit("Audio diagnostics title not found")
-              button = re.search(r'(?m)^(\\s*)\\.setPositiveButton\\(', s[title:])
+              source = source[:builder_pos] + patch + source[builder_pos:]
+          if 'setNeutralButton("Share log")' not in source:
+              title = source.find('.setTitle("Audio diagnostics")')
+              button = re.search(r'(?m)^(\\s*)\\.setPositiveButton\\(', source[title:])
               if not button:
                   raise SystemExit("Could not locate Audio diagnostics positive button")
               pos = title + button.start()
@@ -7397,9 +7397,9 @@ jobs:
           """ + indent + """    startActivity(android.content.Intent.createChooser(shareIntent, "Export diagnostics"))
           """ + indent + """}
           """
-              s = s[:pos] + share + s[pos:]
-          p.write_text(s)
-          print("Added native LibVLC log capture before the Audio diagnostics dialog builder, plus Share log.")
+              source = source[:pos] + share + source[pos:]
+          p.write_text(source)
+          print("Added native LibVLC log capture and Share log action.")
           PY
       - name: Verify and export final post-instrumentation source
         working-directory: ${{ env.PROJECT_DIR }}
