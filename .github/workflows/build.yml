@@ -7242,17 +7242,22 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
           s = p.read_text()
-          pattern = r'\\)\\.apply \\{\\s*when \\(appContext\\.getSharedPreferences\\("gx1_player", Context\\.MODE_PRIVATE\\)\\s*\\.getString\\("vlc_video_output", "auto"\\)\\) \\{.*?\\n\\s*\\}\\n\\s*\\}\\)'
-          updated, count = re.subn(pattern, "))", s, count=1, flags=re.S)
-          if count != 1:
-              raise SystemExit("Expected one custom LibVLC vout selection block; found " + str(count))
-          if "--vout=" in updated:
+          old = '''    ).apply {
+                  when (appContext.getSharedPreferences("gx1_player", Context.MODE_PRIVATE)
+                      .getString("vlc_video_output", "auto")) {
+                      "opengl" -> add("--vout=gles2,none")
+                      "auto", "android" -> add("--vout=android_display,none")
+                  }
+              })'''
+          if old not in s:
+              raise SystemExit("Expected exact custom vout selection block was not found")
+          s = s.replace(old, "    ))", 1)
+          if "--vout=" in s:
               raise SystemExit("Explicit LibVLC video output option remains")
-          p.write_text(updated)
-          print("Removed forced android_display/opengl vout selection; LibVLC will choose its default Android video output.")
+          p.write_text(s)
+          print("Removed forced vout selection; LibVLC will use its default Android video output.")
           PY
       - name: Verify and export final post-instrumentation source
         working-directory: ${{ env.PROJECT_DIR }}
