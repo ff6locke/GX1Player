@@ -7335,6 +7335,20 @@ jobs:
           p.write_text(s)
           print("Applied per-media file-caching=0 only to local file sources; LibVLC constructor and audio/video settings unchanged.")
           PY
+      - name: Diagnostic test without competing Media3 clock preparation
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          needle = "        clock.prepare()"
+          if s.count(needle) != 1:
+              raise SystemExit("Expected exactly one silent Media3 clock prepare() call")
+          s = s.replace(needle, "        // Diagnostic: defer/remove competing Media3 source preparation; LibVLC is the playback engine.", 1)
+          p.write_text(s)
+          print("Disabled only silent Media3 clock prepare(); LibVLC playback, audio/video settings, and controller wiring remain unchanged.")
+          PY
       - name: Verify and export final post-instrumentation source
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
