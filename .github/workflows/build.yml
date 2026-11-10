@@ -7252,8 +7252,42 @@ jobs:
           """ + indent + """}
           """
               source = source[:pos] + share + source[pos:]
+          if 'setNegativeButton("Save TXT")' not in source:
+              title = source.find('.setTitle("Audio diagnostics")')
+              button = re.search(r'(?m)^(s*).setPositiveButton(', source[title:])
+              if not button:
+                  raise SystemExit("Could not locate Audio diagnostics positive button for TXT export")
+              pos = title + button.start()
+              indent = button.group(1)
+              save_txt = indent + """.setNegativeButton("Save TXT") { _, _ ->
+          """ + indent + """    runCatching {
+          """ + indent + """        if (android.os.Build.VERSION.SDK_INT >= 29) {
+          """ + indent + """            val values = android.content.ContentValues().apply {
+          """ + indent + """                put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, "GX1Player_Audio_Diagnostics.txt")
+          """ + indent + """                put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "text/plain")
+          """ + indent + """                put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS)
+          """ + indent + """            }
+          """ + indent + """            val uri = contentResolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+          """ + indent + """                ?: throw IllegalStateException("Could not create TXT file")
+          """ + indent + """            contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(lines.joinToString("\\n")) }
+          """ + indent + """                ?: throw IllegalStateException("Could not write TXT file")
+          """ + indent + """            android.widget.Toast.makeText(this, "Saved to Downloads/GX1Player_Audio_Diagnostics.txt", android.widget.Toast.LENGTH_LONG).show()
+          """ + indent + """        } else {
+          """ + indent + """            val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+          """ + indent + """                type = "text/plain"
+          """ + indent + """                putExtra(android.content.Intent.EXTRA_SUBJECT, "GX1Player Audio diagnostics")
+          """ + indent + """                putExtra(android.content.Intent.EXTRA_TEXT, lines.joinToString("\\n"))
+          """ + indent + """            }
+          """ + indent + """            startActivity(android.content.Intent.createChooser(shareIntent, "Export diagnostics as TXT"))
+          """ + indent + """        }
+          """ + indent + """    }.onFailure {
+          """ + indent + """        android.widget.Toast.makeText(this, "TXT export failed: " + (it.message ?: "unknown error"), android.widget.Toast.LENGTH_LONG).show()
+          """ + indent + """    }
+          """ + indent + """}
+          """
+              source = source[:pos] + save_txt + source[pos:]
           p.write_text(source)
-          print("Added native LibVLC log capture and Share log action.")
+          print("Added native LibVLC log capture, Share log, and Save TXT actions.")
           PY
       - name: Verify and export final post-instrumentation source
         working-directory: ${{ env.PROJECT_DIR }}
