@@ -6522,11 +6522,27 @@ jobs:
                       android.widget.ImageButton(this).apply {
                           setImageResource(icon)
                           imageTintList = android.content.res.ColorStateList.valueOf(Color.WHITE)
-                          background = android.graphics.drawable.GradientDrawable().apply {
-                              shape = android.graphics.drawable.GradientDrawable.OVAL
-                              setColor(0x990B111B.toInt())
-                              setStroke((1 * density).toInt(), 0x99FFFFFF.toInt())
+                          background = android.graphics.drawable.StateListDrawable().apply {
+                              fun oval(fill: Int, stroke: Int) =
+                                  android.graphics.drawable.GradientDrawable().apply {
+                                      shape = android.graphics.drawable.GradientDrawable.OVAL
+                                      setColor(fill)
+                                      setStroke((2 * density).toInt(), stroke)
+                                  }
+                              addState(intArrayOf(android.R.attr.state_focused),
+                                  oval(0xFFFFB300.toInt(), 0xFFFFD180.toInt()))
+                              addState(intArrayOf(android.R.attr.state_pressed),
+                                  oval(0xFFFF9800.toInt(), 0xFFFFCC80.toInt()))
+                              addState(intArrayOf(),
+                                  oval(0x990B111B.toInt(), 0x99FFFFFF.toInt()))
                           }
+                          imageTintList = android.content.res.ColorStateList(
+                              arrayOf(
+                                  intArrayOf(android.R.attr.state_focused),
+                                  intArrayOf()
+                              ),
+                              intArrayOf(Color.BLACK, Color.WHITE)
+                          )
                           setPadding((13 * density).toInt(), (13 * density).toInt(),
                               (13 * density).toInt(), (13 * density).toInt())
                           scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
