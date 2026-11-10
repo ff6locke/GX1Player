@@ -7345,8 +7345,16 @@ jobs:
               raise SystemExit(f"Audio diagnostics removal incomplete (row={n1}, action={n2})")
           s = re.sub(r'(?m)^\s*Triple\([^\n]*"vlc_test"[^\n]*\),?\n', '', s, count=1)
           s = re.sub(r'(?m)^\s*"vlc_test"\s*->\s*launchVlcTest\(\)\s*\n?', '', s, count=1)
-          if "Audio diagnostics" in s or '"audio_diagnostics"' in s or '"vlc_test"' in s:
-              raise SystemExit("A diagnostic menu reference remains")
+          # The diagnostics implementation can remain compiled but is no longer
+          # reachable from the menu; only the menu row and dispatch are removed.
+          if re.search(r'(?m)^\s*Triple\([^\n]*"Audio diagnostics"', s):
+              raise SystemExit("Audio diagnostics menu row remains")
+          if re.search(r'(?m)^\s*"audio_diagnostics"\s*->', s):
+              raise SystemExit("Audio diagnostics menu dispatch remains")
+          if re.search(r'(?m)^\s*Triple\([^\n]*"vlc_test"', s):
+              raise SystemExit("VLC test menu row remains")
+          if re.search(r'(?m)^\s*"vlc_test"\s*->', s):
+              raise SystemExit("VLC test menu dispatch remains")
           p.write_text(s)
           print("Fixed restart ordering and removed diagnostic menu references.")
           PY
