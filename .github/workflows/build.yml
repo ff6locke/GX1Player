@@ -7315,6 +7315,113 @@ jobs:
           p.write_text(s)
           print("Added timestamped LibVLC event, audio-output configuration, and stop-stage diagnostics only.")
           PY
+      - name: Capture LibVLC media parsing and track discovery timing
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
+          s = p.read_text()
+
+          field = "              private var activeUri: Uri? = null"
+          field_new = field + "\n              // Keep the Media alive until the next source or engine release so its parse events remain observable.\n              private var activeDiagnosticMedia: Media? = null"
+          if "activeDiagnosticMedia" not in s:
+              if s.count(field) != 1:
+                  raise SystemExit("Could not locate activeUri field")
+              s = s.replace(field, field_new, 1)
+
+          open_anchor = "                  activeUri = uri"
+          open_new = """                  activeDiagnosticMedia?.let { oldMedia ->
+                      runCatching { oldMedia.setEventListener(null) }
+                      runCatching { oldMedia.release() }
+                  }
+                  activeDiagnosticMedia = null
+                  activeUri = uri"""
+          if "activeDiagnosticMedia?.let { oldMedia" not in s:
+              if s.count(open_anchor) != 1:
+                  raise SystemExit("Could not locate open() source-switch anchor")
+              s = s.replace(open_anchor, open_new, 1)
+
+          media_anchor = """                  try {
+                      mediaPlayer.media = media
+                  } catch (error: Exception) {"""
+          media_new = """                  activeDiagnosticMedia = media
+                  media.setEventListener { event ->
+                      val afterMs = if (openStartedAtMs > 0L)
+                          android.os.SystemClock.elapsedRealtime() - openStartedAtMs else -1L
+                      val parsedStatus = runCatching {
+                          media.javaClass.methods.firstOrNull { it.name == "getParsedStatus" }
+                              ?.invoke(media)?.toString() ?: "not-exposed"
+                      }.getOrDefault("query-failed")
+                      val trackSummary = runCatching {
+                          val raw = media.javaClass.methods.firstOrNull { it.name == "getTracks" }
+                              ?.invoke(media)
+                          if (raw is Array<*>) {
+                              raw.joinToString(";") { track ->
+                                  if (track == null) "null" else {
+                                      val cls = track.javaClass
+                                      fun read(name: String): String =
+                                          runCatching { cls.methods.firstOrNull { it.name == name }
+                                              ?.invoke(track)?.toString() ?: "?" }.getOrDefault("?")
+                                      "type=" + read("getType") +
+                                          ",codec=" + read("getCodec") +
+                                          ",language=" + read("getLanguage")
+                                  }
+                              }
+                          } else if (raw == null) "not-exposed" else raw.toString()
+                      }.getOrDefault("query-failed")
+                      android.util.Log.i("GX1_FIRST_PLAY_TIMING",
+                          "Media event type=${event.type} after ms=$afterMs, " +
+                              "parsedStatus=$parsedStatus, tracks=$trackSummary")
+                  }
+                  android.util.Log.i("GX1_FIRST_PLAY_TIMING",
+                      "Media parse listener attached after ms=" +
+                          (android.os.SystemClock.elapsedRealtime() - openStartedAtMs))
+                  try {
+                      mediaPlayer.media = media
+                  } catch (error: Exception) {"""
+          if "Media parse listener attached" not in s:
+              if s.count(media_anchor) != 1:
+                  raise SystemExit("Could not locate unique media assignment try/catch")
+              s = s.replace(media_anchor, media_new, 1)
+
+          catch_anchor = """                      activeAssetDescriptor = null
+                      media.release()
+                      throw error"""
+          catch_new = """                      activeAssetDescriptor = null
+                      activeDiagnosticMedia = null
+                      media.release()
+                      throw error"""
+          if s.count(catch_anchor) != 1:
+              raise SystemExit("Could not locate media assignment error cleanup")
+          s = s.replace(catch_anchor, catch_new, 1)
+
+          release_media = """                  media.release()
+                  android.util.Log.i("GX1-VLC", "Opened media using ${uri.scheme} source; digitalOutput=$digitalOutput")"""
+          release_media_new = """                  // activeDiagnosticMedia owns this Media until the next open() or release().
+                  android.util.Log.i("GX1-VLC", "Opened media using ${uri.scheme} source; digitalOutput=$digitalOutput")"""
+          if s.count(release_media) != 1:
+              raise SystemExit("Could not locate post-assignment Media.release()")
+          s = s.replace(release_media, release_media_new, 1)
+
+          engine_release = """                  runCatching { mediaPlayer.detachViews() }
+                  attachedLayout = null
+                  mediaPlayer.release()"""
+          engine_release_new = """                  runCatching { mediaPlayer.detachViews() }
+                  attachedLayout = null
+                  activeDiagnosticMedia?.let { media ->
+                      runCatching { media.setEventListener(null) }
+                      runCatching { media.release() }
+                  }
+                  activeDiagnosticMedia = null
+                  mediaPlayer.release()"""
+          if s.count(engine_release) != 1:
+              raise SystemExit("Could not locate engine release() cleanup")
+          s = s.replace(engine_release, engine_release_new, 1)
+
+          p.write_text(s)
+          print("Added Media event/parse status/track inventory timing without changing media options or decoder settings.")
+          PY
       - name: Verify and export final post-instrumentation source
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
@@ -7324,6 +7431,9 @@ jobs:
           echo "=== LibVLC startup timing instrumentation ==="
           grep -n -E 'openStartedAtMs|MAIN LibVLC event|GX1-VLC' "$ENGINE"
           grep -q 'openStartedAtMs' "$ENGINE"
+          grep -q 'Media parse listener attached' "$ENGINE"
+          grep -q 'Media event type=' "$ENGINE"
+          grep -q 'activeDiagnosticMedia' "$ENGINE"
           echo "=== Audio diagnostics and native log capture ==="
           grep -n -E 'Audio diagnostics|LibVLC native log|Share log' "$ACTIVITY" || true
           mkdir -p ../gx1-final-source-review
