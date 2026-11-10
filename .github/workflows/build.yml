@@ -7315,40 +7315,34 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
-          old = '''        add("Restart current video") {
-                  mediaUri?.let { uri ->
-                      prefs.edit().remove(posKey(uri)).apply()
-                      startPlayer()
-                  }
-              }'''
-          new = '''        add("Restart current video") {
-                  mediaUri?.let { uri ->
-                      // Release first: releasePlayer() saves the old playback position.
-                      // Clear it only after release, then start from the beginning.
-                      releasePlayer()
-                      prefs.edit().remove(posKey(uri)).apply()
-                      startPlayer()
-                  }
-              }'''
-          if old in s:
-              s = s.replace(old, new, 1)
-          elif new not in s:
-              raise SystemExit("Restart current video handler not found; refusing unsafe edit")
+          start = s.find('add("Restart current video")')
+          if start < 0:
+              raise SystemExit("Restart current video handler not found")
+          end = s.find('add(if (passthrough)', start)
+          if end < 0:
+              raise SystemExit("Restart handler end marker not found")
+          block = s[start:end]
+          if "releasePlayer()" not in block:
+              needle = "prefs.edit().remove(posKey(uri)).apply()"
+              if needle not in block:
+                  raise SystemExit("Restart saved-position clear not found")
+              block = block.replace(needle, "releasePlayer()\\n" + needle, 1)
+              s = s[:start] + block + s[end:]
           s = s.replace('Triple("ⓘ", "Audio diagnostics", "audio_diagnostics"),', '')
+          s = s.replace('"audio_diagnostics" -> showAudioDiagnostics()', '')
           s = s.replace('Triple("VLC", "VLC test – Play current video", "vlc_test"),', '')
-          s = re.sub(r'(?m)^\\s*"audio_diagnostics" -> showAudioDiagnostics\\(\\)\\s*\\n', '', s)
-          s = re.sub(r'(?m)^\\s*"vlc_test" -> launchVlcTest\\(\\)\\s*\\n', '', s)
-          if 'add("Restart current video")' not in s or 'releasePlayer()' not in s[s.find('add("Restart current video")'):s.find('add("Restart current video")')+500]:
-              raise SystemExit("Restart handler verification failed")
+          s = s.replace('"vlc_test" -> launchVlcTest()', '')
+          start = s.find('add("Restart current video")')
+          end = s.find('add(if (passthrough)', start)
+          block = s[start:end]
+          if block.find("releasePlayer()") > block.find("prefs.edit().remove(posKey(uri)).apply()"):
+              raise SystemExit("Restart order verification failed")
           if 'Triple("ⓘ", "Audio diagnostics", "audio_diagnostics")' in s or '"audio_diagnostics" -> showAudioDiagnostics()' in s:
               raise SystemExit("Audio diagnostics menu entry remains")
-          if 'Triple("VLC", "VLC test – Play current video", "vlc_test")' in s or '"vlc_test" -> launchVlcTest()' in s:
-              raise SystemExit("VLC test menu entry remains")
           p.write_text(s)
-          print("Restart now clears saved position after releasing the old player; diagnostic-only menu entries removed.")
+          print("Restart now releases the previous player before clearing its saved position; diagnostic menu entries removed.")
           PY
 
       - name: Verify and export final post-instrumentation source
