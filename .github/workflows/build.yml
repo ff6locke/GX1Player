@@ -7312,13 +7312,6 @@ jobs:
           if s.count(old) != 1:
               raise SystemExit("Expected exactly one digital-output configuration call")
           s = s.replace(old, new, 1)
-          old = "        runCatching { mediaPlayer.stop() }"
-          new = '''        android.util.Log.i("GX1_FIRST_PLAY_TIMING", "Previous playback stop starting")
-                  runCatching { mediaPlayer.stop() }
-                  android.util.Log.i("GX1_FIRST_PLAY_TIMING", "Previous playback stop returned")'''
-          if s.count(old) != 1:
-              raise SystemExit("Expected exactly one stop call in open()")
-          s = s.replace(old, new, 1)
           p.write_text(s)
           print("Added timestamped LibVLC event, audio-output configuration, and stop-stage diagnostics only.")
           PY
