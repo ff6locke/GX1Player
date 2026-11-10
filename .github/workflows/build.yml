@@ -7342,6 +7342,45 @@ jobs:
           p.write_text(s)
           print("Applied per-media file-caching=0 only to local file sources; LibVLC constructor and audio/video settings unchanged.")
           PY
+      - name: Capture LibVLC native startup log in Audio diagnostics
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          if "LibVLC native log (this app process)" in s:
+              raise SystemExit("Native LibVLC log capture already installed")
+          anchor = '                  AlertDialog.Builder(this)\n                      .setTitle("Audio diagnostics")'
+          if anchor not in s:
+              raise SystemExit("Could not find Audio diagnostics dialog insertion point")
+          patch = r"""                  lines.add("")
+                  lines.add("LibVLC native log (this app process)")
+                  val nativeLog = runCatching {
+                      val command = arrayOf(
+                          "logcat", "-d", "-v", "time",
+                          "--pid=" + android.os.Process.myPid().toString(), "*:V"
+                      )
+                      val process = Runtime.getRuntime().exec(command)
+                      val output = process.inputStream.bufferedReader().use { it.readText() }
+                      process.waitFor()
+                      output.lineSequence()
+                          .filter { line ->
+                              val lower = line.lowercase()
+                              listOf("vlc", "libvlc", "vout", "decoder", "avcodec",
+                                  "mediacodec", "video output", "surface", "gx1_first_play_timing")
+                                  .any { lower.contains(it) }
+                          }
+                          .toList()
+                          .takeLast(80)
+                          .joinToString("\n")
+                  }.getOrElse { "Could not read app logcat: " + (it.message ?: it.javaClass.simpleName) }
+                  lines.add(if (nativeLog.isBlank()) "  No matching native log lines captured" else nativeLog)
+          """
+          s = s.replace(anchor, patch + anchor, 1)
+          p.write_text(s)
+          print("Added read-only, current-process logcat capture to the Audio diagnostics dialog.")
+          PY
       - name: Verify and export final post-instrumentation source
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
