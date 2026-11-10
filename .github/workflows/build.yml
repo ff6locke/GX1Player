@@ -7342,10 +7342,12 @@ jobs:
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
-          needle = "        // Diagnostic: defer/remove competing Media3 source preparation; LibVLC is the playback engine."
+          needle = "        .setMediaItem(MediaItem.fromUri(uri), resumeAt)"
           if s.count(needle) != 1:
-              raise SystemExit("Expected exactly one Build 711 diagnostic placeholder")
-          s = s.replace(needle, "        clock.prepare()", 1)
+              raise SystemExit("Expected exactly one Media3 clock setMediaItem call")
+          if "        clock.prepare()" in s:
+              raise SystemExit("Media3 clock prepare() is already present; refusing duplicate")
+          s = s.replace(needle, needle + "\\n        clock.prepare()", 1)
           p.write_text(s)
           print("Restored Media3 controller clock preparation so playback position and time bar advance; LibVLC remains the audio/video engine.")
           PY
