@@ -7271,9 +7271,13 @@ jobs:
           start = s.index(start_marker)
           player = s.index(player_marker, start)
           close = s.rfind("})", start, player)
+          close_len = 2
           if close < 0:
-              raise SystemExit("Could not locate LibVLC options closure before MediaPlayer")
-          constructor = s[start:close + 2]
+              close = s.rfind(")", start, player)
+              close_len = 1
+          if close < 0:
+              raise SystemExit("Could not locate LibVLC constructor closing parenthesis")
+          constructor = s[start:close + close_len]
           constructor = constructor.replace(start_marker, "    private val libVlc = try { LibVLC(", 1)
           wrapped = constructor + """ } catch (t: Throwable) {
                   throw IllegalStateException(
@@ -7281,7 +7285,7 @@ jobs:
                       t
                   )
               }"""
-          s = s[:start] + wrapped + "\n" + s[close + 2:player] + """    private val mediaPlayer = try { MediaPlayer(libVlc) } catch (t: Throwable) {
+          s = s[:start] + wrapped + "\n" + s[close + close_len:player] + """    private val mediaPlayer = try { MediaPlayer(libVlc) } catch (t: Throwable) {
                   throw IllegalStateException(
                       "LibVLC MediaPlayer creation failed: " + t.javaClass.name + ": " + (t.message ?: "no message"),
                       t
