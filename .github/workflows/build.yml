@@ -7228,12 +7228,6 @@ jobs:
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
           s = p.read_text()
-          audio_option = '        "--no-audio",\n'
-          video_option = '        "--no-video"'
-          for option, label in ((audio_option, "audio"), (video_option, "video")):
-              if s.count(option) != 1:
-                  raise SystemExit("Expected exactly one disabled " + label + " option to remove")
-              s = s.replace(option, "", 1)
           if '"--avformat-probesize=32768"' in s or '"--avformat-analyzeduration=1000000"' in s:
               raise SystemExit("Reduced probing diagnostic already present")
           needle = '        "--no-video-title-show"'
