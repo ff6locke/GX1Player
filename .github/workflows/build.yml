@@ -7419,8 +7419,48 @@ jobs:
               m = m.replace(old_index_seek, new_index_seek, 1)
           elif "override fun seekTo(mediaItemIndex: Int, positionMs: Long)" not in m:
               raise SystemExit("Media3 indexed seek override not found")
+          # PlayerView's visible restart/previous control can dispatch
+          # seekToPreviousMediaItem(), not seekTo(0). Route those commands
+          # to the real LibVLC player and reset the silent controller clock.
+          if "override fun seekToPreviousMediaItem()" not in m:
+              previous_methods = """            override fun seekToPreviousMediaItem() {
+                          val engine = mainVlcEngine
+                          if (engine != null) {
+                              engine.restartFromBeginning()
+                              mainVlcControllerClock?.seekTo(0L)
+                              mainVlcControllerClock?.playWhenReady = true
+                          } else {
+                              super.seekToPreviousMediaItem()
+                          }
+                      }
+                      override fun seekToPrevious() {
+                          val engine = mainVlcEngine
+                          if (engine != null) {
+                              engine.restartFromBeginning()
+                              mainVlcControllerClock?.seekTo(0L)
+                              mainVlcControllerClock?.playWhenReady = true
+                          } else {
+                              super.seekToPrevious()
+                          }
+                      }
+                      override fun seekToDefaultPosition() {
+                          val engine = mainVlcEngine
+                          if (engine != null) {
+                              engine.restartFromBeginning()
+                              mainVlcControllerClock?.seekTo(0L)
+                              mainVlcControllerClock?.playWhenReady = true
+                          } else {
+                              super.seekToDefaultPosition()
+                          }
+                      }
+          """
+              anchor = "            override fun seekBack() {"
+              pos = m.find(anchor)
+              if pos < 0:
+                  raise SystemExit("Could not locate controller transport methods for restart routing")
+              m = m[:pos] + previous_methods + m[pos:]
           main.write_text(m)
-          print("Both Media3 replay seek overloads now explicitly restart LibVLC after EndReached.")
+          print("Media3 seek and previous/restart actions now explicitly restart LibVLC and reset the controller clock.")
           print("Fixed restart ordering and removed diagnostic menu references.")
           PY
 
