@@ -7221,6 +7221,28 @@ jobs:
           p.write_text(s)
           print("Normal audio/video restored; automatic sidecar subtitle detection disabled.")
           PY
+      - name: Test LibVLC with reduced stream probing
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
+          s = p.read_text()
+          audio_option = '        "--no-audio",\n'
+          video_option = '        "--no-video"'
+          for option, label in ((audio_option, "audio"), (video_option, "video")):
+              if s.count(option) != 1:
+                  raise SystemExit("Expected exactly one disabled " + label + " option to remove")
+              s = s.replace(option, "", 1)
+          if '"--avformat-probesize=32768"' in s or '"--avformat-analyzeduration=1000000"' in s:
+              raise SystemExit("Reduced probing diagnostic already present")
+          needle = '        "--no-video-title-show"'
+          if s.count(needle) != 1:
+              raise SystemExit("Expected single LibVLC default option not found")
+          s = s.replace(needle, needle + ',\n        "--avformat-probesize=32768",\n        "--avformat-analyzeduration=1000000"', 1)
+          p.write_text(s)
+          print("Normal audio/video restored; LibVLC stream probe limited to 32 KB and 1 second.")
+          PY
       - name: Verify and export final post-instrumentation source
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
