@@ -6912,11 +6912,6 @@ jobs:
                   1
               )
               s = s.replace(
-                  "playingEventAfterMs = -1L",
-                  "playingEventAfterMs = -1L\\n                  voutEventAfterMs = -1L",
-                  1
-              )
-              s = s.replace(
                   "when (event.type) {",
                   "when (event.type) {\\n                              MediaPlayer.Event.Vout -> {\\n                                  if (voutEventAfterMs < 0L) {\\n                                      voutEventAfterMs = android.os.SystemClock.elapsedRealtime() - openStartedAtMs\\n                                      android.util.Log.i(\\\"GX1_FIRST_PLAY_TIMING\\\", \\\"First Vout event after ms=\\\" + voutEventAfterMs)\\n                                  }\\n                              }",
                   1
