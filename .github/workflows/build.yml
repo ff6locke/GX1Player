@@ -7342,9 +7342,9 @@ jobs:
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
-          needle = "        .setMediaItem(MediaItem.fromUri(uri), resumeAt)"
+          needle = "        clock.setMediaItem(MediaItem.fromUri(uri), resumeAt)"
           if s.count(needle) != 1:
-              raise SystemExit("Expected exactly one Media3 clock setMediaItem call")
+              raise SystemExit("Expected exactly one silent Media3 clock setMediaItem call")
           if "        clock.prepare()" in s:
               raise SystemExit("Media3 clock prepare() is already present; refusing duplicate")
           s = s.replace(needle, needle + "\\n        clock.prepare()", 1)
