@@ -7254,7 +7254,7 @@ jobs:
               source = source[:builder_pos] + patch + source[builder_pos:]
           if 'setNeutralButton("Share log")' not in source:
               title = source.find('.setTitle("Audio diagnostics")')
-              button = re.search(r'(?m)^(\\s*)\\.setPositiveButton\\(', source[title:])
+              button = re.search(r'(?m)^(\s*)\.setPositiveButton\(', source[title:])
               if not button:
                   raise SystemExit("Could not locate Audio diagnostics positive button")
               pos = title + button.start()
