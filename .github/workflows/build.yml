@@ -7237,6 +7237,23 @@ jobs:
           p.write_text(s)
           print("Normal audio/video restored; LibVLC stream probe limited to 32 KB and 1 second.")
           PY
+      - name: Restore LibVLC default Android video output
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
+          s = p.read_text()
+          pattern = r'\\)\\.apply \\{\\s*when \\(appContext\\.getSharedPreferences\\("gx1_player", Context\\.MODE_PRIVATE\\)\\s*\\.getString\\("vlc_video_output", "auto"\\)\\) \\{.*?\\n\\s*\\}\\n\\s*\\}\\)'
+          updated, count = re.subn(pattern, "))", s, count=1, flags=re.S)
+          if count != 1:
+              raise SystemExit("Expected one custom LibVLC vout selection block; found " + str(count))
+          if "--vout=" in updated:
+              raise SystemExit("Explicit LibVLC video output option remains")
+          p.write_text(updated)
+          print("Removed forced android_display/opengl vout selection; LibVLC will choose its default Android video output.")
+          PY
       - name: Verify and export final post-instrumentation source
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
