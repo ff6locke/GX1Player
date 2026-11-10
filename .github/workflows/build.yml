@@ -6905,17 +6905,6 @@ jobs:
               if old not in s:
                   raise SystemExit("Engine timing anchor missing: " + old[:90])
               s = s.replace(old, new, 1)
-          if "voutEventAfterMs" not in s:
-              s = s.replace(
-                  "@Volatile private var playingEventAfterMs = -1L",
-                  "@Volatile private var playingEventAfterMs = -1L\\n              @Volatile private var voutEventAfterMs = -1L",
-                  1
-              )
-              s = s.replace(
-                  "when (event.type) {",
-                  "when (event.type) {\\n                              MediaPlayer.Event.Vout -> {\\n                                  if (voutEventAfterMs < 0L) {\\n                                      voutEventAfterMs = android.os.SystemClock.elapsedRealtime() - openStartedAtMs\\n                                      android.util.Log.i(\\\"GX1_FIRST_PLAY_TIMING\\\", \\\"First Vout event after ms=\\\" + voutEventAfterMs)\\n                                  }\\n                              }",
-                  1
-              )
           method = """    fun startupTimingLines(): List<String> {
                   if (openStartedAtMs == 0L) return listOf("No LibVLC video has been opened in this session")
                   fun show(value: Long): String = if (value >= 0L) "$value ms" else "not reached"
@@ -6925,7 +6914,7 @@ jobs:
                       "play() called: ${show(playCalledAfterMs)}",
                       "LibVLC Opening event: ${show(openingEventAfterMs)}",
                       "First Buffering event: ${show(bufferingEventAfterMs)}",
-                      "LibVLC Playing event: ${show(playingEventAfterMs)}",\n                      "First video output (Vout) event: ${show(voutEventAfterMs)}"
+                      "LibVLC Playing event: ${show(playingEventAfterMs)}"
                   )
               }
 
