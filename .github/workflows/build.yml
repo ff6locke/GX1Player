@@ -7289,6 +7289,39 @@ jobs:
           p.write_text(source)
           print("Added native LibVLC log capture, Share log, and Save TXT actions.")
           PY
+      - name: Add timestamped LibVLC event and output-stage diagnostics
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
+          s = p.read_text()
+          old = 'android.util.Log.i("GX1-VLC", "MAIN LibVLC event=${event.type}, vout=$voutInfo")'
+          new = '''val eventAfterMs = if (openStartedAtMs > 0L) android.os.SystemClock.elapsedRealtime() - openStartedAtMs else -1L
+                      android.util.Log.i("GX1_FIRST_PLAY_TIMING",
+                          "Player event type=${event.type} after ms=$eventAfterMs, vout=$voutInfo, " +
+                              "playing=${runCatching { mediaPlayer.isPlaying }.getOrDefault(false)}, " +
+                              "timeMs=${runCatching { mediaPlayer.time }.getOrDefault(-1L)}")'''
+          if s.count(old) != 1:
+              raise SystemExit("Expected exactly one existing LibVLC event log; refusing patch")
+          s = s.replace(old, new, 1)
+          old = "        mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)"
+          new = '''        android.util.Log.i("GX1_FIRST_PLAY_TIMING", "Audio digital-output configuration starting")
+                  mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)
+                  android.util.Log.i("GX1_FIRST_PLAY_TIMING", "Audio digital-output configuration returned")'''
+          if s.count(old) != 1:
+              raise SystemExit("Expected exactly one digital-output configuration call")
+          s = s.replace(old, new, 1)
+          old = "        runCatching { mediaPlayer.stop() }"
+          new = '''        android.util.Log.i("GX1_FIRST_PLAY_TIMING", "Previous playback stop starting")
+                  runCatching { mediaPlayer.stop() }
+                  android.util.Log.i("GX1_FIRST_PLAY_TIMING", "Previous playback stop returned")'''
+          if s.count(old) != 1:
+              raise SystemExit("Expected exactly one stop call in open()")
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+          print("Added timestamped LibVLC event, audio-output configuration, and stop-stage diagnostics only.")
+          PY
       - name: Verify and export final post-instrumentation source
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
