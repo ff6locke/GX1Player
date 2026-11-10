@@ -6951,36 +6951,35 @@ jobs:
           field = "@Volatile private var bufferingEventAfterMs = -1L"
           if field not in s:
               raise SystemExit("Buffering timing field not found")
-          if "bufferingProgressTrace" in s:
-              raise SystemExit("Buffering progress trace already exists")
-          s = s.replace(field, field + "\n    @Volatile private var bufferingProgressTrace = \"\"", 1)
-          # Reset trace at the beginning of each open() call, not beside the field declaration.
+          if "bufferingProgressTrace" not in s:
+              s = s.replace(field, field + '\\n    @Volatile private var bufferingProgressTrace = ""', 1)
           open_reset = "openStartedAtMs = android.os.SystemClock.elapsedRealtime()"
           if open_reset not in s:
               raise SystemExit("LibVLC open timestamp anchor not found")
-          s = s.replace(open_reset, open_reset + "\n        bufferingProgressTrace = \"\"", 1)
+          if 'bufferingProgressTrace = ""' not in s:
+              s = s.replace(open_reset, open_reset + '\\n        bufferingProgressTrace = ""', 1)
           anchor = "MediaPlayer.Event.Buffering -> {"
           a = s.find(anchor)
-          if a < 0:
-              raise SystemExit("Could not locate LibVLC Buffering event handler")
-          close = s.find("\n", s.find("}", a))
-          brace = s.find("}", a)
-          if brace < 0:
-              raise SystemExit("Could not locate end of Buffering handler")
-              line_start = s.rfind(chr(10), 0, builder_pos) + 1
+          next_anchor = s.find("MediaPlayer.Event.Opening -> publish", a)
+          if a < 0 or next_anchor < 0:
+              raise SystemExit("Could not isolate LibVLC Buffering event handler")
+          line_start = s.rfind(chr(10), 0, a) + 1
           indent = s[line_start:a]
-          handler = """MediaPlayer.Event.Buffering -> {
-          """ + indent + """    val bufferingAtMs = android.os.SystemClock.elapsedRealtime() - openStartedAtMs
-          """ + indent + """    val bufferingPercent = event.buffering.toInt()
-          """ + indent + """    bufferingProgressTrace = (bufferingProgressTrace + bufferingPercent.toString() + "%@" + bufferingAtMs.toString() + "ms; ").takeLast(1200)
-          """ + indent + """    if (bufferingEventAfterMs < 0L) bufferingEventAfterMs = bufferingAtMs
-          """ + indent + """    android.util.Log.i("GX1_FIRST_PLAY_TIMING", "Buffering " + bufferingPercent + "% after ms=" + bufferingAtMs)
-          """ + indent + """}"""
-          s = s[:a] + handler + s[brace + 1:]
+          handler = (
+              anchor + "\\n" +
+              indent + "    val bufferingAtMs = android.os.SystemClock.elapsedRealtime() - openStartedAtMs\\n" +
+              indent + "    val bufferingPercent = event.buffering.toInt()\\n" +
+              indent + '    bufferingProgressTrace = (bufferingProgressTrace + bufferingPercent.toString() + "%@" + bufferingAtMs.toString() + "ms; ").takeLast(1200)\\n' +
+              indent + "    if (bufferingEventAfterMs < 0L) bufferingEventAfterMs = bufferingAtMs\\n" +
+              indent + '    android.util.Log.i("GX1_FIRST_PLAY_TIMING", "Buffering " + bufferingPercent + "% after ms=" + bufferingAtMs)\\n' +
+              indent + "}"
+          )
+          s = s[:a] + handler + "\\n                " + s[next_anchor:]
           output = '"LibVLC Playing event: ${show(playingEventAfterMs)}"'
           if output not in s:
               raise SystemExit("Startup timing output list anchor not found")
-          s = s.replace(output, output + ',\n            "Buffering percentage timeline: " + if (bufferingProgressTrace.isBlank()) "no updates" else bufferingProgressTrace', 1)
+          if "Buffering percentage timeline:" not in s:
+              s = s.replace(output, output + ',\\n            "Buffering percentage timeline: " + if (bufferingProgressTrace.isBlank()) "no updates" else bufferingProgressTrace', 1)
           p.write_text(s)
           print("Added timestamped LibVLC buffering percentage diagnostics.")
           PY
