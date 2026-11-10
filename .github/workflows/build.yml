@@ -7345,7 +7345,7 @@ jobs:
           """ + indent + """activeUri = uri"""
               s = s[:open_match.start()] + open_new + s[open_match.end():]
 
-          media_match = re.search(r'(?m)^(\s*)try \{\n\s*mediaPlayer\.media = media\n\s*\} catch \(error: Exception\) \{, s)
+          media_match = re.search(r'(?m)^(\s*)try \{\n\s*mediaPlayer\.media = media\n\s*\} catch \(error: Exception\) \{$', s)
           if "Media parse listener attached" not in s:
               if not media_match:
                   raise SystemExit("Could not locate media assignment try/catch")
