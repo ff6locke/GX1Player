@@ -7300,6 +7300,31 @@ jobs:
           p.write_text(s)
           print("LibVLC and MediaPlayer construction now report distinct failure stages.")
           PY
+      - name: Show complete LibVLC startup exception
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          old = '        Toast.makeText(this, "LibVLC failed; switched back to Media3: " + (e.message ?: e.javaClass.simpleName), Toast.LENGTH_LONG).show()'
+          new = """        val failureDetails = generateSequence(e as Throwable?) { it.cause }
+                      .mapIndexed { index, cause ->
+                          (index + 1).toString() + ". " + cause.javaClass.name + ": " +
+                              (cause.message ?: "no message")
+                      }
+                      .joinToString("\\n")
+                  android.app.AlertDialog.Builder(this)
+                      .setTitle("LibVLC startup failed")
+                      .setMessage("Playback is falling back to Media3. Full error details:\\n\\n" + failureDetails)
+                      .setPositiveButton("OK", null)
+                      .show()"""
+          if s.count(old) != 1:
+              raise SystemExit("Expected exactly one LibVLC fallback Toast to replace")
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+          print("Replaced truncated Toast with a dialog showing the full exception cause chain.")
+          PY
       - name: Verify and export final post-instrumentation source
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
