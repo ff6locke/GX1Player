@@ -7358,60 +7358,69 @@ jobs:
               raise SystemExit("VLC test menu dispatch remains")
           p.write_text(s)
 
-          # The Media3 replay icon sends seekTo(0) to the LibVLC engine.
-          # LibVLC setTime(0) is unreliable after EndReached, so reopen the
-          # active source at the requested position instead of only resetting
-          # the silent Media3 controller clock.
+          # Media3's replay action can invoke either seekTo overload. The real
+          # video is LibVLC (Media3 is only a silent controller clock), so a
+          # seek-to-zero after EndReached must reopen the LibVLC source.
           engine = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
           e = engine.read_text()
-          old_seek = "    fun seekTo(positionMs: Long) { checkActive(); mediaPlayer.setTime(positionMs.coerceAtLeast(0L)) }"
-          new_seek = "    fun seekTo(positionMs: Long) {\n        checkActive()\n        val target = positionMs.coerceAtLeast(0L)\n        if (reachedEnd) {\n            val uri = activeUri\n            if (uri != null) {\n                open(uri, target, activeDigitalOutput)\n                return\n            }\n        }\n        mediaPlayer.setTime(target)\n    }"
-          if old_seek in e:
-              e = e.replace(old_seek, new_seek, 1)
-          elif new_seek not in e:
-              raise SystemExit("LibVLC seekTo implementation did not match expected source")
-          # A replay action is a seek-to-zero command. The controller clock is
-          # deliberately silent, so seeking its timeline alone must explicitly
-          # restart the LibVLC engine and wake the clock after EndReached.
-          e_marker = "    fun seekTo(positionMs: Long) {"
-          e_methods = """    fun hasEnded(): Boolean = reachedEnd
-
-    fun restartFromBeginning() {
-        checkActive()
-        val uri = activeUri ?: return
-        open(uri, 0L, activeDigitalOutput)
-    }
-
-"""
-          if "fun hasEnded(): Boolean = reachedEnd" not in e:
-              pos = e.find(e_marker)
+          if "fun restartFromBeginning()" not in e:
+              marker = "    fun seekTo(positionMs: Long)"
+              pos = e.find(marker)
               if pos < 0:
-                  raise SystemExit("Could not locate LibVLC seek method for restart helpers")
-              e = e[:pos] + e_methods + e[pos:]
+                  raise SystemExit("Could not locate LibVLC seek method for replay helper")
+              helper = """    fun hasEnded(): Boolean = reachedEnd
+
+              fun restartFromBeginning() {
+                  checkActive()
+                  val uri = activeUri ?: return
+                  open(uri, 0L, activeDigitalOutput)
+              }
+
+              """
+              e = e[:pos] + helper + e[pos:]
           engine.write_text(e)
 
           main = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           m = main.read_text()
-          old_controller_seek = """            override fun seekTo(positionMs: Long) {
-                mainVlcEngine?.seekTo(positionMs)
-                super.seekTo(positionMs)
-            }"""
-          new_controller_seek = """            override fun seekTo(positionMs: Long) {
-                val engine = mainVlcEngine
-                if (positionMs <= 0L && engine?.hasEnded() == true) {
-                    engine.restartFromBeginning()
-                    mainVlcControllerClock?.playWhenReady = true
-                } else {
-                    engine?.seekTo(positionMs)
-                }
-                super.seekTo(positionMs)
-            }"""
-          if old_controller_seek in m:
-              m = m.replace(old_controller_seek, new_controller_seek, 1)
-          elif new_controller_seek not in m:
-              raise SystemExit("Media3 replay seek override did not match expected source")
+          old_seek = """            override fun seekTo(positionMs: Long) {
+                          mainVlcEngine?.seekTo(positionMs)
+                          super.seekTo(positionMs)
+                      }"""
+          new_seek = """            override fun seekTo(positionMs: Long) {
+                          val engine = mainVlcEngine
+                          if (positionMs <= 0L && engine?.hasEnded() == true) {
+                              engine.restartFromBeginning()
+                              mainVlcControllerClock?.playWhenReady = true
+                          } else {
+                              engine?.seekTo(positionMs)
+                          }
+                          super.seekTo(positionMs)
+                      }"""
+          if old_seek in m:
+              m = m.replace(old_seek, new_seek, 1)
+          elif "engine.restartFromBeginning()" not in m:
+              raise SystemExit("Media3 position seek override did not match expected source")
+
+          old_index_seek = """            override fun seekTo(mediaItemIndex: Int, positionMs: Long) {
+                          mainVlcEngine?.seekTo(positionMs)
+                          super.seekTo(mediaItemIndex, positionMs)
+                      }"""
+          new_index_seek = """            override fun seekTo(mediaItemIndex: Int, positionMs: Long) {
+                          val engine = mainVlcEngine
+                          if (positionMs <= 0L && engine?.hasEnded() == true) {
+                              engine.restartFromBeginning()
+                              mainVlcControllerClock?.playWhenReady = true
+                          } else {
+                              engine?.seekTo(positionMs)
+                          }
+                          super.seekTo(mediaItemIndex, positionMs)
+                      }"""
+          if old_index_seek in m:
+              m = m.replace(old_index_seek, new_index_seek, 1)
+          elif "override fun seekTo(mediaItemIndex: Int, positionMs: Long)" not in m:
+              raise SystemExit("Media3 indexed seek override not found")
           main.write_text(m)
-          print("Replay seek now explicitly restarts LibVLC and wakes the silent Media3 clock after EndReached.")
+          print("Both Media3 replay seek overloads now explicitly restart LibVLC after EndReached.")
           print("Fixed restart ordering and removed diagnostic menu references.")
           PY
 
