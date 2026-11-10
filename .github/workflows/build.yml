@@ -6967,7 +6967,7 @@ jobs:
           brace = s.find("}", a)
           if brace < 0:
               raise SystemExit("Could not locate end of Buffering handler")
-          line_start = s.rfind("\n", 0, a) + 1
+              line_start = s.rfind(chr(10), 0, builder_pos) + 1
           indent = s[line_start:a]
           handler = """MediaPlayer.Event.Buffering -> {
           """ + indent + """    val bufferingAtMs = android.os.SystemClock.elapsedRealtime() - openStartedAtMs
@@ -7378,7 +7378,7 @@ jobs:
           """
               patch = "".join(indent + line if line.strip() else line
                               for line in patch.splitlines(keepends=True))
-              s = s[:builder.start()] + patch + s[builder.start():]
+              s = s[:builder_pos] + patch + s[builder_pos:]
           if 'setNeutralButton("Share log")' not in s:
               title = s.find('.setTitle("Audio diagnostics")')
               if title < 0:
