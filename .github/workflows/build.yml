@@ -7317,32 +7317,49 @@ jobs:
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
+
+          # startPlayer() itself calls releasePlayer(), which saves the old
+          # position. Release first, then clear the saved position, then reopen.
           start = s.find('add("Restart current video")')
-          if start < 0:
-              raise SystemExit("Restart current video handler not found")
-          end = s.find('add(if (passthrough)', start)
-          if end < 0:
-              raise SystemExit("Restart handler end marker not found")
+          end = s.find('add("History")', start)
+          if start < 0 or end < 0:
+              raise SystemExit("Could not isolate Restart current video menu handler")
           block = s[start:end]
-          if "releasePlayer()" not in block:
-              needle = "prefs.edit().remove(posKey(uri)).apply()"
-              if needle not in block:
-                  raise SystemExit("Restart saved-position clear not found")
-              block = block.replace(needle, "releasePlayer()\\n" + needle, 1)
-              s = s[:start] + block + s[end:]
-          s = s.replace('Triple("ⓘ", "Audio diagnostics", "audio_diagnostics"),', '')
-          s = s.replace('"audio_diagnostics" -> showAudioDiagnostics()', '')
-          s = s.replace('Triple("VLC", "VLC test – Play current video", "vlc_test"),', '')
-          s = s.replace('"vlc_test" -> launchVlcTest()', '')
+          expected = 'prefs.edit().remove(posKey(uri)).apply()'
+          if expected not in block:
+              raise SystemExit("Restart saved-position clear not found")
+          block = block.replace(
+              '            prefs.edit().remove(posKey(uri)).apply()',
+              '            releasePlayer()\n            prefs.edit().remove(posKey(uri)).apply()',
+              1
+          )
+          s = s[:start] + block + s[end:]
+
+          # Remove the diagnostic and standalone VLC test entries from the menu.
+          removals = [
+              '                      Triple("ⓘ", "Audio diagnostics", "audio_diagnostics"),',
+              '                      Triple("VLC", "Play current video with VLC", "vlc_test"),',
+              '                    "audio_diagnostics" -> showAudioDiagnostics()',
+              '                              "vlc_test" -> launchVlcTest()'
+          ]
+          for item in removals:
+              if item not in s:
+                  raise SystemExit("Expected menu item/action not found: " + item.strip())
+              s = s.replace(item, "", 1)
+
           start = s.find('add("Restart current video")')
-          end = s.find('add(if (passthrough)', start)
+          end = s.find('add("History")', start)
           block = s[start:end]
-          if block.find("releasePlayer()") > block.find("prefs.edit().remove(posKey(uri)).apply()"):
+          release_at = block.find("releasePlayer()")
+          clear_at = block.find(expected)
+          if release_at < 0 or clear_at < 0 or release_at > clear_at:
               raise SystemExit("Restart order verification failed")
-          if 'Triple("ⓘ", "Audio diagnostics", "audio_diagnostics")' in s or '"audio_diagnostics" -> showAudioDiagnostics()' in s:
-              raise SystemExit("Audio diagnostics menu entry remains")
+          if "audio_diagnostics" in s or "showAudioDiagnostics()" in s:
+              raise SystemExit("Audio diagnostics menu action remains")
+          if '"vlc_test"' in s or "launchVlcTest()" in s:
+              raise SystemExit("VLC test menu action remains")
           p.write_text(s)
-          print("Restart now releases the previous player before clearing its saved position; diagnostic menu entries removed.")
+          print("Restart releases the old player before clearing its saved position; diagnostic and VLC-test menu entries removed.")
           PY
 
       - name: Verify and export final post-instrumentation source
