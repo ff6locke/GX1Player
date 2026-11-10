@@ -7335,22 +7335,6 @@ jobs:
           p.write_text(s)
           print("Applied per-media file-caching=0 only to local file sources; LibVLC constructor and audio/video settings unchanged.")
           PY
-      - name: Restore Media3 controller clock preparation
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
-          s = p.read_text()
-          needle = "        clock.setMediaItem(MediaItem.fromUri(uri), resumeAt)"
-          if s.count(needle) != 1:
-              raise SystemExit("Expected exactly one silent Media3 clock setMediaItem call")
-          if "        clock.prepare()" in s:
-              raise SystemExit("Media3 clock prepare() is already present; refusing duplicate")
-          s = s.replace(needle, needle + "\\n        clock.prepare()", 1)
-          p.write_text(s)
-          print("Restored Media3 controller clock preparation so playback position and time bar advance; LibVLC remains the audio/video engine.")
-          PY
       - name: Verify and export final post-instrumentation source
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
