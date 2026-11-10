@@ -7237,51 +7237,6 @@ jobs:
           p.write_text(s)
           print("Normal audio/video restored; LibVLC stream probe limited to 32 KB and 1 second.")
           PY
-      - name: Restore LibVLC default Android video output
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
-          s = p.read_text()
-          old = '''    ).apply {
-                  when (appContext.getSharedPreferences("gx1_player", Context.MODE_PRIVATE)
-                      .getString("vlc_video_output", "auto")) {
-                      "opengl" -> add("--vout=gles2,none")
-                      "auto", "android" -> add("--vout=android_display,none")
-                  }
-              })'''
-          # Match the source indentation exactly; preserve the rest of LibVLC setup.
-          old = '''    ).apply {
-                  when (appContext.getSharedPreferences("gx1_player", Context.MODE_PRIVATE)
-                      .getString("vlc_video_output", "auto")) {
-                      "opengl" -> add("--vout=gles2,none")
-                      "auto", "android" -> add("--vout=android_display,none")
-                  }
-              })'''
-          if old not in s:
-              old = '''    ).apply {
-                  when (appContext.getSharedPreferences("gx1_player", Context.MODE_PRIVATE)
-                      .getString("vlc_video_output", "auto")) {
-                      "opengl" -> add("--vout=gles2,none")
-                      "auto", "android" -> add("--vout=android_display,none")
-                  }
-              })'''
-          # Use a line-based match to avoid indentation-sensitive regexes.
-          lines = s.splitlines()
-          begin = next((n for n,x in enumerate(lines) if x.strip() == ").apply {"), -1)
-          if begin < 0:
-              raise SystemExit("Custom vout apply block not found")
-          finish = next((n for n in range(begin+1, min(begin+12, len(lines))) if lines[n].strip() == "})"), -1)
-          if finish < 0 or not any("vlc_video_output" in x for x in lines[begin:finish+1]):
-              raise SystemExit("Expected custom vout selection block not found")
-          lines[begin:finish+1] = ["    ))"]
-          s = "\\n".join(lines) + "\\n"
-          if "--vout=" in s:
-              raise SystemExit("Explicit LibVLC video output option remains")
-          p.write_text(s)
-          print("Removed forced vout selection; LibVLC will use its default Android video output.")
-          PY
       - name: Verify and export final post-instrumentation source
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
