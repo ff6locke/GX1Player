@@ -7237,6 +7237,37 @@ jobs:
           p.write_text(s)
           print("Normal audio/video restored; LibVLC stream probe limited to 32 KB and 1 second.")
           PY
+      - name: Restore the last known LibVLC instance configuration
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
+          s = p.read_text()
+          old = '''    private val libVlc = LibVLC(appContext, arrayListOf(
+                  "-vvv",
+                  "--no-video-title-show"
+              ))'''
+          new = '''    private val libVlc = LibVLC(appContext, arrayListOf(
+                  "-vvv",
+                  "--no-video-title-show",
+                  "--avformat-probesize=32768",
+                  "--avformat-analyzeduration=1000000",
+                  "--file-caching=0",
+                  "--no-sub-autodetect-file"
+              ).apply {
+                  when (appContext.getSharedPreferences("gx1_player", Context.MODE_PRIVATE)
+                      .getString("vlc_video_output", "auto")) {
+                      "opengl" -> add("--vout=gles2,none")
+                      "auto", "android" -> add("--vout=android_display,none")
+                  }
+              })'''
+          if s.count(old) != 1:
+              raise SystemExit("Expected exactly one default LibVLC constructor block; refusing unsafe edit")
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+          print("Restored the prior LibVLC options and Android video-output selection.")
+          PY
       - name: Verify and export final post-instrumentation source
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
