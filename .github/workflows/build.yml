@@ -8178,6 +8178,95 @@ jobs:
           print("Sleep Timer now has a cancellable Off option; seek jumps are 10 seconds before 5:00 and 5 minutes thereafter.")
           PY
 
+      - name: Speed up Library queries and restore playback focus to Play/Pause
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+
+          # Let MediaStore narrow each folder query at the database level and avoid
+          # sorting the entire storage index before the app can display the results.
+          old_query = 'contentResolver.query(collection, projection, null, null, MediaStore.MediaColumns.DISPLAY_NAME + " COLLATE NOCASE ASC")'
+          new_query = '''val selection = if (path.isEmpty()) null else "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?"
+                  val selectionArgs = if (path.isEmpty()) null else arrayOf("$path%")
+                  contentResolver.query(collection, projection, selection, selectionArgs, null)'''
+          if old_query in s:
+              if s.count(old_query) != 1:
+                  raise SystemExit("Library MediaStore query is not unique")
+              s = s.replace(old_query, new_query, 1)
+          elif 'contentResolver.query(collection, projection, selection, selectionArgs, null)' not in s:
+              raise SystemExit("Could not locate Library MediaStore query")
+          if 'files.sortBy { it.label.lowercase() }' not in s:
+              anchor = '              val entries = mutableListOf<Entry>()'
+              if anchor not in s:
+                  raise SystemExit("Could not locate Library entry-list construction")
+              s = s.replace(anchor, '              files.sortBy { it.label.lowercase() }\n' + anchor, 1)
+
+          # Keep Android TV D-pad focus on Play/Pause whenever the Media3 controller
+          # is shown again after a playback operation or a new media item.
+          class_anchor = "class MainActivity : AppCompatActivity() {"
+          if class_anchor not in s:
+              raise SystemExit("Could not locate MainActivity class for focus state")
+          if "private var gx1FocusListenerInstalled" not in s:
+              s = s.replace(class_anchor, class_anchor + "\n    private var gx1FocusListenerInstalled = false", 1)
+
+          helper = '''    private fun focusPlaybackToggle() {
+              if (!::playerView.isInitialized) return
+              val playPause = playerView.findViewById<android.view.View>(
+                  androidx.media3.ui.R.id.exo_play_pause
+              ) ?: return
+              playPause.isFocusable = true
+              playPause.isFocusableInTouchMode = true
+              playPause.requestFocus()
+          }
+
+          '''
+          if "private fun focusPlaybackToggle()" not in s:
+              anchor = "    private fun startMainLibVlc(uri: Uri) {"
+              if anchor not in s:
+                  raise SystemExit("Could not locate main LibVLC start method for focus helper")
+              s = s.replace(anchor, helper + anchor, 1)
+
+          old_focus = '''                  playerView.showController()
+                  playerView.post {
+                      val playPause = playerView.findViewById<android.view.View>(
+                          androidx.media3.ui.R.id.exo_play_pause
+                      )
+                      playPause?.isFocusable = true
+                      playPause?.isFocusableInTouchMode = true
+                      playPause?.requestFocus()
+                  }'''
+          new_focus = '''                  playerView.showController()
+                  if (!gx1FocusListenerInstalled) {
+                      playerView.setControllerVisibilityListener(
+                          object : androidx.media3.ui.PlayerView.ControllerVisibilityListener {
+                              override fun onVisibilityChanged(visibility: Int) {
+                                  if (visibility == View.VISIBLE) {
+                                      playerView.post { focusPlaybackToggle() }
+                                  }
+                              }
+                          }
+                      )
+                      gx1FocusListenerInstalled = true
+                  }
+                  playerView.post { focusPlaybackToggle() }'''
+          if old_focus in s:
+              s = s.replace(old_focus, new_focus, 1)
+          elif "playerView.setControllerVisibilityListener(" not in s:
+              raise SystemExit("Could not locate existing Play/Pause focus request to replace")
+
+          if "private fun focusPlaybackToggle()" not in s or "playerView.setControllerVisibilityListener(" not in s:
+              raise SystemExit("Playback focus correction verification failed")
+          if "contentResolver.query(collection, projection, selection, selectionArgs, null)" not in s:
+              raise SystemExit("Library query optimization verification failed")
+
+          p.write_text(s)
+          print("Library now filters MediaStore by the selected folder and sorts only the visible results. Playback controller refreshes now return D-pad focus to Play/Pause.")
+          PY
+
       - name: Build separate 32-bit and 64-bit ARM APKs
         working-directory: ${{ env.PROJECT_DIR }}
         env:
