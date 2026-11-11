@@ -2830,7 +2830,6 @@ jobs:
 
           private fun browseGX1Folder(folder: java.io.File, selectingLibrary: Boolean, foldersOnly: Boolean = false) {
               val current = folder.canonicalFile
-              // Open Video is a video-only picker; Library retains audio browsing too.
               val videoExt = setOf(
                   "mkv", "mp4", "m4v", "avi", "mov", "webm", "mpg", "mpeg",
                   "ts", "m2ts", "mts", "vob", "ogv", "flv", "wmv", "asf",
@@ -2838,54 +2837,71 @@ jobs:
               )
               val libraryMediaExt = videoExt + setOf("mp3", "flac", "m4a", "aac", "wav", "ogg", "opus")
               val mediaExt = if (selectingLibrary) libraryMediaExt else videoExt
-              // In Open Video mode, hide unrelated folders as well as non-video files.
-              // Search a few levels down so folders containing videos in subfolders remain reachable.
-              fun containsPlayableVideo(dir: java.io.File, depth: Int = 0): Boolean {
-                  if (depth >= 6) return false
-                  return dir.listFiles()?.any { child ->
-                      if (child.isFile) child.extension.lowercase() in videoExt
-                      else child.isDirectory && !child.name.startsWith(".") && containsPlayableVideo(child, depth + 1)
-                  } == true
-              }
-              val entries = current.listFiles()?.filter { f ->
-                  (f.isDirectory && (selectingLibrary || foldersOnly || containsPlayableVideo(f))) ||
-                      (!foldersOnly && f.isFile && f.extension.lowercase() in mediaExt)
-              }?.sortedWith(compareBy<java.io.File>({ !it.isDirectory }, { it.name.lowercase() })) ?: emptyList()
-              val labels = mutableListOf<String>()
-              if (current.parentFile != null) labels.add("..  Parent folder")
-              entries.forEach { labels.add((if (it.isDirectory) "📁  " else "▶  ") + it.name) }
-              if (labels.isEmpty()) labels.add("(No folders or media files)")
-              val title = (if (selectingLibrary) "Choose Library folder" else "GX1 Library") +
-                  "\n" + current.absolutePath
-              val builder = AlertDialog.Builder(this).setTitle(title)
-                  .setItems(labels.toTypedArray()) { _, which ->
-                      val parentOffset = if (current.parentFile != null) 1 else 0
-                      if (parentOffset == 1 && which == 0) {
-                          browseGX1Folder(current.parentFile!!, selectingLibrary, foldersOnly)
-                      } else {
-                          val index = which - parentOffset
-                          if (index in entries.indices) {
-                              val selected = entries[index]
-                              if (selected.isDirectory) browseGX1Folder(selected, selectingLibrary, foldersOnly)
-                              else if (!selectingLibrary) {
-                                  selectMedia(Uri.fromFile(selected))
-                                  startPlayer()
+              val loading = AlertDialog.Builder(this)
+                  .setTitle(if (selectingLibrary) "Loading Library…" else "Loading videos…")
+                  .setMessage(current.absolutePath)
+                  .setNegativeButton("Cancel", null)
+                  .create()
+              loading.show()
+
+              Thread {
+                  // Keep slow storage enumeration and recursive video checks off the UI thread.
+                  fun containsPlayableVideo(dir: java.io.File, depth: Int = 0): Boolean {
+                      if (depth >= 4) return false
+                      val children = dir.listFiles() ?: return false
+                      for (child in children) {
+                          if (child.isFile && child.extension.lowercase() in videoExt) return true
+                          if (child.isDirectory && !child.name.startsWith(".") &&
+                              !child.name.equals("Android", true) &&
+                              containsPlayableVideo(child, depth + 1)) return true
+                      }
+                      return false
+                  }
+                  val entries = current.listFiles()?.filter { f ->
+                      (f.isDirectory && (selectingLibrary || foldersOnly || containsPlayableVideo(f))) ||
+                          (!foldersOnly && f.isFile && f.extension.lowercase() in mediaExt)
+                  }?.sortedWith(compareBy<java.io.File>({ !it.isDirectory }, { it.name.lowercase() })) ?: emptyList()
+
+                  runOnUiThread {
+                      if (isFinishing || isDestroyed || !loading.isShowing) return@runOnUiThread
+                      loading.dismiss()
+                      val labels = mutableListOf<String>()
+                      if (current.parentFile != null) labels.add("..  Parent folder")
+                      entries.forEach { labels.add((if (it.isDirectory) "📁  " else "▶  ") + it.name) }
+                      if (labels.isEmpty()) labels.add("(No folders or media files)")
+                      val title = (if (selectingLibrary) "Choose Library folder" else "GX1 Library") +
+                          "\\n" + current.absolutePath
+                      val builder = AlertDialog.Builder(this).setTitle(title)
+                          .setItems(labels.toTypedArray()) { _, which ->
+                              val parentOffset = if (current.parentFile != null) 1 else 0
+                              if (parentOffset == 1 && which == 0) {
+                                  browseGX1Folder(current.parentFile!!, selectingLibrary, foldersOnly)
+                              } else {
+                                  val index = which - parentOffset
+                                  if (index in entries.indices) {
+                                      val selected = entries[index]
+                                      if (selected.isDirectory) browseGX1Folder(selected, selectingLibrary, foldersOnly)
+                                      else if (!selectingLibrary) {
+                                          selectMedia(Uri.fromFile(selected))
+                                          startPlayer()
+                                      }
+                                  }
                               }
                           }
+                      if (selectingLibrary) {
+                          builder.setPositiveButton("Use this folder") { _, _ ->
+                              prefs.edit().putString("gx1_library_path", current.absolutePath).apply()
+                              Toast.makeText(this, "Library folder saved.", Toast.LENGTH_SHORT).show()
+                              browseGX1Folder(current, false)
+                          }
+                      } else {
+                          builder.setPositiveButton("Choose folder") { _, _ -> browseGX1Folder(current, true) }
                       }
+                      builder.setNegativeButton("Close", null)
+                      builder.setNeutralButton("Refresh") { _, _ -> browseGX1Folder(current, selectingLibrary) }
+                      builder.show()
                   }
-              if (selectingLibrary) {
-                  builder.setPositiveButton("Use this folder") { _, _ ->
-                      prefs.edit().putString("gx1_library_path", current.absolutePath).apply()
-                      Toast.makeText(this, "Library folder saved.", Toast.LENGTH_SHORT).show()
-                      browseGX1Folder(current, false)
-                  }
-              } else {
-                  builder.setPositiveButton("Choose folder") { _, _ -> browseGX1Folder(current, true) }
-              }
-              builder.setNegativeButton("Close", null)
-              builder.setNeutralButton("Refresh") { _, _ -> browseGX1Folder(current, selectingLibrary) }
-              builder.show()
+              }.start()
           }
 
           """
