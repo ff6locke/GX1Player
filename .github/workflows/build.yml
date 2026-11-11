@@ -3701,8 +3701,8 @@ jobs:
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
 
-          start = s.find("          private fun showGX1Library() {")
-          end = s.find("          private fun browseGX1Folder(", start)
+          start = s.find("    private fun showGX1Library() {")
+          end = s.find("    private fun browseGX1Folder(", start)
           if start < 0 or end < 0:
               raise SystemExit("Could not locate Library methods in MainActivity")
           new_method = """          private fun showGX1Library() {
