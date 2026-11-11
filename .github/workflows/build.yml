@@ -2838,8 +2838,18 @@ jobs:
               )
               val libraryMediaExt = videoExt + setOf("mp3", "flac", "m4a", "aac", "wav", "ogg", "opus")
               val mediaExt = if (selectingLibrary) libraryMediaExt else videoExt
+              // In Open Video mode, hide unrelated folders as well as non-video files.
+              // Search a few levels down so folders containing videos in subfolders remain reachable.
+              fun containsPlayableVideo(dir: java.io.File, depth: Int = 0): Boolean {
+                  if (depth >= 6) return false
+                  return dir.listFiles()?.any { child ->
+                      if (child.isFile) child.extension.lowercase() in videoExt
+                      else child.isDirectory && !child.name.startsWith(".") && containsPlayableVideo(child, depth + 1)
+                  } == true
+              }
               val entries = current.listFiles()?.filter { f ->
-                  f.isDirectory || (!foldersOnly && f.isFile && f.extension.lowercase() in mediaExt)
+                  (f.isDirectory && (selectingLibrary || foldersOnly || containsPlayableVideo(f))) ||
+                      (!foldersOnly && f.isFile && f.extension.lowercase() in mediaExt)
               }?.sortedWith(compareBy<java.io.File>({ !it.isDirectory }, { it.name.lowercase() })) ?: emptyList()
               val labels = mutableListOf<String>()
               if (current.parentFile != null) labels.add("..  Parent folder")
