@@ -8266,7 +8266,7 @@ jobs:
           listener_anchor = "playbackTitle.visibility = visibility"
           focus_line = "if (visibility == View.VISIBLE) playerView.post { focusPlaybackToggle() }"
           if listener_anchor in s and focus_line not in s:
-              s = s.replace(listener_anchor, listener_anchor + "\\n                    " + focus_line, 1)
+              s = s.replace(listener_anchor, listener_anchor + "\n                    " + focus_line, 1)
           if "private fun focusPlaybackToggle()" not in s or focus_line not in s:
               raise SystemExit("Playback focus correction verification failed")
           if "contentResolver.query(collection, projection, selection, selectionArgs, null)" not in s:
