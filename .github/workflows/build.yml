@@ -8200,10 +8200,12 @@ jobs:
           elif 'contentResolver.query(collection, projection, selection, selectionArgs, null)' not in s:
               raise SystemExit("Could not locate Library MediaStore query")
           if 'files.sortBy { it.label.lowercase() }' not in s:
-              anchor = '              val entries = mutableListOf<Entry>()'
-              if anchor not in s:
+              import re
+              match = re.search(r'(?m)^(\\s*)val entries = mutableListOf<Entry>\\(\\)', s)
+              if not match:
                   raise SystemExit("Could not locate Library entry-list construction")
-              s = s.replace(anchor, '              files.sortBy { it.label.lowercase() }\n' + anchor, 1)
+              indent = match.group(1)
+              s = s[:match.start()] + indent + 'files.sortBy { it.label.lowercase() }\\n' + s[match.start():]
 
           # Keep Android TV D-pad focus on Play/Pause whenever the Media3 controller
           # is shown again after a playback operation or a new media item.
