@@ -8297,6 +8297,9 @@ jobs:
                       event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_RIGHT) {
                       val engine = mainVlcEngine
                       if (engine != null) {
+                          // Android sends ACTION_DOWN again with repeatCount > 0 while the
+                          // remote key is held. Seek on the initial press and every repeat;
+                          // consume ACTION_UP below so the key never moves D-pad focus.
                           if (event.action == android.view.KeyEvent.ACTION_DOWN) {
                               val current = engine.currentTimeMs()
                               val step = if (current < 2 * 60_000L) 10_000L else 2 * 60_000L
