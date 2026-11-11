@@ -8190,8 +8190,9 @@ jobs:
           # Let MediaStore narrow each folder query at the database level and avoid
           # sorting the entire storage index before the app can display the results.
           old_query = 'contentResolver.query(collection, projection, null, null, MediaStore.MediaColumns.DISPLAY_NAME + " COLLATE NOCASE ASC")'
-          new_query = '''val selection = if (path.isEmpty()) null else "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?"
-                  val selectionArgs = if (path.isEmpty()) null else arrayOf("$path%")
+          new_query = '''val mediaTypeFilter = "(${MediaStore.MediaColumns.MIME_TYPE} LIKE ? OR ${MediaStore.MediaColumns.MIME_TYPE} LIKE ?)"
+                  val selection = if (path.isEmpty()) mediaTypeFilter else "$mediaTypeFilter AND ${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?"
+                  val selectionArgs = if (path.isEmpty()) arrayOf("video/%", "audio/%") else arrayOf("video/%", "audio/%", "$path%")
                   contentResolver.query(collection, projection, selection, selectionArgs, null)'''
           if old_query in s:
               if s.count(old_query) != 1:
@@ -8261,7 +8262,12 @@ jobs:
           elif "playerView.setControllerVisibilityListener(" not in s:
               raise SystemExit("Could not locate existing Play/Pause focus request to replace")
 
-          if "private fun focusPlaybackToggle()" not in s or "playerView.setControllerVisibilityListener(" not in s:
+          # Extend the existing visibility listener instead of installing a second one.
+          listener_anchor = "playbackTitle.visibility = visibility"
+          focus_line = "if (visibility == View.VISIBLE) playerView.post { focusPlaybackToggle() }"
+          if listener_anchor in s and focus_line not in s:
+              s = s.replace(listener_anchor, listener_anchor + "\\n                    " + focus_line, 1)
+          if "private fun focusPlaybackToggle()" not in s or focus_line not in s:
               raise SystemExit("Playback focus correction verification failed")
           if "contentResolver.query(collection, projection, selection, selectionArgs, null)" not in s:
               raise SystemExit("Library query optimization verification failed")
