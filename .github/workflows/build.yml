@@ -7711,6 +7711,51 @@ jobs:
           print("Aspect ratio now controls LibVLC ScaleType on the actual video surface.")
           PY
 
+      - name: Preserve aspect ratio when switching videos
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('app/src/main/java/com/example/gx1player/MainActivity.kt')
+          s = p.read_text()
+
+          field_anchor = '    private var mainVlcEngine: Gx1LibVlcEngine? = null'
+          field = field_anchor + '\n    private var selectedMainVlcScale = org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_BEST_FIT'
+          if 'private var selectedMainVlcScale =' not in s:
+              if s.count(field_anchor) != 1:
+                  raise SystemExit('Could not locate unique main LibVLC engine field')
+              s = s.replace(field_anchor, field, 1)
+
+          # Keep the chosen scale in Activity state, because each next-video
+          # action creates a fresh LibVLC engine whose native scale starts at Fit.
+          engine_anchor = '                  mainVlcEngine = engine\n'
+          engine_apply = engine_anchor + '                  engine.setVideoScale(selectedMainVlcScale)\n'
+          if 'engine.setVideoScale(selectedMainVlcScale)' not in s:
+              if s.count(engine_anchor) != 1:
+                  raise SystemExit('Could not locate unique main LibVLC engine assignment')
+              s = s.replace(engine_anchor, engine_apply, 1)
+
+          old_selected = '(mainVlcEngine?.getVideoScale() ?: org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_BEST_FIT) == aspectModes[aspectIndex]'
+          new_selected = 'selectedMainVlcScale == aspectModes[aspectIndex]'
+          if old_selected in s:
+              s = s.replace(old_selected, new_selected, 1)
+          elif new_selected not in s:
+              raise SystemExit('Could not locate aspect ratio checkbox selected-state')
+
+          old_click = 'mainVlcEngine?.setVideoScale(aspectModes[aspectIndex])'
+          new_click = 'selectedMainVlcScale = aspectModes[aspectIndex]\n                        mainVlcEngine?.setVideoScale(selectedMainVlcScale)'
+          if old_click in s:
+              if s.count(old_click) != 1:
+                  raise SystemExit('Aspect ratio click assignment is not unique')
+              s = s.replace(old_click, new_click, 1)
+          elif new_click not in s:
+              raise SystemExit('Could not locate aspect ratio click assignment')
+
+          p.write_text(s)
+          print('Selected LibVLC aspect ratio now survives next-video engine recreation.')
+          PY
+
       - name: Verify and export final post-instrumentation source
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
