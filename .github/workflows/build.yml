@@ -8118,14 +8118,15 @@ jobs:
 
           # Keep one cancellable timer per Activity; Off cancels the pending callback.
           if "gx1SleepTimerHandler" not in s:
-              match = re.search(r'(class MainActivity[^\\{]*\\{)', s)
-              if not match:
+              class_anchor = "class MainActivity : AppCompatActivity() {"
+              if class_anchor not in s:
                   raise SystemExit("Could not locate MainActivity class body for sleep timer state")
               fields = """
               private val gx1SleepTimerHandler = android.os.Handler(android.os.Looper.getMainLooper())
               private var gx1SleepTimerRunnable: Runnable? = null
           """
-              s = s[:match.end()] + fields + s[match.end():]
+              insert_at = s.index(class_anchor) + len(class_anchor)
+              s = s[:insert_at] + fields + s[insert_at:]
 
           anchor = 'val choices = arrayOf("15 minutes", "30 minutes", "45 minutes", "60 minutes", "90 minutes")'
           if anchor in s:
