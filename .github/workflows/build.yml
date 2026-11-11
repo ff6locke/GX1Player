@@ -7729,12 +7729,16 @@ jobs:
 
           # Keep the chosen scale in Activity state, because each next-video
           # action creates a fresh LibVLC engine whose native scale starts at Fit.
-          engine_anchor = '                  mainVlcEngine = engine\n'
-          engine_apply = engine_anchor + '                  engine.setVideoScale(selectedMainVlcScale)\n'
+          import re
           if 'engine.setVideoScale(selectedMainVlcScale)' not in s:
-              if s.count(engine_anchor) != 1:
-                  raise SystemExit('Could not locate unique main LibVLC engine assignment')
-              s = s.replace(engine_anchor, engine_apply, 1)
+              s, engine_count = re.subn(
+                  r'(?m)^(\\s*)mainVlcEngine = engine\\s*$',
+                  lambda m: m.group(0) + '\\n' + m.group(1) + 'engine.setVideoScale(selectedMainVlcScale)',
+                  s, count=1
+              )
+              if engine_count != 1:
+                  raise SystemExit(f'Could not locate main LibVLC engine assignment; found {engine_count}')
+
 
           old_selected = '(mainVlcEngine?.getVideoScale() ?: org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_BEST_FIT) == aspectModes[aspectIndex]'
           new_selected = 'selectedMainVlcScale == aspectModes[aspectIndex]'
