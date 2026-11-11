@@ -7643,6 +7643,78 @@ jobs:
           print("Repeat now loops the LibVLC video; aspect options use menu-style checkboxes; content URIs use a retained provider descriptor; shortcut icons stay white.")
           PY
 
+      - name: Connect aspect ratio menu to the LibVLC video output
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          engine = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
+          e = engine.read_text()
+          anchor = "              fun open(uri: Uri, startPositionMs: Long = 0L, digitalOutput: Boolean = true) {"
+          methods = """              fun setVideoScale(scaleType: MediaPlayer.ScaleType) {
+                  checkActive()
+                  mediaPlayer.setVideoScale(scaleType)
+              }
+
+              fun getVideoScale(): MediaPlayer.ScaleType = mediaPlayer.videoScale
+
+          """
+          if "fun setVideoScale(scaleType: MediaPlayer.ScaleType)" not in e:
+              if anchor not in e:
+                  raise SystemExit("Could not find LibVLC engine open() insertion point")
+              e = e.replace(anchor, methods + anchor, 1)
+              engine.write_text(e)
+
+          activity = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          a = activity.read_text()
+          old_modes = """val aspectModes = intArrayOf(
+                                  androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT,
+                                  androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL,
+                                  androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
+                                  androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH,
+                                  androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT
+                              )
+                              val aspectNames = arrayOf("Fit", "Stretch", "Zoom", "Fixed width", "Fixed height")"""
+          new_modes = """val aspectModes = arrayOf(
+                                  org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_BEST_FIT,
+                                  org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_FILL,
+                                  org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_FIT_SCREEN,
+                                  org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_16_9,
+                                  org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_4_3,
+                                  org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_ORIGINAL
+                              )
+                              val aspectNames = arrayOf("Fit", "Fill", "Zoom", "16:9", "4:3", "Original")"""
+          if old_modes not in a:
+              raise SystemExit("Could not find the current five-option aspect ratio list")
+          a = a.replace(old_modes, new_modes, 1)
+
+          selected_old = "val selected = playerView.resizeMode == aspectModes[aspectIndex]"
+          selected_new = """val selected = (mainVlcEngine?.getVideoScale()
+                                  ?: org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_BEST_FIT) == aspectModes[aspectIndex]"""
+          if selected_old not in a:
+              raise SystemExit("Could not find aspect ratio selected-state expression")
+          a = a.replace(selected_old, selected_new, 1)
+
+          click_old = """playerView.resizeMode = aspectModes[aspectIndex]
+                                          playerView.requestLayout()
+                                          playerView.post { playerView.requestLayout() }"""
+          click_new = """mainVlcEngine?.setVideoScale(aspectModes[aspectIndex])
+                                          playerView.resizeMode = when (aspectIndex) {
+                                              0 -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                              1 -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL
+                                              2 -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                                              else -> playerView.resizeMode
+                                          }"""
+          if click_old not in a:
+              raise SystemExit("Could not find aspect ratio click handler")
+          a = a.replace(click_old, click_new, 1)
+          activity.write_text(a)
+          print("Aspect ratio now controls LibVLC ScaleType on the actual video surface.")
+          PY
+
       - name: Verify and export final post-instrumentation source
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
