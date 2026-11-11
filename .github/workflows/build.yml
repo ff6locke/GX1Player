@@ -7942,8 +7942,9 @@ jobs:
           elif not re.search(r'android:exported="true"', opening):
               raise SystemExit("MainActivity is not exported; cannot receive Android file-open intents")
 
-          if "android.intent.action.VIEW" not in body:
-              filters = """
+          filters = ""
+          if 'android:mimeType="video/*"' not in body:
+              filters += """
                   <intent-filter>
                       <action android:name="android.intent.action.VIEW" />
                       <category android:name="android.intent.category.DEFAULT" />
@@ -7952,6 +7953,9 @@ jobs:
                       <data android:scheme="file" />
                       <data android:mimeType="video/*" />
                   </intent-filter>
+          """
+          if 'android:mimeType="application/x-matroska"' not in body:
+              filters += """
                   <intent-filter>
                       <action android:name="android.intent.action.VIEW" />
                       <category android:name="android.intent.category.DEFAULT" />
@@ -7962,7 +7966,7 @@ jobs:
                       <data android:mimeType="video/x-matroska" />
                   </intent-filter>
           """
-              body += filters
+          body += filters
           m = m[:match.start()] + opening + body + closing + m[match.end():]
           manifest.write_text(m)
 
