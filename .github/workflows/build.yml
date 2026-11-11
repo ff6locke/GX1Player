@@ -7922,6 +7922,69 @@ jobs:
           print("LibVLC EndReached now advances to the next same-folder item; Repeat One remains higher priority.")
           PY
 
+      - name: Register GX1 Player as Android video file handler
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          manifest = Path("app/src/main/AndroidManifest.xml")
+          m = manifest.read_text()
+          pattern = r'(?P<open><activity\\b(?=[^>]*android:name="\\.MainActivity")[^>]*>)(?P<body>.*?)(?P<close></activity>)'
+          match = re.search(pattern, m, re.S)
+          if not match:
+              raise SystemExit("Could not locate MainActivity in AndroidManifest.xml")
+          opening, body, closing = match.group("open", "body", "close")
+          if 'android:exported=' not in opening:
+              opening = opening[:-1] + ' android:exported="true">'
+          elif not re.search(r'android:exported="true"', opening):
+              raise SystemExit("MainActivity is not exported; cannot receive Android file-open intents")
+
+          if "android.intent.action.VIEW" not in body:
+              filters = """
+                  <intent-filter>
+                      <action android:name="android.intent.action.VIEW" />
+                      <category android:name="android.intent.category.DEFAULT" />
+                      <category android:name="android.intent.category.BROWSABLE" />
+                      <data android:scheme="content" />
+                      <data android:scheme="file" />
+                      <data android:mimeType="video/*" />
+                  </intent-filter>
+                  <intent-filter>
+                      <action android:name="android.intent.action.VIEW" />
+                      <category android:name="android.intent.category.DEFAULT" />
+                      <category android:name="android.intent.category.BROWSABLE" />
+                      <data android:scheme="content" />
+                      <data android:scheme="file" />
+                      <data android:mimeType="application/x-matroska" />
+                      <data android:mimeType="video/x-matroska" />
+                  </intent-filter>
+          """
+              body += filters
+          m = m[:match.start()] + opening + body + closing + m[match.end():]
+          manifest.write_text(m)
+
+          main = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          src = main.read_text()
+          old = "        val initial: Uri? = null"
+          new = """        // Accept videos opened from Android file managers and other apps.
+                  // Do not auto-resume the last video when launching normally.
+                  val initial: Uri? = if (intent?.action == android.content.Intent.ACTION_VIEW) intent.data else null"""
+          if src.count(old) != 1:
+              raise SystemExit(f"Expected one home-start URI declaration, found {src.count(old)}")
+          src = src.replace(old, new, 1)
+          main.write_text(src)
+
+          check = manifest.read_text()
+          if check.count('android.intent.action.VIEW') < 2 or 'android:mimeType="video/*"' not in check or 'android:mimeType="application/x-matroska"' not in check:
+              raise SystemExit("Android video/MKV intent filters did not verify")
+          if "ACTION_VIEW) intent.data" not in src:
+              raise SystemExit("MainActivity external VIEW URI handling did not verify")
+          print("GX1 Player now advertises video/* and Matroska/MKV handling and opens ACTION_VIEW content URIs.")
+          PY
+
       - name: Verify and export final post-instrumentation source
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
