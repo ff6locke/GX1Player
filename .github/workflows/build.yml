@@ -7703,12 +7703,10 @@ jobs:
           )
           if selected_count != 1:
               raise SystemExit("Could not locate aspect ratio selected-state expression")
-          click_pattern = r"playerView[.]resizeMode = aspectModes\[aspectIndex\]\s+playerView[.]requestLayout\(\)\s+playerView[.]post \{ playerView[.]requestLayout\(\) \}\s+menuPopupRef[?][.]dismiss\(\)"
-          click_new = """mainVlcEngine?.setVideoScale(aspectModes[aspectIndex])
-                              menuPopupRef?.let { /* keep aspect menu open */ }"""
-          a, click_count = re.subn(click_pattern, lambda m: click_new, a, count=1)
-          if click_count != 1:
-              raise SystemExit("Could not locate aspect ratio click handler")
+          old_click = "playerView.resizeMode = aspectModes[aspectIndex]"
+          if a.count(old_click) != 1:
+              raise SystemExit(f"Could not locate unique aspect ratio click assignment; found {a.count(old_click)}")
+          a = a.replace(old_click, "mainVlcEngine?.setVideoScale(aspectModes[aspectIndex])", 1)
           activity.write_text(a)
           print("Aspect ratio now controls LibVLC ScaleType on the actual video surface.")
           PY
