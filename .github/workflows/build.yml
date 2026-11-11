@@ -7624,7 +7624,7 @@ jobs:
                       Media(libVlc, afd)
                   } else {
                       Media(libVlc, uri)
-                  }"""
+                  }""" + chr(10)
           vlc, source_count = re.subn(source_pattern, new_source, vlc)
           if source_count != 1:
               raise SystemExit(f"Content-URI LibVLC source block: expected one match, found {source_count}")
