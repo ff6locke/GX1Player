@@ -7682,47 +7682,33 @@ jobs:
 
           activity = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           a = activity.read_text()
-          old_modes = """val aspectModes = intArrayOf(
-                                  androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT,
-                                  androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL,
-                                  androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
-                                  androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH,
-                                  androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT
-                              )
-                              val aspectNames = arrayOf("Fit", "Stretch", "Zoom", "Fixed width", "Fixed height")"""
+          import re
+          mode_pattern = r"val aspectModes = intArrayOf\\(.*?\\)\\s+val aspectNames = arrayOf\\(.*?\\)"
           new_modes = """val aspectModes = arrayOf(
-                                  org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_BEST_FIT,
-                                  org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_FILL,
-                                  org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_FIT_SCREEN,
-                                  org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_16_9,
-                                  org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_4_3,
-                                  org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_ORIGINAL
-                              )
-                              val aspectNames = arrayOf("Fit", "Fill", "Zoom", "16:9", "4:3", "Original")"""
-          if old_modes not in a:
-              raise SystemExit("Could not find the current five-option aspect ratio list")
-          a = a.replace(old_modes, new_modes, 1)
-
-          selected_old = "val selected = playerView.resizeMode == aspectModes[aspectIndex]"
-          selected_new = """val selected = (mainVlcEngine?.getVideoScale()
-                                  ?: org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_BEST_FIT) == aspectModes[aspectIndex]"""
-          if selected_old not in a:
-              raise SystemExit("Could not find aspect ratio selected-state expression")
-          a = a.replace(selected_old, selected_new, 1)
-
-          click_old = """playerView.resizeMode = aspectModes[aspectIndex]
-                                          playerView.requestLayout()
-                                          playerView.post { playerView.requestLayout() }"""
+                      org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_BEST_FIT,
+                      org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_FILL,
+                      org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_FIT_SCREEN,
+                      org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_16_9,
+                      org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_4_3,
+                      org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_ORIGINAL
+                  )
+                  val aspectNames = arrayOf("Fit", "Fill", "Zoom", "16:9", "4:3", "Original")"""
+          a, mode_count = re.subn(mode_pattern, lambda m: new_modes, a, count=1, flags=re.S)
+          if mode_count != 1:
+              raise SystemExit("Could not locate aspect ratio modes block")
+          a, selected_count = re.subn(
+              r"val selected = playerView[.]resizeMode == aspectModes\\[aspectIndex\\]",
+              "val selected = (mainVlcEngine?.getVideoScale() ?: org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_BEST_FIT) == aspectModes[aspectIndex]",
+              a, count=1
+          )
+          if selected_count != 1:
+              raise SystemExit("Could not locate aspect ratio selected-state expression")
+          click_pattern = r"playerView[.]resizeMode = aspectModes\\[aspectIndex\\]\\s+playerView[.]requestLayout\\(\\)\\s+playerView[.]post \\{ playerView[.]requestLayout\\(\\) \\}\\s+menuPopupRef[?][.]dismiss\\(\\)"
           click_new = """mainVlcEngine?.setVideoScale(aspectModes[aspectIndex])
-                                          playerView.resizeMode = when (aspectIndex) {
-                                              0 -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
-                                              1 -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL
-                                              2 -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                                              else -> playerView.resizeMode
-                                          }"""
-          if click_old not in a:
-              raise SystemExit("Could not find aspect ratio click handler")
-          a = a.replace(click_old, click_new, 1)
+                              menuPopupRef?.let { /* keep aspect menu open */ }"""
+          a, click_count = re.subn(click_pattern, lambda m: click_new, a, count=1)
+          if click_count != 1:
+              raise SystemExit("Could not locate aspect ratio click handler")
           activity.write_text(a)
           print("Aspect ratio now controls LibVLC ScaleType on the actual video surface.")
           PY
