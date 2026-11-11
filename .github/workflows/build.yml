@@ -8204,9 +8204,9 @@ jobs:
               pos = s.find(entry_anchor)
               if pos < 0:
                   raise SystemExit("Could not locate Library entry-list construction")
-              line_start = s.rfind("\\n", 0, pos) + 1
+              line_start = s.rfind("\n", 0, pos) + 1
               indent = s[line_start:pos]
-              s = s[:line_start] + indent + 'files.sortBy { it.label.lowercase() }\\n' + s[line_start:]
+              s = s[:line_start] + indent + 'files.sortBy { it.label.lowercase() }\n' + s[line_start:]
 
           # Keep Android TV D-pad focus on Play/Pause whenever the Media3 controller
           # is shown again after a playback operation or a new media item.
