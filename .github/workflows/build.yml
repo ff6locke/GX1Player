@@ -7577,7 +7577,9 @@ jobs:
                   playerView.resizeMode = aspectModes[aspectIndex]
                   playerView.requestLayout()
                   playerView.post { playerView.requestLayout() }
-                  menuPopupRef?.dismiss()
+                  for (index in 0 until aspectContainer.childCount) {
+                      (aspectContainer.getChildAt(index) as? android.widget.CheckBox)?.isChecked = index == aspectIndex
+                  }
                   Toast.makeText(this@MainActivity, "Aspect ratio: " + aspectName, Toast.LENGTH_SHORT).show()
               }
           }"""
@@ -7589,31 +7591,7 @@ jobs:
           if option_count != 1:
               raise SystemExit(f"Aspect-ratio checkbox options: expected one match, found {option_count}")
 
-          # Keep the aspect submenu open and refresh all checkbox states immediately.
-          aspect_header = 'val aspectNames = arrayOf("Fit", "Stretch", "Zoom", "Fixed width", "Fixed height")' + chr(10) + '                          aspectNames.forEachIndexed'
-          if src.count(aspect_header) != 1:
-              raise SystemExit("Aspect submenu header not found exactly once")
-          src = src.replace(
-              aspect_header,
-              'val aspectNames = arrayOf("Fit", "Stretch", "Zoom", "Fixed width", "Fixed height")' + chr(10) + '                          val aspectOptions = mutableListOf<android.widget.CheckBox>()' + chr(10) + '                          aspectNames.forEachIndexed',
-              1
-          )
-          src, click_count = re.subn(
-              r'(?m)^(?P<indent> +)menuPopupRef\?\.dismiss\(\)\n(?P=indent)Toast\.makeText\(this@MainActivity, "Aspect ratio:',
-              lambda match: match.group("indent") + 'aspectOptions.forEachIndexed { index, checkbox ->' + chr(10) + match.group("indent") + '    checkbox.isChecked = index == aspectIndex' + chr(10) + match.group("indent") + '}' + chr(10) + match.group("indent") + 'Toast.makeText(this@MainActivity, "Aspect ratio:',
-              src
-          )
-          if click_count != 1:
-              raise SystemExit(f"Aspect submenu click handler: expected one match, found {click_count}")
-          aspect_add = "aspectContainer.addView(option)"
-          if src.count(aspect_add) != 1:
-              raise SystemExit(f"Aspect checkbox registration point: expected one match, found {src.count(aspect_add)}")
-          src = src.replace(
-              aspect_add,
-              aspect_add + chr(10) + "                    aspectOptions.add(option)",
-              1
-          )
-
+          # The checkbox click handler below updates the other options in place.
           # Preserve the original blue video/film mark inside the white folder icon.
           # Keep every shortcut glyph white; use neutral focus backgrounds instead of yellow.
           for old, new, label in [
