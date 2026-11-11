@@ -5453,6 +5453,16 @@ jobs:
                   mainVlcEngine = engine
                   engine.attach(mainVlcLayout)
                   engine.open(uri, resumeAt, digitalOutput = passthrough)
+                  // On Android TV, put D-pad focus on the playback toggle for every new video.
+                  playerView.showController()
+                  playerView.post {
+                      val playPause = playerView.findViewById<android.view.View>(
+                          androidx.media3.ui.R.id.exo_play_pause
+                      )
+                      playPause?.isFocusable = true
+                      playPause?.isFocusableInTouchMode = true
+                      playPause?.requestFocus()
+                  }
                   playingUri = uri
                   loadSecondSubtitleOverlay()
               } catch (e: Exception) {
