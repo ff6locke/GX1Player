@@ -3701,10 +3701,17 @@ jobs:
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
 
-          start = s.find("    private fun showGX1Library() {")
-          end = s.find("    private fun browseGX1Folder(", start)
-          if start < 0 or end < 0:
-              raise SystemExit("Could not locate Library methods in MainActivity")
+          start = s.find("private fun showGX1Library()")
+          browse = s.find("private fun browseGX1Folder(")
+          if browse < 0:
+              raise SystemExit("Could not locate GX1 folder browser in MainActivity")
+          if start < 0:
+              start = browse
+              end = browse
+          else:
+              end = browse
+              if end < start:
+                  raise SystemExit("Library method appears after folder browser")
           new_method = """          private fun showGX1Library() {
               ensureGX1FileAccess {
                   val savedPath = prefs.getString("gx1_library_path", null)
