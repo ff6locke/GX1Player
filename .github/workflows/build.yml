@@ -7932,7 +7932,7 @@ jobs:
 
           manifest = Path("app/src/main/AndroidManifest.xml")
           m = manifest.read_text()
-          pattern = r'(?P<open><activity\\b(?=[^>]*android:name="\\.MainActivity")[^>]*>)(?P<body>.*?)(?P<close></activity>)'
+          pattern = r'(?P<open><activity\b(?=[^>]*android:name="(?:[^"]*\.)?MainActivity")[^>]*>)(?P<body>.*?)(?P<close></activity>)'
           match = re.search(pattern, m, re.S)
           if not match:
               raise SystemExit("Could not locate MainActivity in AndroidManifest.xml")
