@@ -7877,6 +7877,51 @@ jobs:
           print('Selected aspect ratio is reapplied when LibVLC creates each video output.')
           PY
 
+      - name: Automatically play the next file when LibVLC reaches the end
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          old = """            if (state.ended) {
+                              if (prefs.getBoolean("gx1_repeat_enabled", false)) {
+                                  mainVlcEngine?.restartFromBeginning()
+                                  mainVlcControllerClock?.seekTo(0L)
+                                  mainVlcControllerClock?.playWhenReady = true
+                              } else {
+                                  prefs.edit().remove(posKey(uri)).apply()
+                              }
+                          }"""
+          new = """            if (state.ended) {
+                              if (prefs.getBoolean("gx1_repeat_enabled", false)) {
+                                  // Repeat One takes priority over automatic folder advance.
+                                  mainVlcEngine?.restartFromBeginning()
+                                  mainVlcControllerClock?.seekTo(0L)
+                                  mainVlcControllerClock?.playWhenReady = true
+                              } else if (gx1PlaybackQueueIndex >= 0 &&
+                                  gx1PlaybackQueueIndex < gx1PlaybackQueue.lastIndex) {
+                                  // EndReached is raised by the real LibVLC playback engine.
+                                  // Advance the queue on the UI thread and start the next file.
+                                  prefs.edit().remove(posKey(uri)).apply()
+                                  android.util.Log.i("GX1Player", "Auto-playing next folder item after: " + uri)
+                                  playAdjacentGx1File(1)
+                              } else {
+                                  // No next item: finish normally and clear this resume point.
+                                  prefs.edit().remove(posKey(uri)).apply()
+                              }
+                          }"""
+          count = s.count(old)
+          if count != 1:
+              raise SystemExit(f"Expected one main-player repeat/end handler, found {count}")
+          s = s.replace(old, new, 1)
+          if "Auto-playing next folder item after:" not in s:
+              raise SystemExit("Automatic next-file handler verification failed")
+          p.write_text(s)
+          print("LibVLC EndReached now advances to the next same-folder item; Repeat One remains higher priority.")
+          PY
+
       - name: Verify and export final post-instrumentation source
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
