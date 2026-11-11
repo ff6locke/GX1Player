@@ -7653,7 +7653,6 @@ jobs:
 
           engine = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
           e = engine.read_text()
-          anchor = "              fun open(uri: Uri, startPositionMs: Long = 0L, digitalOutput: Boolean = true) {"
           methods = """              fun setVideoScale(scaleType: MediaPlayer.ScaleType) {
                   checkActive()
                   mediaPlayer.setVideoScale(scaleType)
@@ -7663,9 +7662,13 @@ jobs:
 
           """
           if "fun setVideoScale(scaleType: MediaPlayer.ScaleType)" not in e:
-              if anchor not in e:
-                  raise SystemExit("Could not find LibVLC engine open() insertion point")
-              e = e.replace(anchor, methods + anchor, 1)
+              e, inserted = re.subn(
+                  r"(?m)^(\\s*)fun open\\(uri: Uri, startPositionMs: Long = 0L, digitalOutput: Boolean = true\\) \\{",
+                  lambda m: m.group(1) + methods.lstrip() + m.group(1) + "fun open(uri: Uri, startPositionMs: Long = 0L, digitalOutput: Boolean = true) {",
+                  e, count=1
+              )
+              if inserted != 1:
+                  raise SystemExit("Could not locate LibVLC engine open() declaration")
               engine.write_text(e)
 
           activity = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
