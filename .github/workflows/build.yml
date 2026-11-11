@@ -2830,7 +2830,14 @@ jobs:
 
           private fun browseGX1Folder(folder: java.io.File, selectingLibrary: Boolean, foldersOnly: Boolean = false) {
               val current = folder.canonicalFile
-              val mediaExt = setOf("mkv","mp4","m4v","avi","mov","webm","mpg","mpeg","ts","m2ts","mp3","flac","m4a","aac","wav","ogg","opus")
+              // Open Video is a video-only picker; Library retains audio browsing too.
+              val videoExt = setOf(
+                  "mkv", "mp4", "m4v", "avi", "mov", "webm", "mpg", "mpeg",
+                  "ts", "m2ts", "mts", "vob", "ogv", "flv", "wmv", "asf",
+                  "3gp", "3g2", "m2v"
+              )
+              val libraryMediaExt = videoExt + setOf("mp3", "flac", "m4a", "aac", "wav", "ogg", "opus")
+              val mediaExt = if (selectingLibrary) libraryMediaExt else videoExt
               val entries = current.listFiles()?.filter { f ->
                   f.isDirectory || (!foldersOnly && f.isFile && f.extension.lowercase() in mediaExt)
               }?.sortedWith(compareBy<java.io.File>({ !it.isDirectory }, { it.name.lowercase() })) ?: emptyList()
