@@ -23,7 +23,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   ZIP_FILE: gx1-player.zip
@@ -7874,6 +7874,15 @@ jobs:
             echo "64-bit APK unexpectedly contains ARMv7 libraries"
             exit 1
           fi
+
+      - name: Publish APKs to GX1 Player GitHub release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release upload GX1 GX1Player-VLC-32bit.apk GX1Player-VLC-64bit.apk --clobber
+          gh release view GX1 --json url,assets
 
       - name: Upload 32-bit APK
         uses: actions/upload-artifact@v4
