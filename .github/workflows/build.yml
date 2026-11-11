@@ -7662,13 +7662,22 @@ jobs:
 
           """
           if "fun setVideoScale(scaleType: MediaPlayer.ScaleType)" not in e:
-              e, inserted = re.subn(
-                  r"(?m)^(\\s*)fun open\\(uri: Uri, startPositionMs: Long = 0L, digitalOutput: Boolean = true\\) \\{",
-                  lambda m: m.group(1) + methods.lstrip() + m.group(1) + "fun open(uri: Uri, startPositionMs: Long = 0L, digitalOutput: Boolean = true) {",
-                  e, count=1
-              )
-              if inserted != 1:
-                  raise SystemExit("Could not locate LibVLC engine open() declaration")
+              marker = "    fun seekTo(positionMs: Long)"
+              pos = e.find(marker)
+              if pos < 0:
+                  raise SystemExit("Could not locate LibVLC engine seekTo() declaration")
+              methods = """    private var currentVideoScale: MediaPlayer.ScaleType = MediaPlayer.ScaleType.SURFACE_BEST_FIT
+
+              fun setVideoScale(scaleType: MediaPlayer.ScaleType) {
+                  checkActive()
+                  currentVideoScale = scaleType
+                  mediaPlayer.setVideoScale(scaleType)
+              }
+
+              fun getVideoScale(): MediaPlayer.ScaleType = currentVideoScale
+
+              """
+              e = e[:pos] + methods + e[pos:]
               engine.write_text(e)
 
           activity = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
