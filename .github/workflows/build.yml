@@ -7683,7 +7683,7 @@ jobs:
           activity = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           a = activity.read_text()
           import re
-          mode_pattern = r"val aspectModes = intArrayOf\\(.*?\\)\\s+val aspectNames = arrayOf\\(.*?\\)"
+          mode_pattern = r"val aspectModes = intArrayOf\(.*?\)\s+val aspectNames = arrayOf\(.*?\)"
           new_modes = """val aspectModes = arrayOf(
                       org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_BEST_FIT,
                       org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_FILL,
@@ -7697,13 +7697,13 @@ jobs:
           if mode_count != 1:
               raise SystemExit("Could not locate aspect ratio modes block")
           a, selected_count = re.subn(
-              r"val selected = playerView[.]resizeMode == aspectModes\\[aspectIndex\\]",
+              r"val selected = playerView[.]resizeMode == aspectModes\[aspectIndex\]",
               "val selected = (mainVlcEngine?.getVideoScale() ?: org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_BEST_FIT) == aspectModes[aspectIndex]",
               a, count=1
           )
           if selected_count != 1:
               raise SystemExit("Could not locate aspect ratio selected-state expression")
-          click_pattern = r"playerView[.]resizeMode = aspectModes\\[aspectIndex\\]\\s+playerView[.]requestLayout\\(\\)\\s+playerView[.]post \\{ playerView[.]requestLayout\\(\\) \\}\\s+menuPopupRef[?][.]dismiss\\(\\)"
+          click_pattern = r"playerView[.]resizeMode = aspectModes\[aspectIndex\]\s+playerView[.]requestLayout\(\)\s+playerView[.]post \{ playerView[.]requestLayout\(\) \}\s+menuPopupRef[?][.]dismiss\(\)"
           click_new = """mainVlcEngine?.setVideoScale(aspectModes[aspectIndex])
                               menuPopupRef?.let { /* keep aspect menu open */ }"""
           a, click_count = re.subn(click_pattern, lambda m: click_new, a, count=1)
