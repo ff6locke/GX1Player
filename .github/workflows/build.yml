@@ -3741,14 +3741,9 @@ jobs:
                   raise SystemExit("Missing Library browser call: " + old)
               s = s.replace(old, new, 1)
 
-          import re
-          s, chooser_n = re.subn(
-              r'builder\\.setPositiveButton\\("Choose folder"\\) \\{ _, _ -> browseGX1Folder\\(current, true\\) \\}',
-              'builder.setPositiveButton("Change library folder") { _, _ -> browseGX1Folder(current, true) }',
-              s, count=1
-          )
-          if chooser_n != 1:
-              raise SystemExit("Could not locate Library folder chooser action")
+          # The extracted browser uses a different dialog layout for folder selection.
+          # Keep its existing folder-selection action; the Library entry now opens
+          # the saved folder in media-browsing mode, while Open Video stays one-off.
 
           p.write_text(s)
           print("Library now opens saved folder and lists folders plus playable media; Open Video remains separate.")
