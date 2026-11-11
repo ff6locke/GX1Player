@@ -8055,6 +8055,56 @@ jobs:
           path: gx1-final-source-review.zip
           if-no-files-found: error
           retention-days: 30
+      - name: Restore fast MediaStore browsing for home Library and Open Video
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+
+          # Use the same indexed MediaStore browser as the fast lower-right Open Video icon.
+          s = s.replace('addTile("Library", "Browse saved folders") { showGX1Library() }',
+                        'addTile("Library", "Browse folders and media") { chooseLibraryLocation() }')
+          s = re.sub(r'addTile\("Open video",\s*"[^"]*"\)\s*\{\s*openVideoWithGX1Browser\(\)\s*\}',
+                     'addTile("Open video", "Choose a video") { chooseLibraryLocation(videoOnly = true) }', s, count=1)
+          s = s.replace('add("Open video file") { openVideoWithGX1Browser() }',
+                        'add("Open video file") { chooseLibraryLocation(videoOnly = true) }')
+
+          # Video-only mode filters the MediaStore result without scanning storage recursively.
+          s = s.replace('private fun chooseLibraryLocation() {',
+                        'private fun chooseLibraryLocation(videoOnly: Boolean = false) {', 1)
+          s = s.replace('if (missing.isEmpty()) showLibrary("") else libraryPermissionRequest.launch(missing.toTypedArray())',
+                        'if (missing.isEmpty()) showLibrary("", videoOnly) else libraryPermissionRequest.launch(missing.toTypedArray())', 1)
+          s = s.replace('} else {\n                          browseExternalSdCard()\n                      }',
+                        '} else {\n                          browseExternalSdCard(videoOnly = videoOnly)\n                      }', 1)
+
+          s = s.replace('private fun browseExternalSdCard(path: java.io.File? = null) {',
+                        'private fun browseExternalSdCard(path: java.io.File? = null, videoOnly: Boolean = false) {', 1)
+          s = s.replace('it.extension.lowercase() in listOf("mkv","mp4","avi","mov","webm","mpg","mpeg","ts","m2ts","mp3","flac","m4a","aac","wav","ogg")',
+                        'it.extension.lowercase() in (if (videoOnly) listOf("mkv","mp4","m4v","avi","mov","webm","mpg","mpeg","ts","m2ts","mts","vob","ogv","flv","wmv","asf","3gp","3g2","m2v") else listOf("mkv","mp4","m4v","avi","mov","webm","mpg","mpeg","ts","m2ts","mp3","flac","m4a","aac","wav","ogg","opus"))', 1)
+          s = s.replace('browseExternalSdCard(current.parentFile ?: sdRoot)',
+                        'browseExternalSdCard(current.parentFile ?: sdRoot, videoOnly)', 1)
+          s = s.replace('browseExternalSdCard(selected)',
+                        'browseExternalSdCard(selected, videoOnly)', 1)
+          s = s.replace('browseExternalSdCard(current) }',
+                        'browseExternalSdCard(current, videoOnly) }', 1)
+
+          s = s.replace('private fun showLibrary(path: String = "") {',
+                        'private fun showLibrary(path: String = "", videoOnly: Boolean = false) {', 1)
+          s = s.replace('if (!mime.startsWith("video/") && !mime.startsWith("audio/")) continue',
+                        'if (!mime.startsWith("video/") && (videoOnly || !mime.startsWith("audio/"))) continue', 1)
+          s = s.replace('showLibrary(if (parent.isEmpty()) "" else "$parent/")',
+                        'showLibrary(if (parent.isEmpty()) "" else "$parent/", videoOnly)', 1)
+          s = s.replace('showLibrary(path + item.folder + "/")',
+                        'showLibrary(path + item.folder + "/", videoOnly)', 1)
+          s = s.replace('showLibrary(path) }.show()',
+                        'showLibrary(path, videoOnly) }.show()', 1)
+
+          p.write_text(s)
+          print("Home Library and Open Video now use indexed MediaStore browsing; Open Video filters video MIME types.")
+          PY
       - name: Build separate 32-bit and 64-bit ARM APKs
         working-directory: ${{ env.PROJECT_DIR }}
         env:
