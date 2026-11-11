@@ -7549,63 +7549,45 @@ jobs:
 
           # Use actual CheckBox controls and the same 46dp menu-row height,
           # white text, and rounded focus background as the other menu rows.
-          old_option = '''                    val option = android.widget.TextView(this).apply {
-                              text = (if (selected) "✓  " else "    ") + aspectName
-                              setTextColor(if (selected) android.graphics.Color.rgb(120, 200, 255) else android.graphics.Color.LTGRAY)
-                              textSize = 14f
-                              gravity = android.view.Gravity.CENTER_VERTICAL
-                              setPadding(dp(62), 0, dp(12), 0)
-                              minimumHeight = dp(38)
-                              isFocusable = true
-                              isClickable = true
-                              background = android.graphics.drawable.GradientDrawable().apply {
-                                  setColor(android.graphics.Color.TRANSPARENT)
-                                  cornerRadius = dp(8).toFloat()
-                              }
-                              setOnFocusChangeListener { view, focused ->
-                                  view.background = android.graphics.drawable.GradientDrawable().apply {
-                                      setColor(if (focused) android.graphics.Color.rgb(65, 67, 72) else android.graphics.Color.TRANSPARENT)
-                                      cornerRadius = dp(8).toFloat()
-                                  }
-                              }
-                              setOnClickListener {
-                                  playerView.resizeMode = aspectModes[aspectIndex]
-                                  playerView.requestLayout()
-                                  playerView.post { playerView.requestLayout() }
-                                  menuPopupRef?.dismiss()
-                                  Toast.makeText(this@MainActivity, "Aspect ratio: " + aspectName, Toast.LENGTH_SHORT).show()
-                              }
-                          }'''
-          new_option = '''                    val option = android.widget.CheckBox(this).apply {
-                              text = aspectName
-                              isChecked = selected
-                              setTextColor(android.graphics.Color.WHITE)
-                              textSize = 16f
-                              buttonTintList = android.content.res.ColorStateList.valueOf(android.graphics.Color.WHITE)
-                              gravity = android.view.Gravity.CENTER_VERTICAL
-                              setPadding(dp(62), 0, dp(12), 0)
-                              minimumHeight = dp(46)
-                              isFocusable = true
-                              isClickable = true
-                              background = android.graphics.drawable.GradientDrawable().apply {
-                                  setColor(android.graphics.Color.TRANSPARENT)
-                                  cornerRadius = dp(10).toFloat()
-                              }
-                              setOnFocusChangeListener { view, focused ->
-                                  view.background = android.graphics.drawable.GradientDrawable().apply {
-                                      setColor(if (focused) android.graphics.Color.rgb(65, 67, 72) else android.graphics.Color.TRANSPARENT)
-                                      cornerRadius = dp(10).toFloat()
-                                  }
-                              }
-                              setOnClickListener {
-                                  playerView.resizeMode = aspectModes[aspectIndex]
-                                  playerView.requestLayout()
-                                  playerView.post { playerView.requestLayout() }
-                                  menuPopupRef?.dismiss()
-                                  Toast.makeText(this@MainActivity, "Aspect ratio: " + aspectName, Toast.LENGTH_SHORT).show()
-                              }
-                          }'''
-          once(old_option, new_option, "Aspect-ratio checkbox options")
+          import re
+          import textwrap
+          option_pattern = r"(?ms)^(?P<indent> {20})val option = android\\.widget\\.TextView\\(this\\)\\.apply \\{\\n.*?^ {20}\\}"
+          new_option = """val option = android.widget.CheckBox(this).apply {
+              text = aspectName
+              isChecked = selected
+              setTextColor(android.graphics.Color.WHITE)
+              textSize = 16f
+              buttonTintList = android.content.res.ColorStateList.valueOf(android.graphics.Color.WHITE)
+              gravity = android.view.Gravity.CENTER_VERTICAL
+              setPadding(dp(62), 0, dp(12), 0)
+              minimumHeight = dp(46)
+              isFocusable = true
+              isClickable = true
+              background = android.graphics.drawable.GradientDrawable().apply {
+                  setColor(android.graphics.Color.TRANSPARENT)
+                  cornerRadius = dp(10).toFloat()
+              }
+              setOnFocusChangeListener { view, focused ->
+                  view.background = android.graphics.drawable.GradientDrawable().apply {
+                      setColor(if (focused) android.graphics.Color.rgb(65, 67, 72) else android.graphics.Color.TRANSPARENT)
+                      cornerRadius = dp(10).toFloat()
+                  }
+              }
+              setOnClickListener {
+                  playerView.resizeMode = aspectModes[aspectIndex]
+                  playerView.requestLayout()
+                  playerView.post { playerView.requestLayout() }
+                  menuPopupRef?.dismiss()
+                  Toast.makeText(this@MainActivity, "Aspect ratio: " + aspectName, Toast.LENGTH_SHORT).show()
+              }
+          }"""
+          src, option_count = re.subn(
+              option_pattern,
+              lambda match: textwrap.indent(new_option, match.group("indent")),
+              src
+          )
+          if option_count != 1:
+              raise SystemExit(f"Aspect-ratio checkbox options: expected one match, found {option_count}")
 
           # Make the Open video folder/film glyph monochrome white.
           once('''color = Color.rgb(20, 91, 245)''', '''color = Color.WHITE''', "Open video icon tint")
@@ -7629,30 +7611,8 @@ jobs:
           # AssetFileDescriptor explicitly and keep it alive for the session.
           engine = Path("app/src/main/java/com/example/gx1player/Gx1LibVlcEngine.kt")
           vlc = engine.read_text()
-          old_source = '''        // Match the known-working VLC test path first: pass the Android Uri
-                  // directly to LibVLC. In particular, SAF content:// playback must use
-                  // the same MRL path as the test player rather than forcing an
-                  // AssetFileDescriptor for every provider.
-                  val media = if (uri.scheme == "content") {
-                      try {
-                          Media(libVlc, uri).also {
-                              android.util.Log.i("GX1-VLC", "Using direct content Uri source")
-                          }
-                      } catch (uriError: Exception) {
-                          android.util.Log.w(
-                              "GX1-VLC",
-                              "Direct content Uri open failed; falling back to AssetFileDescriptor",
-                              uriError
-                          )
-                          val afd = appContext.contentResolver.openAssetFileDescriptor(uri, "r")
-                              ?: throw java.io.IOException("Could not open selected media provider descriptor")
-                          activeAssetDescriptor = afd
-                          Media(libVlc, afd)
-                      }
-                  } else {
-                      Media(libVlc, uri)
-                  }'''
-          new_source = '''        // Use an AssetFileDescriptor for content:// sources. MediaStore and
+          source_pattern = r"(?ms)^ {8}// Match the known-working VLC test path first:.*?^ {8}\\}\\n(?= {8}try \\{)"
+          new_source = """        // Use an AssetFileDescriptor for content:// sources. MediaStore and
                   // document providers may accept a direct Uri Media object but fail
                   // later when LibVLC tries to read it; the descriptor keeps the
                   // granted provider stream open for the full playback session.
@@ -7664,10 +7624,10 @@ jobs:
                       Media(libVlc, afd)
                   } else {
                       Media(libVlc, uri)
-                  }'''
-          if old_source not in vlc:
-              raise SystemExit("Content-URI LibVLC source block not found exactly; preserving engine source.")
-          vlc = vlc.replace(old_source, new_source, 1)
+                  }"""
+          vlc, source_count = re.subn(source_pattern, new_source, vlc)
+          if source_count != 1:
+              raise SystemExit(f"Content-URI LibVLC source block: expected one match, found {source_count}")
           engine.write_text(vlc)
           print("Repeat now loops the LibVLC video; aspect options use menu-style checkboxes; content URIs use a retained provider descriptor; shortcut icons stay white.")
           PY
