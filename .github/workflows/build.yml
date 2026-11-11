@@ -7480,6 +7480,198 @@ jobs:
           print("Fixed restart ordering and removed diagnostic menu references.")
           PY
 
+      - name: Fix repeat toggle, aspect checkboxes, Open video URI playback, and white icons
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          main = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          src = main.read_text()
+
+          def once(old, new, label):
+              global src
+              count = src.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected one match, found {count}")
+              src = src.replace(old, new, 1)
+
+          # Repeat is a real On/Off toggle. Persist it and use the same setting
+          # when LibVLC reports EndReached (the actual main playback engine).
+          once('''            if (item.third != "settings") {
+                          row.addView(android.widget.TextView(this).apply {
+                              text = "›"
+                              setTextColor(android.graphics.Color.WHITE)
+                              textSize = 30f
+                              gravity = android.view.Gravity.CENTER
+                              layoutParams = android.widget.LinearLayout.LayoutParams(dp(30), -1)
+                          })
+                      }''',
+          '''            var repeatToggle: android.widget.Switch? = null
+                      if (item.third == "repeat") {
+                          repeatToggle = android.widget.Switch(this).apply {
+                              isChecked = prefs.getBoolean("gx1_repeat_enabled", false)
+                              setOnCheckedChangeListener { _, checked ->
+                                  prefs.edit().putBoolean("gx1_repeat_enabled", checked).apply()
+                                  player?.repeatMode = if (checked) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
+                              }
+                          }
+                          row.addView(repeatToggle)
+                      } else if (item.third != "settings") {
+                          row.addView(android.widget.TextView(this).apply {
+                              text = "›"
+                              setTextColor(android.graphics.Color.WHITE)
+                              textSize = 30f
+                              gravity = android.view.Gravity.CENTER
+                              layoutParams = android.widget.LinearLayout.LayoutParams(dp(30), -1)
+                          })
+                      }''', "Repeat toggle row")
+          once('''            row.setOnClickListener {
+                          menuPopupRef?.dismiss()
+                          when (item.third) {''',
+          '''            row.setOnClickListener {
+                          if (item.third == "repeat") {
+                              repeatToggle?.let { toggle -> toggle.isChecked = !toggle.isChecked }
+                              return@setOnClickListener
+                          }
+                          menuPopupRef?.dismiss()
+                          when (item.third) {''', "Repeat row click")
+          once('''            if (state.ended) prefs.edit().remove(posKey(uri)).apply()''',
+          '''            if (state.ended) {
+                              if (prefs.getBoolean("gx1_repeat_enabled", false)) {
+                                  mainVlcEngine?.restartFromBeginning()
+                                  mainVlcControllerClock?.seekTo(0L)
+                                  mainVlcControllerClock?.playWhenReady = true
+                              } else {
+                                  prefs.edit().remove(posKey(uri)).apply()
+                              }
+                          }''', "LibVLC repeat-at-end")
+
+          # Use actual CheckBox controls and the same 46dp menu-row height,
+          # white text, and rounded focus background as the other menu rows.
+          old_option = '''                    val option = android.widget.TextView(this).apply {
+                              text = (if (selected) "✓  " else "    ") + aspectName
+                              setTextColor(if (selected) android.graphics.Color.rgb(120, 200, 255) else android.graphics.Color.LTGRAY)
+                              textSize = 14f
+                              gravity = android.view.Gravity.CENTER_VERTICAL
+                              setPadding(dp(62), 0, dp(12), 0)
+                              minimumHeight = dp(38)
+                              isFocusable = true
+                              isClickable = true
+                              background = android.graphics.drawable.GradientDrawable().apply {
+                                  setColor(android.graphics.Color.TRANSPARENT)
+                                  cornerRadius = dp(8).toFloat()
+                              }
+                              setOnFocusChangeListener { view, focused ->
+                                  view.background = android.graphics.drawable.GradientDrawable().apply {
+                                      setColor(if (focused) android.graphics.Color.rgb(65, 67, 72) else android.graphics.Color.TRANSPARENT)
+                                      cornerRadius = dp(8).toFloat()
+                                  }
+                              }
+                              setOnClickListener {
+                                  playerView.resizeMode = aspectModes[aspectIndex]
+                                  playerView.requestLayout()
+                                  playerView.post { playerView.requestLayout() }
+                                  menuPopupRef?.dismiss()
+                                  Toast.makeText(this@MainActivity, "Aspect ratio: " + aspectName, Toast.LENGTH_SHORT).show()
+                              }
+                          }'''
+          new_option = '''                    val option = android.widget.CheckBox(this).apply {
+                              text = aspectName
+                              isChecked = selected
+                              setTextColor(android.graphics.Color.WHITE)
+                              textSize = 16f
+                              buttonTintList = android.content.res.ColorStateList.valueOf(android.graphics.Color.WHITE)
+                              gravity = android.view.Gravity.CENTER_VERTICAL
+                              setPadding(dp(62), 0, dp(12), 0)
+                              minimumHeight = dp(46)
+                              isFocusable = true
+                              isClickable = true
+                              background = android.graphics.drawable.GradientDrawable().apply {
+                                  setColor(android.graphics.Color.TRANSPARENT)
+                                  cornerRadius = dp(10).toFloat()
+                              }
+                              setOnFocusChangeListener { view, focused ->
+                                  view.background = android.graphics.drawable.GradientDrawable().apply {
+                                      setColor(if (focused) android.graphics.Color.rgb(65, 67, 72) else android.graphics.Color.TRANSPARENT)
+                                      cornerRadius = dp(10).toFloat()
+                                  }
+                              }
+                              setOnClickListener {
+                                  playerView.resizeMode = aspectModes[aspectIndex]
+                                  playerView.requestLayout()
+                                  playerView.post { playerView.requestLayout() }
+                                  menuPopupRef?.dismiss()
+                                  Toast.makeText(this@MainActivity, "Aspect ratio: " + aspectName, Toast.LENGTH_SHORT).show()
+                              }
+                          }'''
+          once(old_option, new_option, "Aspect-ratio checkbox options")
+
+          # Make the Open video folder/film glyph monochrome white.
+          once('''color = Color.rgb(20, 91, 245)''', '''color = Color.WHITE''', "Open video icon tint")
+
+          # Keep Previous and Next icon artwork white in every focus state;
+          # focus is communicated by the background highlight, not recolouring.
+          once('''                imageTintList = android.content.res.ColorStateList(
+                              arrayOf(
+                                  intArrayOf(android.R.attr.state_focused),
+                                  intArrayOf()
+                              ),
+                              intArrayOf(Color.BLACK, Color.WHITE)
+                          )''',
+          '''                imageTintList = android.content.res.ColorStateList.valueOf(Color.WHITE)''',
+          "Previous/Next icon tint")
+
+          main.write_text(src)
+
+          # MediaStore/SAF content URIs can construct a LibVLC Media object but
+          # still fail asynchronously during playback. Open the provider's
+          # AssetFileDescriptor explicitly and keep it alive for the session.
+          engine = Path("app/src/main/java/com/example/gx1player/Gx1LibVlcEngine.kt")
+          vlc = engine.read_text()
+          old_source = '''        // Match the known-working VLC test path first: pass the Android Uri
+                  // directly to LibVLC. In particular, SAF content:// playback must use
+                  // the same MRL path as the test player rather than forcing an
+                  // AssetFileDescriptor for every provider.
+                  val media = if (uri.scheme == "content") {
+                      try {
+                          Media(libVlc, uri).also {
+                              android.util.Log.i("GX1-VLC", "Using direct content Uri source")
+                          }
+                      } catch (uriError: Exception) {
+                          android.util.Log.w(
+                              "GX1-VLC",
+                              "Direct content Uri open failed; falling back to AssetFileDescriptor",
+                              uriError
+                          )
+                          val afd = appContext.contentResolver.openAssetFileDescriptor(uri, "r")
+                              ?: throw java.io.IOException("Could not open selected media provider descriptor")
+                          activeAssetDescriptor = afd
+                          Media(libVlc, afd)
+                      }
+                  } else {
+                      Media(libVlc, uri)
+                  }'''
+          new_source = '''        // Use an AssetFileDescriptor for content:// sources. MediaStore and
+                  // document providers may accept a direct Uri Media object but fail
+                  // later when LibVLC tries to read it; the descriptor keeps the
+                  // granted provider stream open for the full playback session.
+                  val media = if (uri.scheme == "content") {
+                      val afd = appContext.contentResolver.openAssetFileDescriptor(uri, "r")
+                          ?: throw java.io.IOException("Could not open selected media provider descriptor")
+                      activeAssetDescriptor = afd
+                      android.util.Log.i("GX1-VLC", "Using content Uri AssetFileDescriptor source")
+                      Media(libVlc, afd)
+                  } else {
+                      Media(libVlc, uri)
+                  }'''
+          if old_source not in vlc:
+              raise SystemExit("Content-URI LibVLC source block not found exactly; preserving engine source.")
+          vlc = vlc.replace(old_source, new_source, 1)
+          engine.write_text(vlc)
+          print("Repeat now loops the LibVLC video; aspect options use menu-style checkboxes; content URIs use a retained provider descriptor; shortcut icons stay white.")
+          PY
+
       - name: Verify and export final post-instrumentation source
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
