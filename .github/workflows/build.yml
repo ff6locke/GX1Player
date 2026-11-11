@@ -7551,7 +7551,7 @@ jobs:
           # white text, and rounded focus background as the other menu rows.
           import re
           import textwrap
-          option_pattern = r"(?ms)^(?P<indent> {20})val option = android[.]widget[.]TextView[(]this[)][.]apply [{]" + chr(10) + r".*?^ {20}[}]"
+          option_pattern = r"(?ms)^(?P<indent> +)val option = android[.]widget[.]TextView[(]this[)][.]apply [{]" + chr(10) + r".*?^(?P=indent)[}]"
           new_option = """val option = android.widget.CheckBox(this).apply {
               text = aspectName
               isChecked = selected
