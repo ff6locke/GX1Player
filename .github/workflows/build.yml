@@ -3693,6 +3693,66 @@ jobs:
           p.write_text(s)
           print("Final GX1 browser routes applied:", home_n, menu_n)
           PY
+      - name: Separate Library media browsing from Open Video
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+
+          # Library opens its saved folder and displays playable media; Open Video remains
+          # a one-off file browser and must not change the Library location.
+          pattern = r'(?ms)^([ \\t]*)private fun showGX1Library\\(\\)\\s*\\{.*?(?=^[ \\t]*private fun browseGX1Folder\\()'
+          def replace_library(match):
+              indent = match.group(1)
+              return (indent + "private fun showGX1Library() {\\n" +
+                      indent + "    ensureGX1FileAccess {\\n" +
+                      indent + '        val savedPath = prefs.getString("gx1_library_path", null)\\n' +
+                      indent + "        val savedFolder = savedPath?.let { java.io.File(it) }?.takeIf { it.isDirectory }\\n" +
+                      indent + "        val start = savedFolder ?: Environment.getExternalStorageDirectory()\\n" +
+                      indent + '        if (start.isDirectory) browseGX1Folder(start, false, false, true)\\n' +
+                      indent + '        else Toast.makeText(this, "Library folder is not accessible.", Toast.LENGTH_LONG).show()\\n' +
+                      indent + "    }\\n" + indent + "}\\n\\n")
+          s, library_n = re.subn(pattern, replace_library, s, count=1)
+          if library_n != 1:
+              raise SystemExit(f"Could not replace showGX1Library(); matches={library_n}")
+
+          signature = "private fun browseGX1Folder(folder: java.io.File, selectingLibrary: Boolean, foldersOnly: Boolean = false)"
+          if s.count(signature) != 1:
+              raise SystemExit(f"Unexpected browser signature count: {s.count(signature)}")
+          s = s.replace(signature, signature[:-1] + ", libraryMode: Boolean = false)", 1)
+
+          replacements = [
+              ("browseGX1Folder(current.parentFile!!, selectingLibrary, foldersOnly)",
+               "browseGX1Folder(current.parentFile!!, selectingLibrary, foldersOnly, libraryMode)"),
+              ("browseGX1Folder(selected, selectingLibrary, foldersOnly)",
+               "browseGX1Folder(selected, selectingLibrary, foldersOnly, libraryMode)"),
+              ('browseGX1Folder(current, false)', 'browseGX1Folder(current, false, false, true)'),
+              ("browseGX1Folder(current, selectingLibrary)",
+               "browseGX1Folder(current, selectingLibrary, foldersOnly, libraryMode)"),
+              ('addTile("Library", "Browse saved folders")',
+               'addTile("Library", "Browse folders and media")')
+          ]
+          for old, new in replacements:
+              if old not in s:
+                  raise SystemExit("Missing expected Library browser anchor: " + old)
+              s = s.replace(old, new, 1)
+
+          old_button = """              } else {
+                  builder.setPositiveButton("Choose folder") { _, _ -> browseGX1Folder(current, true) }
+              }"""
+          new_button = """              } else if (libraryMode) {
+                  builder.setPositiveButton("Change library folder") { _, _ -> browseGX1Folder(current, true) }
+              }"""
+          if s.count(old_button) != 1:
+              raise SystemExit(f"Expected one Open Video folder-button block, found {s.count(old_button)}")
+          s = s.replace(old_button, new_button, 1)
+
+          p.write_text(s)
+          print("Library now opens its saved folder with media files; Open Video remains a separate quick picker.")
+          PY
       - name: Add reusable LibVLC playback engine foundation
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
