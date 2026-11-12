@@ -8313,8 +8313,8 @@ jobs:
                               return super.dispatchKeyEvent(event)
                           }
 
-                          // With playback controls hidden, Left/Right seek; key repeats
-                          // continue seeking while held. Reveal controls only after release.
+                          // With the playback menu hidden, each press seeks and key repeats
+                          // keep seeking while held. Do not reveal the controller on key-up.
                           if (event.action == android.view.KeyEvent.ACTION_DOWN) {
                               val current = engine.currentTimeMs()
                               val step = if (current < 2 * 60_000L) 10_000L else 2 * 60_000L
@@ -8327,8 +8327,6 @@ jobs:
                               }
                               engine.seekTo(target)
                               mainVlcControllerClock?.seekTo(target)
-                          } else if (event.action == android.view.KeyEvent.ACTION_UP) {
-                              playerView.showController()
                           }
                           return true
                       }
