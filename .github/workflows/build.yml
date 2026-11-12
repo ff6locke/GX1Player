@@ -8296,10 +8296,25 @@ jobs:
                   if (event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT ||
                       event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_RIGHT) {
                       val engine = mainVlcEngine
-                      if (engine != null) {
-                          // Android sends ACTION_DOWN again with repeatCount > 0 while the
-                          // remote key is held. Seek on the initial press and every repeat;
-                          // consume ACTION_UP below so the key never moves D-pad focus.
+                      if (engine != null && ::playerView.isInitialized) {
+                          // Never steal Left/Right while a Media3 controller or menu/dialog
+                          // is active: those keys must move D-pad focus and operate menu items.
+                          var focused = currentFocus
+                          var focusInsidePlayerView = false
+                          while (focused != null) {
+                              if (focused === playerView) {
+                                  focusInsidePlayerView = true
+                                  break
+                              }
+                              focused = focused.parent as? android.view.View
+                          }
+                          val anotherUiHasFocus = currentFocus != null && !focusInsidePlayerView
+                          if (playerView.isControllerVisible || anotherUiHasFocus) {
+                              return super.dispatchKeyEvent(event)
+                          }
+
+                          // With playback controls hidden, Left/Right seek; key repeats
+                          // continue seeking while held. Reveal controls only after release.
                           if (event.action == android.view.KeyEvent.ACTION_DOWN) {
                               val current = engine.currentTimeMs()
                               val step = if (current < 2 * 60_000L) 10_000L else 2 * 60_000L
@@ -8312,7 +8327,8 @@ jobs:
                               }
                               engine.seekTo(target)
                               mainVlcControllerClock?.seekTo(target)
-                              if (::playerView.isInitialized) playerView.showController()
+                          } else if (event.action == android.view.KeyEvent.ACTION_UP) {
+                              playerView.showController()
                           }
                           return true
                       }
