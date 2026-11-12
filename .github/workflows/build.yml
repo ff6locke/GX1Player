@@ -8315,6 +8315,12 @@ jobs:
 
                           // With the playback menu hidden, each press seeks and key repeats
                           // keep seeking while held. Do not reveal the controller on key-up.
+                          // Keep the initial seek immediate, then process only every fourth
+                          // Android key-repeat event to make held-button seeking less aggressive.
+                          if (event.action == android.view.KeyEvent.ACTION_DOWN &&
+                              event.repeatCount > 0 && event.repeatCount % 4 != 0) {
+                              return true
+                          }
                           if (event.action == android.view.KeyEvent.ACTION_DOWN) {
                               val current = engine.currentTimeMs()
                               val step = if (current < 5 * 60_000L) 10_000L else 60_000L
@@ -8383,7 +8389,7 @@ jobs:
           """
               pos = s.find(anchor, start)
               s = s[:pos] + handler + s[pos:]
-          if "KEYCODE_DPAD_LEFT" not in s[start:] or "current < 2 * 60_000L" not in s[start:]:
+          if "KEYCODE_DPAD_LEFT" not in s[start:] or "current < 5 * 60_000L" not in s[start:]:
               raise SystemExit("D-pad adaptive seek verification failed")
           p.write_text(s)
           print("Android TV Left/Right now seek the active LibVLC video: 10 seconds before 2:00, then 2 minutes.")
