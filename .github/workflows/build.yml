@@ -8327,6 +8327,52 @@ jobs:
                               }
                               engine.seekTo(target)
                               mainVlcControllerClock?.seekTo(target)
+
+                              // VLC-style seek feedback: directional icon plus current/total time.
+                              val overlayRoot = playerView.parent as? android.widget.FrameLayout
+                              if (overlayRoot != null) {
+                                  var feedback = overlayRoot.findViewWithTag<android.widget.TextView>("gx1_seek_feedback")
+                                  if (feedback == null) {
+                                      feedback = android.widget.TextView(this).apply {
+                                          tag = "gx1_seek_feedback"
+                                          setTextColor(android.graphics.Color.WHITE)
+                                          textSize = 24f
+                                          typeface = android.graphics.Typeface.DEFAULT_BOLD
+                                          gravity = android.view.Gravity.CENTER
+                                          setPadding((22 * resources.displayMetrics.density).toInt(),
+                                              (14 * resources.displayMetrics.density).toInt(),
+                                              (22 * resources.displayMetrics.density).toInt(),
+                                              (14 * resources.displayMetrics.density).toInt())
+                                          background = android.graphics.drawable.GradientDrawable().apply {
+                                              setColor(0xCC111111.toInt())
+                                              cornerRadius = 14f * resources.displayMetrics.density
+                                          }
+                                          isFocusable = false
+                                      }
+                                      overlayRoot.addView(feedback, android.widget.FrameLayout.LayoutParams(
+                                          android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                                          android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                                          android.view.Gravity.CENTER
+                                      ))
+                                  }
+                                  fun seekClock(value: Long): String {
+                                      val seconds = (value.coerceAtLeast(0L) / 1000L)
+                                      val hours = seconds / 3600L
+                                      val minutes = (seconds % 3600L) / 60L
+                                      val secs = seconds % 60L
+                                      return if (hours > 0L) String.format("%d:%02d:%02d", hours, minutes, secs)
+                                          else String.format("%02d:%02d", minutes, secs)
+                                  }
+                                  val direction = if (event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT) "⏪" else "⏩"
+                                  val duration = engine.durationMs()
+                                  feedback.text = "$direction  ${seekClock(target)} / ${seekClock(duration)}"
+                                  feedback.visibility = View.VISIBLE
+                                  feedback.bringToFront()
+                              }
+                          } else if (event.action == android.view.KeyEvent.ACTION_UP) {
+                              (playerView.parent as? android.widget.FrameLayout)
+                                  ?.findViewWithTag<android.widget.TextView>("gx1_seek_feedback")
+                                  ?.visibility = View.GONE
                           }
                           return true
                       }
