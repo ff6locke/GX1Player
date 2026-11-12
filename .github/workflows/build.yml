@@ -8309,7 +8309,7 @@ jobs:
                               focused = focused.parent as? android.view.View
                           }
                           val anotherUiHasFocus = currentFocus != null && !focusInsidePlayerView
-                          if (playerView.isControllerVisible || anotherUiHasFocus) {
+                          if (playerView.isControllerFullyVisible() || anotherUiHasFocus) {
                               return super.dispatchKeyEvent(event)
                           }
 
