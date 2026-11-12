@@ -8158,9 +8158,9 @@ jobs:
 
           # Media3's remote seek buttons are forwarded here to the real LibVLC engine.
           back_old = 'e.seekTo((e.currentTimeMs() - 10_000L).coerceAtLeast(0L))'
-          back_new = 'val step = if (e.currentTimeMs() < 2 * 60_000L) 10_000L else 2 * 60_000L\n                          e.seekTo((e.currentTimeMs() - step).coerceAtLeast(0L))'
+          back_new = 'val step = if (e.currentTimeMs() < 5 * 60_000L) 10_000L else 60_000L\n                          e.seekTo((e.currentTimeMs() - step).coerceAtLeast(0L))'
           forward_old = 'val next = e.currentTimeMs() + 10_000L'
-          forward_new = 'val step = if (e.currentTimeMs() < 2 * 60_000L) 10_000L else 2 * 60_000L\n                          val next = e.currentTimeMs() + step'
+          forward_new = 'val step = if (e.currentTimeMs() < 5 * 60_000L) 10_000L else 60_000L\n                          val next = e.currentTimeMs() + step'
           if back_old in s:
               s = s.replace(back_old, back_new, 1)
           elif back_new not in s:
@@ -8317,7 +8317,7 @@ jobs:
                           // keep seeking while held. Do not reveal the controller on key-up.
                           if (event.action == android.view.KeyEvent.ACTION_DOWN) {
                               val current = engine.currentTimeMs()
-                              val step = if (current < 2 * 60_000L) 10_000L else 2 * 60_000L
+                              val step = if (current < 5 * 60_000L) 10_000L else 60_000L
                               val target = if (event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT) {
                                   (current - step).coerceAtLeast(0L)
                               } else {
