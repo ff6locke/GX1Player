@@ -8342,7 +8342,22 @@ jobs:
                               val atNextBoundary =
                                   event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_RIGHT &&
                                       focusedControlName == "exo_next"
-                              if (atPreviousBoundary || atNextBoundary) return true
+                              // Media3 focus search can choose the settings gear or our
+                              // inserted subtitle shortcut instead of exo_next. Inspect the
+                              // actual next focus target and block those escape destinations.
+                              val direction = if (event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT)
+                                  View.FOCUS_LEFT else View.FOCUS_RIGHT
+                              var candidate = currentFocus?.focusSearch(direction)
+                              var forbiddenTarget = false
+                              while (candidate != null && candidate !== playerView) {
+                                  if (candidate.id == androidx.media3.ui.R.id.exo_settings ||
+                                      candidate.tag == "gx1_subtitle_track_button") {
+                                      forbiddenTarget = true
+                                      break
+                                  }
+                                  candidate = candidate.parent as? android.view.View
+                              }
+                              if (atPreviousBoundary || atNextBoundary || forbiddenTarget) return true
                           }
                           if (playerView.isControllerFullyVisible() || anotherUiHasFocus) {
                               return super.dispatchKeyEvent(event)
