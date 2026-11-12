@@ -8128,6 +8128,13 @@ jobs:
               insert_at = s.index(class_anchor) + len(class_anchor)
               s = s[:insert_at] + fields + s[insert_at:]
 
+          if "gx1SeekSessionProgressMs" not in s:
+              class_anchor = "class MainActivity : AppCompatActivity() {"
+              if class_anchor not in s:
+                  raise SystemExit("Could not locate MainActivity class body for seek session state")
+              insert_at = s.index(class_anchor) + len(class_anchor)
+              s = s[:insert_at] + "\n    private var gx1SeekSessionProgressMs = 0L\n" + s[insert_at:]
+
           anchor = 'val choices = arrayOf("15 minutes", "30 minutes", "45 minutes", "60 minutes", "90 minutes")'
           if anchor in s:
               start = s.index(anchor)
@@ -8323,7 +8330,7 @@ jobs:
                           }
                           if (event.action == android.view.KeyEvent.ACTION_DOWN) {
                               val current = engine.currentTimeMs()
-                              val step = if (current < 5 * 60_000L) 10_000L else 60_000L
+                              val step = if (gx1SeekSessionProgressMs < 5 * 60_000L) 10_000L else 60_000L
                               val target = if (event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT) {
                                   (current - step).coerceAtLeast(0L)
                               } else {
@@ -8332,6 +8339,7 @@ jobs:
                                   if (duration > 0L) next.coerceAtMost(duration) else next
                               }
                               engine.seekTo(target)
+                              gx1SeekSessionProgressMs += step
                               mainVlcControllerClock?.seekTo(target)
 
                               // VLC-style seek feedback: directional icon plus current/total time.
@@ -8376,6 +8384,8 @@ jobs:
                                   feedback.bringToFront()
                               }
                           } else if (event.action == android.view.KeyEvent.ACTION_UP) {
+                              // A new seek session always starts again with 10-second steps.
+                              gx1SeekSessionProgressMs = 0L
                               (playerView.parent as? android.widget.FrameLayout)
                                   ?.findViewWithTag<android.widget.TextView>("gx1_seek_feedback")
                                   ?.visibility = View.GONE
@@ -8389,10 +8399,10 @@ jobs:
           """
               pos = s.find(anchor, start)
               s = s[:pos] + handler + s[pos:]
-          if "KEYCODE_DPAD_LEFT" not in s[start:] or "current < 5 * 60_000L" not in s[start:]:
+          if "KEYCODE_DPAD_LEFT" not in s[start:] or "gx1SeekSessionProgressMs < 5 * 60_000L" not in s[start:] or "gx1SeekSessionProgressMs = 0L" not in s[start:]:
               raise SystemExit("D-pad adaptive seek verification failed")
           p.write_text(s)
-          print("Android TV Left/Right now seek the active LibVLC video: 10 seconds before 2:00, then 2 minutes.")
+          print("Android TV Left/Right use 10-second steps for the first 5 minutes of each seek session, then 1-minute steps; key-up resets the session.")
           PY
 
       - name: Build separate 32-bit and 64-bit ARM APKs
