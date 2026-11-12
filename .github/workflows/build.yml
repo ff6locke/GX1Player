@@ -8317,23 +8317,19 @@ jobs:
                           }
                           val anotherUiHasFocus = currentFocus != null && !focusInsidePlayerView
                           if (playerView.isControllerFullyVisible() && focusInsidePlayerView) {
-                              // The previous-video control is the leftmost playback boundary.
-                              // Do not pin the Next button or block the shortcut row: Open Video,
-                              // Subtitle and Settings must remain reachable with Left/Right.
-                              playerView.findViewById<android.view.View>(
-                                  androidx.media3.ui.R.id.exo_prev
-                              )?.let { previousVideo ->
-                                  if (previousVideo.id != View.NO_ID) {
-                                      previousVideo.nextFocusLeftId = previousVideo.id
+                              // The actual file-navigation buttons are custom controls at
+                              // the far left/right of the controller. Media3 exo_prev is the
+                              // restart/rewind control, so it must not be used as the boundary.
+                              gx1PreviousFileButton?.let { previousFile ->
+                                  if (previousFile.id != View.NO_ID) {
+                                      previousFile.nextFocusLeftId = previousFile.id
                                   }
                               }
-                              val focusedControlName = currentFocus?.let { focused ->
-                                  runCatching { resources.getResourceEntryName(focused.id) }.getOrNull()
+                              gx1NextFileButton?.let { nextFile ->
+                                  if (nextFile.id != View.NO_ID) {
+                                      nextFile.nextFocusRightId = nextFile.id
+                                  }
                               }
-                              val atPreviousVideoBoundary =
-                                  event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT &&
-                                      focusedControlName == "exo_prev"
-                              if (atPreviousVideoBoundary) return true
                           }
                           if (playerView.isControllerFullyVisible() || anotherUiHasFocus) {
                               return super.dispatchKeyEvent(event)
