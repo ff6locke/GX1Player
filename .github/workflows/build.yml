@@ -8316,6 +8316,21 @@ jobs:
                               focused = focused.parent as? android.view.View
                           }
                           val anotherUiHasFocus = currentFocus != null && !focusInsidePlayerView
+                          if (playerView.isControllerFullyVisible() && focusInsidePlayerView) {
+                              // Keep horizontal D-pad navigation within the main playback
+                              // controls. Previous/Next video are the left/right boundaries;
+                              // do not let focus spill into the subtitle shortcut or settings gear.
+                              val focusedControlName = currentFocus?.let { focused ->
+                                  runCatching { resources.getResourceEntryName(focused.id) }.getOrNull()
+                              }
+                              val atPreviousBoundary =
+                                  event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT &&
+                                      focusedControlName == "exo_prev"
+                              val atNextBoundary =
+                                  event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_RIGHT &&
+                                      focusedControlName == "exo_next"
+                              if (atPreviousBoundary || atNextBoundary) return true
+                          }
                           if (playerView.isControllerFullyVisible() || anotherUiHasFocus) {
                               return super.dispatchKeyEvent(event)
                           }
