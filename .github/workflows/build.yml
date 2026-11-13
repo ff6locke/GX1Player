@@ -8462,7 +8462,9 @@ jobs:
           s = p.read_text()
 
           helper = r'''    private fun mainVlcTrackStateKey(): String {
-                  val value = mediaUri?.toString() ?: return "gx1_tracks_none"
+                  val value = runCatching { currentVideoFile()?.canonicalPath }.getOrNull()
+                      ?: mediaUri?.toString()
+                      ?: return "gx1_tracks_none"
                   val encoded = android.util.Base64.encodeToString(
                       value.toByteArray(Charsets.UTF_8),
                       android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING
@@ -8475,29 +8477,46 @@ jobs:
                   val key = mainVlcTrackStateKey()
                   val enabled = mainVlcExternalSubtitles.filter { it.enabled }
                       .map { it.file.absolutePath }.toSet()
+                  val audioTracks = runCatching { engine.audioTracks() }.getOrDefault(emptyList())
+                  val audioId = runCatching { engine.selectedAudioTrackId() }.getOrDefault(Int.MIN_VALUE)
+                  val audioIndex = audioTracks.indexOfFirst { it.id == audioId }
+                  val audioName = audioTracks.getOrNull(audioIndex)?.name
+                  val embeddedTracks = runCatching { engine.subtitleTracks() }.getOrDefault(emptyList())
+                  val subtitleId = runCatching { engine.selectedSubtitleTrackId() }.getOrDefault(Int.MIN_VALUE)
+                  val subtitleIndex = embeddedTracks.indexOfFirst { it.id == subtitleId }
+                  val subtitleName = embeddedTracks.getOrNull(subtitleIndex)?.name
                   getSharedPreferences("gx1_player", android.content.Context.MODE_PRIVATE).edit()
                       .putStringSet(key + "_external_enabled", enabled)
-                      .putInt(key + "_embedded_subtitle", engine.selectedSubtitleTrackId())
-                      .putInt(key + "_audio", engine.selectedAudioTrackId())
+                      .putInt(key + "_embedded_subtitle", subtitleId)
+                      .putString(key + "_embedded_subtitle_name", subtitleName)
+                      .putInt(key + "_embedded_subtitle_index", subtitleIndex)
+                      .putInt(key + "_audio", audioId)
+                      .putString(key + "_audio_name", audioName)
+                      .putInt(key + "_audio_index", audioIndex)
                       .apply()
               }
 
               private fun restoreMainVlcAudioTrack(attempt: Int = 0) {
                   val engine = mainVlcEngine ?: return
                   val key = mainVlcTrackStateKey()
-                  val saved = getSharedPreferences("gx1_player", android.content.Context.MODE_PRIVATE)
-                      .getInt(key + "_audio", Int.MIN_VALUE)
-                  if (saved == Int.MIN_VALUE) return
+                  val prefs = getSharedPreferences("gx1_player", android.content.Context.MODE_PRIVATE)
+                  val saved = prefs.getInt(key + "_audio", Int.MIN_VALUE)
+                  val savedName = prefs.getString(key + "_audio_name", null)
+                  val savedIndex = prefs.getInt(key + "_audio_index", -1)
+                  if (saved == Int.MIN_VALUE && savedName.isNullOrBlank() && savedIndex < 0) return
                   val tracks = runCatching { engine.audioTracks() }.getOrDefault(emptyList())
-                  if (tracks.isEmpty() && attempt < 6) {
+                  if (tracks.isEmpty() && attempt < 10) {
                       subtitleUiHandler.postDelayed({ restoreMainVlcAudioTrack(attempt + 1) }, 500L)
                       return
                   }
-                  if (tracks.any { it.id == saved }) {
-                      engine.selectAudioTrack(saved)
-                      android.util.Log.i("GX1Player", "Restored saved audio track " + saved)
+                  val selected = tracks.firstOrNull { it.id == saved }
+                      ?: tracks.firstOrNull { !savedName.isNullOrBlank() && it.name == savedName }
+                      ?: tracks.getOrNull(savedIndex)
+                  if (selected != null) {
+                      engine.selectAudioTrack(selected.id)
+                      android.util.Log.i("GX1Player", "Restored saved audio track " + selected.id)
                   } else {
-                      android.util.Log.w("GX1Player", "Saved audio track " + saved + " is not present in this file")
+                      android.util.Log.w("GX1Player", "Saved audio track is not present in this file")
                   }
               }
 
@@ -8561,9 +8580,14 @@ jobs:
                       }.onFailure { android.util.Log.w("GX1Player", "Subtitle parse failed: " + file.name, it) }
                   }
                   val savedEmbedded = trackPrefs.getInt(stateKey + "_embedded_subtitle", Int.MIN_VALUE)
+                  val savedEmbeddedName = trackPrefs.getString(stateKey + "_embedded_subtitle_name", null)
+                  val savedEmbeddedIndex = trackPrefs.getInt(stateKey + "_embedded_subtitle_index", -1)
                   val embeddedTracks = engine.subtitleTracks()
-                  if (savedEmbedded != Int.MIN_VALUE && embeddedTracks.any { it.id == savedEmbedded }) {
-                      engine.selectSubtitleTrack(savedEmbedded)
+                  val savedEmbeddedTrack = embeddedTracks.firstOrNull { it.id == savedEmbedded }
+                      ?: embeddedTracks.firstOrNull { !savedEmbeddedName.isNullOrBlank() && it.name == savedEmbeddedName }
+                      ?: embeddedTracks.getOrNull(savedEmbeddedIndex)
+                  if (savedEmbeddedTrack != null) {
+                      engine.selectSubtitleTrack(savedEmbeddedTrack.id)
                   } else if (!firstValidExternalEnabled && !hasSavedExternalState) {
                       embeddedTracks.firstOrNull()?.let { engine.selectSubtitleTrack(it.id) }
                   }"""
@@ -8585,8 +8609,12 @@ jobs:
               'putStringSet(key + "_external_enabled"',
               'putInt(key + "_embedded_subtitle"',
               'putInt(key + "_audio"',
+              'putString(key + "_audio_name"',
+              'putInt(key + "_audio_index"',
+              'putString(key + "_embedded_subtitle_name"',
+              'putInt(key + "_embedded_subtitle_index"',
               "savedExternalEnabled.contains(file.absolutePath)",
-              "engine.selectAudioTrack(saved)"
+              "val selected = tracks.firstOrNull { it.id == saved }"
           ]
           missing = [item for item in required if item not in s]
           if missing:
