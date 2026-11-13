@@ -8816,15 +8816,15 @@ jobs:
               s = s.replace(helper_anchor, helper + helper_anchor, 1)
 
           old_head = '''        val video = currentVideoFile() ?: return
-        val folder = video.parentFile?.takeIf { it.isDirectory } ?: return
-        val base = video.nameWithoutExtension
-        val extensions = setOf("ass", "ssa", "srt")
-        val matches = folder.listFiles()?.filter { file ->'''
+                  val folder = video.parentFile?.takeIf { it.isDirectory } ?: return
+                  val base = video.nameWithoutExtension
+                  val extensions = setOf("ass", "ssa", "srt")
+                  val matches = folder.listFiles()?.filter { file ->'''
           new_head = '''        val video = currentVideoFile()
-        val folder = video?.parentFile?.takeIf { it.isDirectory }
-        val base = video?.nameWithoutExtension
-        val extensions = setOf("ass", "ssa", "srt")
-        val matches = folder?.listFiles()?.filter { file ->'''
+                  val folder = video?.parentFile?.takeIf { it.isDirectory }
+                  val base = video?.nameWithoutExtension
+                  val extensions = setOf("ass", "ssa", "srt")
+                  val matches = folder?.listFiles()?.filter { file ->'''
           if old_head not in s: raise SystemExit("Could not locate auto subtitle discovery header")
           s = s.replace(old_head, new_head, 1)
           s = s.replace('''                stem.equals(base, ignoreCase = true) || stem.startsWith(base + ".", ignoreCase = true)''',
@@ -8833,18 +8833,18 @@ jobs:
                         '''        }?.sortedBy { it.name.lowercase(java.util.Locale.ROOT) }.orEmpty()''', 1)
 
           custom_anchor = '''        restoreMainVlcSubtitleTrack()
-        if (!hasSavedExternalState && !firstValidExternalEnabled) {'''
+                  if (!hasSavedExternalState && !firstValidExternalEnabled) {'''
           custom_new = '''        subtitle1Uri?.let { customUri ->
-            runCatching {
-                val file = cacheCustomMainVlcSubtitle(customUri, 1)
-                if (file != null) {
-                    val enabled = if (hasSavedExternalState) savedExternalEnabled.contains(file.absolutePath) else true
-                    loadMainVlcExternalSubtitle(file, initiallyEnabled = enabled)
-                }
-            }.onFailure { android.util.Log.w("GX1Player", "Custom Subtitle 1 restore failed", it) }
-        }
-        restoreMainVlcSubtitleTrack()
-        if (!hasSavedExternalState && !firstValidExternalEnabled && subtitle1Uri == null) {''
+                      runCatching {
+                          val file = cacheCustomMainVlcSubtitle(customUri, 1)
+                          if (file != null) {
+                              val enabled = if (hasSavedExternalState) savedExternalEnabled.contains(file.absolutePath) else true
+                              loadMainVlcExternalSubtitle(file, initiallyEnabled = enabled)
+                          }
+                      }.onFailure { android.util.Log.w("GX1Player", "Custom Subtitle 1 restore failed", it) }
+                  }
+                  restoreMainVlcSubtitleTrack()
+                  if (!hasSavedExternalState && !firstValidExternalEnabled && subtitle1Uri == null) {'''
           if custom_anchor not in s: raise SystemExit("Could not locate post-discovery subtitle restore anchor")
           s = s.replace(custom_anchor, custom_new, 1)
 
