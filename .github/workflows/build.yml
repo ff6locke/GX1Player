@@ -6517,8 +6517,16 @@ jobs:
           anchor = "mediaPlayer.media = media"
           if anchor not in s:
               raise SystemExit("Could not find LibVLC media assignment")
-          if "mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)" not in s:
-              s = s.replace(anchor, anchor + "\\n                  mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)", 1)
+          output_config = """if (digitalOutput) {
+                      // Keep compressed surround formats on passthrough; AAC and other
+                      // non-listed formats are decoded to multichannel PCM (up to 8ch).
+                      val accepted = mediaPlayer.forceAudioDigitalEncodings(intArrayOf(5, 6, 7, 8, 14))
+                      android.util.Log.i("GX1-VLC", "Selective surround passthrough configured=$accepted")
+                  } else {
+                      mediaPlayer.setAudioDigitalOutputEnabled(false)
+                  }"""
+          if "forceAudioDigitalEncodings(intArrayOf(5, 6, 7, 8, 14))" not in s:
+              s = s.replace(anchor, anchor + "\\n                  " + output_config, 1)
           if "setAudioOutputDevice(" in s:
               raise SystemExit("Unexpected explicit LibVLC audio-device override remains")
           p.write_text(s)
