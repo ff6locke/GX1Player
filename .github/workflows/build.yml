@@ -8209,6 +8209,8 @@ jobs:
           new_sub2_picker = 'videoUri?.let { prefs.edit().putString(KEY_SUBTITLE_2 + it, uri.toString()).remove(KEY_SUBTITLE_1 + it + "|2").apply() }'
           if old_sub2_picker in s:
               s = s.replace(old_sub2_picker, new_sub2_picker, 1)
+          elif 'videoUri?.let { prefs.edit().putString(KEY_SUBTITLE_2 + it, uri.toString()).apply() }' in s:
+              s = s.replace('videoUri?.let { prefs.edit().putString(KEY_SUBTITLE_2 + it, uri.toString()).apply() }', new_sub2_picker, 1)
           elif new_sub2_picker not in s:
               raise SystemExit("Could not locate custom Subtitle 2 picker save")
           old_sub2_picker2 = 'mediaUri?.let { prefs.edit().putString(subKey(it) + "|2", uri.toString()).apply() }'
