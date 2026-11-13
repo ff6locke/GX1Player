@@ -3320,7 +3320,7 @@ jobs:
           import re
           gradle = Path("app/build.gradle.kts")
           g = gradle.read_text()
-          dep = 'implementation("org.videolan.android:libvlc-all:3.7.5")'
+          dep = 'implementation("org.videolan.android:libvlc-all:3.7.7")'
           if dep not in g:
               anchor = 'implementation("androidx.appcompat:appcompat:1.7.0")'
               if anchor not in g:
