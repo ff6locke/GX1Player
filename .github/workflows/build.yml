@@ -7620,8 +7620,9 @@ jobs:
           assign="                        exo.trackSelectionParameters = params.build()"
           if 'trackPref(it,"text"),0' not in sub:
               if sub.count(assign)!=2: raise SystemExit("Expected Off and selected subtitle branches")
-              sub=sub.replace(assign,assign+'\n                        mediaUri?.let { prefs.edit().putInt(trackPref(it,"text"),0).apply() }',1)
-              sub=sub.replace(assign,assign+'\n                        mediaUri?.let { prefs.edit().putInt(trackPref(it,"text"),which).apply() }',1)
+              parts=sub.split(assign)
+              if len(parts)!=3: raise SystemExit("Expected exactly two subtitle parameter assignments")
+              sub=parts[0]+assign+'\n                        mediaUri?.let { prefs.edit().putInt(trackPref(it,"text"),0).apply() }'+parts[1]+assign+'\n                        mediaUri?.let { prefs.edit().putInt(trackPref(it,"text"),which).apply() }'+parts[2]
               s=s[:textStart]+sub+s[textEnd:]
           s=s.replace("                        subtitle1Uri = uri",
                       '                        mediaUri?.let { prefs.edit().remove(trackPref(it,"text")).apply() }\n                        subtitle1Uri = uri',1)
