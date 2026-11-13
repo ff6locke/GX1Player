@@ -8242,7 +8242,7 @@ jobs:
           open_line = "engine.open(uri, resumeAt, digitalOutput = passthrough)"
           if s.count(open_line) != 1: raise SystemExit("Expected exactly one main LibVLC open call")
           restore_line = "subtitleUiHandler.postDelayed({ restoreMainVlcAudioTrack() }, 1000L)"
-          if restore_line not in s:
+          if open_line + "\n                  " + restore_line not in s:
               s = s.replace(open_line, open_line + "\n                  " + restore_line, 1)
           old_sub2_load = 'subtitle2Uri = prefs.getString(KEY_SUBTITLE_2 + uri, null)?.let { Uri.parse(it) }'
           new_sub2_load = 'subtitle2Uri = (prefs.getString(KEY_SUBTITLE_2 + uri, null) ?: prefs.getString(KEY_SUBTITLE_1 + uri + "|2", null))?.let { Uri.parse(it) }'
