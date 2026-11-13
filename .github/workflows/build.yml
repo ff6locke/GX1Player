@@ -8463,16 +8463,12 @@ jobs:
 
           helper = r'''    private fun mainVlcTrackStateKey(): String {
                   val uri = playingUri ?: mediaUri ?: return "gx1_tracks_none"
-                  val stablePath = runCatching {
-                      if (uri.scheme == "file") {
-                          uri.path?.let { java.io.File(it).canonicalPath }
-                      } else {
-                          contentResolver.query(uri, arrayOf(android.provider.MediaStore.MediaColumns.DATA), null, null, null)?.use { c ->
-                              if (c.moveToFirst()) c.getString(0)?.takeIf { it.isNotBlank() }?.let { java.io.File(it).canonicalPath } else null
-                          }
-                      }
-                  }.getOrNull()
-                  val value = stablePath ?: uri.normalizeScheme().toString()
+                  // Keep the identity deterministic across picker/provider queries.
+                  // MediaStore DATA can be null on one open and populated on another.
+                  val value = if (uri.scheme == "file") {
+                      runCatching { uri.path?.let { java.io.File(it).canonicalPath } }.getOrNull()
+                          ?: uri.normalizeScheme().toString()
+                  } else uri.normalizeScheme().toString()
                   val encoded = android.util.Base64.encodeToString(
                       value.toByteArray(Charsets.UTF_8),
                       android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING
@@ -8519,12 +8515,18 @@ jobs:
                       else android.util.Log.w("GX1Player", "Audio tracks did not become available for restoration")
                       return
                   }
-                  val selected = tracks.firstOrNull { it.id == saved }
+                  val exact = tracks.firstOrNull { it.id == saved }
                       ?: tracks.firstOrNull { !name.isNullOrBlank() && it.name == name }
-                      ?: tracks.getOrNull(index)
+                  if (exact == null && attempt < 20) {
+                      subtitleUiHandler.postDelayed({ restoreMainVlcAudioTrack(attempt + 1) }, 500L)
+                      return
+                  }
+                  val selected = exact ?: tracks.getOrNull(index)
                   if (selected != null) {
                       engine.selectAudioTrack(selected.id)
-                      android.util.Log.i("GX1Player", "Restored saved audio track " + selected.id)
+                      subtitleUiHandler.postDelayed({
+                          android.util.Log.i("GX1Player", "Restored saved audio track " + selected.id)
+                      }, 300L)
                   } else android.util.Log.w("GX1Player", "Saved audio track not found; saved id=" + saved + " name=" + name + " index=" + index)
               }
 
@@ -8541,9 +8543,13 @@ jobs:
                       if (attempt < 20) subtitleUiHandler.postDelayed({ restoreMainVlcSubtitleTrack(attempt + 1) }, 500L)
                       return
                   }
-                  val selected = tracks.firstOrNull { it.id == saved }
+                  val exact = tracks.firstOrNull { it.id == saved }
                       ?: tracks.firstOrNull { !name.isNullOrBlank() && it.name == name }
-                      ?: tracks.getOrNull(index)
+                  if (exact == null && saved != -1 && attempt < 20) {
+                      subtitleUiHandler.postDelayed({ restoreMainVlcSubtitleTrack(attempt + 1) }, 500L)
+                      return
+                  }
+                  val selected = exact ?: tracks.getOrNull(index)
                   if (selected != null) {
                       engine.selectSubtitleTrack(selected.id)
                       android.util.Log.i("GX1Player", "Restored saved embedded subtitle " + selected.id)
@@ -8563,14 +8569,22 @@ jobs:
           if "saveMainVlcTrackState()" not in s[s.find(audio):s.find(audio)+200]:
               s = s.replace(audio, audio + "\n                      saveMainVlcTrackState()", 1)
 
-          # Save after the complete subtitle selection dialog callback. Match formatting flexibly.
-          import re
-          pattern = r'("off"\s*->\s*Unit\s*\n)([ \t]*\})([ \t]*\}\s*\n[ \t]*\.setPositiveButton\("Done", null\))'
-          s, count = re.subn(pattern, r'\1\2\n                  saveMainVlcTrackState()\n\3', s, count=1)
-          if count != 1 and "saveMainVlcTrackState()" not in s:
-              raise SystemExit("Could not locate main LibVLC subtitle selection callback")
-          if count == 1:
-              print("Added persistence after subtitle selection callback.")
+          # Persist every LibVLC subtitle checkbox change. The previous regex silently
+          # skipped this because the audio callback had already inserted the same helper call.
+          subtitle_callback_anchor = '''                    "off" -> Unit
+                }
+            }
+            .setPositiveButton("Done", null)'''
+          subtitle_callback_replacement = '''                    "off" -> Unit
+                }
+                saveMainVlcTrackState()
+                subtitleUiHandler.postDelayed({ saveMainVlcTrackState() }, 300L)
+            }
+            .setPositiveButton("Done", null)'''
+          if subtitle_callback_anchor in s:
+              s = s.replace(subtitle_callback_anchor, subtitle_callback_replacement, 1)
+          elif "subtitleUiHandler.postDelayed({ saveMainVlcTrackState() }, 300L)" not in s:
+              raise SystemExit("Could not locate LibVLC subtitle checkbox callback for immediate persistence")
           # Save again immediately before releasing LibVLC (app background/exit/restart path).
           release_anchor = "mainVlcEngine?.let { engine ->\n    val pos = engine.currentTimeMs()"
           release_new = "mainVlcEngine?.let { engine ->\n    saveMainVlcTrackState()\n    val pos = engine.currentTimeMs()"
