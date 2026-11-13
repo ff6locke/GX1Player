@@ -8645,7 +8645,7 @@ jobs:
         run: |
           mkdir -p "$GITHUB_WORKSPACE/gx1-final-persistence-source"
           cp app/src/main/java/com/example/gx1player/MainActivity.kt "$GITHUB_WORKSPACE/gx1-final-persistence-source/MainActivity.kt"
-          cp app/src/main/java/com/example/gx1player/Gx1LibVlcEngine.kt "$GITHUB_WORKSPACE/gx1-final-persistence-source/Gx1LibVlcEngine.kt"
+          cp -R app/src/main/java/com/example/gx1player/audio "$GITHUB_WORKSPACE/gx1-final-persistence-source/audio"
           cd "$GITHUB_WORKSPACE"
           zip -qr gx1-final-persistence-source.zip gx1-final-persistence-source
 
