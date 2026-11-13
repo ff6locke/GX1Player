@@ -7624,7 +7624,7 @@ jobs:
               sub=sub.replace(assign,assign+'\n                        mediaUri?.let { prefs.edit().putInt(trackPref(it,"text"),which).apply() }',1)
               s=s[:textStart]+sub+s[textEnd:]
           s=s.replace("                        subtitle1Uri = uri",
-                      "                        mediaUri?.let { prefs.edit().remove(trackPref(it,\\"text\\")).apply() }\n                        subtitle1Uri = uri",1)
+                      '                        mediaUri?.let { prefs.edit().remove(trackPref(it,"text")).apply() }\n                        subtitle1Uri = uri',1)
           for token in ["subtitle1Uri = uri","KEY_SUBTITLE_2 + it","override fun onTracksChanged(tracks:","trackPref(it,\"audio\")","trackPref(it,\"text\")"]:
               if token not in s: raise SystemExit("Persistence verification failed: "+token)
           p.write_text(s)
