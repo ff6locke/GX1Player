@@ -8580,7 +8580,7 @@ jobs:
               raise SystemExit("Could not locate LibVLC release path for final track-state save")
 
           # Restore saved external checkbox state and embedded track after sidecar discovery.
-          auto_old = "\\n".join([
+          auto_old = "\n".join([
               '        mainVlcExternalSubtitles.clear()',
               '        var firstValidExternalEnabled = false',
               '        matches.forEach { file ->',
@@ -8593,7 +8593,7 @@ jobs:
               '            engine.subtitleTracks().firstOrNull()?.let { engine.selectSubtitleTrack(it.id) }',
               '        }'
           ])
-          auto_new = "\\n".join([
+          auto_new = "\n".join([
               '        mainVlcExternalSubtitles.clear()',
               '        val stateKey = mainVlcTrackStateKey()',
               '        val trackPrefs = getSharedPreferences("gx1_player", android.content.Context.MODE_PRIVATE)',
