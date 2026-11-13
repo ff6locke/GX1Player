@@ -8429,10 +8429,10 @@ jobs:
           s=p.read_text()
           a="        val renderers = if (passthrough) {"
           b = (
-              "        playerView.visibility = View.VISIBLE\\n"
-              + "        playerView.findViewById<View>(androidx.media3.ui.R.id.exo_content_frame)?.visibility = View.VISIBLE\\n"
-              + "        fun restore(g: android.view.ViewGroup) { for (i in 0 until g.childCount) { val v=g.getChildAt(i); if (v is android.view.SurfaceView || v is android.view.TextureView) v.visibility=View.VISIBLE else if (v is android.view.ViewGroup) restore(v) } }\\n"
-              + "        restore(playerView)\\n"
+              "        playerView.visibility = View.VISIBLE\n"
+              + "        playerView.findViewById<View>(androidx.media3.ui.R.id.exo_content_frame)?.visibility = View.VISIBLE\n"
+              + "        fun restore(g: android.view.ViewGroup) { for (i in 0 until g.childCount) { val v=g.getChildAt(i); if (v is android.view.SurfaceView || v is android.view.TextureView) v.visibility=View.VISIBLE else if (v is android.view.ViewGroup) restore(v) } }\n"
+              + "        restore(playerView)\n"
               + a
           )
           if "restore(playerView)" not in s:
