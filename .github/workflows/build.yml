@@ -8421,7 +8421,7 @@ jobs:
           PY
 
       - name: Remember selected LibVLC audio and subtitle tracks when restarting a video
-        working-directory: \${{ env.PROJECT_DIR }}
+        working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
           from pathlib import Path
