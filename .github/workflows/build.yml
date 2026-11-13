@@ -6505,12 +6505,12 @@ jobs:
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
           s = p.read_text()
           s = re.sub(
-              r'(?m)^\\s*mediaPlayer\\.setAudioOutputDevice\\([^\\n]*\\)\\s*\\n',
+              r'(?m)^\s*mediaPlayer\.setAudioOutputDevice\([^\n]*\)\s*\n',
               '',
               s
           )
           s = re.sub(
-              r'(?m)^\\s*mediaPlayer\\.setAudioDigitalOutputEnabled\\(digitalOutput\\)\\s*\\n',
+              r'(?m)^\s*mediaPlayer\.setAudioDigitalOutputEnabled\(digitalOutput\)\s*\n',
               '',
               s
           )
