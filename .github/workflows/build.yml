@@ -7560,58 +7560,240 @@ jobs:
               raise SystemExit("MainActivity external VIEW URI handling did not verify")
           print("GX1 Player now advertises video/* and Matroska/MKV handling and opens ACTION_VIEW content URIs.")
           PY
-      - name: Save embedded and both custom subtitle selections from the actual menu
+      - name: Persist custom, embedded subtitle, and audio selections per video
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
-          callback_end = """                              "off" -> Unit
-                          }
-                      }
-                      .setPositiveButton("Done", null)"""
-          callback_new = """                              "off" -> Unit
-                          }
-                          saveMainVlcTrackState()
-                          subtitleUiHandler.postDelayed({ saveMainVlcTrackState() }, 300L)
-                      }
-                      .setPositiveButton("Done", null)"""
-          if callback_end in s:
-              s = s.replace(callback_end, callback_new, 1)
-          elif callback_new not in s:
-              raise SystemExit("Actual main subtitle checkbox callback anchor missing")
-          sub2_restore = """        subtitle2Uri?.let { customUri ->
-                      runCatching {
-                          val display = displayName(customUri)
-                          val extension = display.substringAfterLast(".", "srt").lowercase(java.util.Locale.ROOT)
-                              .let { if (it in setOf("ass", "ssa", "srt")) it else "srt" }
-                          val customFile = java.io.File(cacheDir, "gx1_custom_subtitle2_" + customUri.toString().hashCode() + "." + extension)
-                          val input = contentResolver.openInputStream(customUri) ?: error("Cannot read saved Subtitle 2")
-                          input.use { source -> customFile.outputStream().use { target -> source.copyTo(target) } }
-                          val enabled = if (hasSavedExternalState) savedExternalEnabled.contains(customFile.absolutePath) else true
-                          loadMainVlcExternalSubtitle(customFile, initiallyEnabled = enabled)
-                      }.onFailure { android.util.Log.w("GX1Player", "Saved custom Subtitle 2 could not be restored", it) }
-                  }
-                  restoreMainVlcSubtitleTrack()"""
-          if "Saved custom Subtitle 2 could not be restored" not in s:
-              if "Saved custom Subtitle 1 could not be restored" not in s:
-                  raise SystemExit("Subtitle 1 restore anchor missing; cannot safely add Subtitle 2")
-              import re
-              pattern = re.compile(r'(?P<indent>^[ 	]*)restoreMainVlcSubtitleTrack()', re.M)
-              matches = list(pattern.finditer(s))
-              target = next((m for m in matches if "autoLoadMainVlcSubtitles" in s[max(0,m.start()-7000):m.start()]), None)
-              if target is None:
-                  raise SystemExit("Could not locate restore call inside autoLoadMainVlcSubtitles")
-              indent = target.group("indent")
-              addition = sub2_restore.replace("\n        ", "\n" + indent)
-              s = s[:target.start()] + addition + s[target.end():]
-          if callback_new not in s:
-              raise SystemExit("Embedded/external subtitle callback save verification failed")
-          if "Saved custom Subtitle 2 could not be restored" not in s:
-              raise SystemExit("Subtitle 2 restore verification failed")
+
+          # The GX1 storage picker must update the same fields and keys that
+          # selectMedia() restores and buildMediaItem()/the overlay consume.
+          old1 = """                    if (slot == 1) {
+                        subtitleUri = uri
+                        videoUri?.let { prefs.edit().putString(subKey(it), uri.toString()).apply() }
+                        startPlayer()"""
+          new1 = """                    if (slot == 1) {
+                        subtitle1Uri = uri
+                        subtitleUri = uri
+                        videoUri?.let { prefs.edit().putString(KEY_SUBTITLE_1 + it, uri.toString()).apply() }
+                        startPlayer()"""
+          if old1 in s:
+              s = s.replace(old1, new1, 1)
+          elif new1 not in s:
+              raise SystemExit("GX1 Subtitle 1 picker block not found")
+
+          old2 = """                    } else {
+                        subtitleUri2 = uri
+                        subtitle2Uri = uri
+                        videoUri?.let { prefs.edit().putString(subKey(it) + "|2", uri.toString()).apply() }
+                        loadSecondSubtitleOverlay()"""
+          new2 = """                    } else {
+                        subtitleUri2 = uri
+                        subtitle2Uri = uri
+                        videoUri?.let { prefs.edit().putString(KEY_SUBTITLE_2 + it, uri.toString()).apply() }
+                        loadSecondSubtitleOverlay()"""
+          if old2 in s:
+              s = s.replace(old2, new2, 1)
+          elif new2 not in s:
+              raise SystemExit("GX1 Subtitle 2 picker block not found")
+
+          # Keep the legacy document-picker callback on the canonical Subtitle 2 key.
+          old3 = """    subtitleUri2 = uri
+    mediaUri?.let { prefs.edit().putString(subKey(it) + "|2", uri.toString()).apply() }
+    loadSecondSubtitleOverlay()"""
+          new3 = """    subtitleUri2 = uri
+    subtitle2Uri = uri
+    mediaUri?.let { prefs.edit().putString(KEY_SUBTITLE_2 + it, uri.toString()).apply() }
+    loadSecondSubtitleOverlay()"""
+          if old3 in s:
+              s = s.replace(old3, new3, 1)
+
+          # Stable format identity lets Media3 selections survive player recreation
+          # even when track-group indexes change.
+          marker = "    private fun startPlayer() {"
+          helper = """    private fun trackPreferenceKey(uri: Uri, type: String) = "track|" + type + "|" + uri.toString()
+
+          private fun trackFormatKey(format: androidx.media3.common.Format): String =
+              listOf(
+                  format.id ?: "",
+                  format.language ?: "",
+                  format.label ?: "",
+                  format.sampleMimeType ?: "",
+                  format.codecs ?: "",
+                  format.channelCount.toString(),
+                  format.sampleRate.toString(),
+                  format.roleFlags.toString()
+              ).joinToString("~")
+
+          """
+          if "private fun trackFormatKey(" not in s:
+              if s.count(marker) != 1:
+                  raise SystemExit("startPlayer insertion point missing or ambiguous")
+              s = s.replace(marker, helper + marker, 1)
+
+          # Restore only after Media3 has discovered the available tracks.
+          listener_marker = "        exo.addListener(object : Player.Listener {"
+          restore = """        var audioTrackRestoreAttempted = false
+          var textTrackRestoreAttempted = false
+          """
+          if "var audioTrackRestoreAttempted = false" not in s:
+              if s.count(listener_marker) != 1:
+                  raise SystemExit("Player.Listener insertion point missing or ambiguous")
+              s = s.replace(listener_marker, restore + listener_marker, 1)
+
+          discontinuity_marker = """            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                if (!isPlaying) savePosition(exo)
+    }"""
+          # The generated source currently has a separate error callback immediately after
+          # this method; insert track restoration immediately before onPlaybackStateChanged.
+          tracks_marker = """            override fun onPlaybackStateChanged(playbackState: Int) {"""
+          tracks_callback = """            override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+                if (!audioTrackRestoreAttempted) {
+                    val saved = prefs.getString(trackPreferenceKey(uri, "audio"), null)
+                    if (saved == null) {
+                        audioTrackRestoreAttempted = true
+                    } else {
+                        loop@ for (group in tracks.groups) {
+                            if (group.type != androidx.media3.common.C.TRACK_TYPE_AUDIO) continue
+                            for (index in 0 until group.length) {
+                                if (group.isTrackSupported(index) &&
+                                    trackFormatKey(group.getTrackFormat(index)) == saved) {
+                                    val params = exo.trackSelectionParameters.buildUpon()
+                                        .clearOverridesOfType(androidx.media3.common.C.TRACK_TYPE_AUDIO)
+                                        .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_AUDIO, false)
+                                        .addOverride(androidx.media3.common.TrackSelectionOverride(group.mediaTrackGroup, listOf(index)))
+                                    exo.trackSelectionParameters = params.build()
+                                    audioTrackRestoreAttempted = true
+                                    break@loop
+                                }
+                            }
+                        }
+                    }
+                }
+                if (!textTrackRestoreAttempted) {
+                    val saved = prefs.getString(trackPreferenceKey(uri, "text"), null)
+                    if (saved == null) {
+                        textTrackRestoreAttempted = true
+                    } else if (saved == "off") {
+                        exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon()
+                            .clearOverridesOfType(androidx.media3.common.C.TRACK_TYPE_TEXT)
+                            .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, true)
+                            .build()
+                        textTrackRestoreAttempted = true
+                    } else {
+                        loop@ for (group in tracks.groups) {
+                            if (group.type != androidx.media3.common.C.TRACK_TYPE_TEXT) continue
+                            for (index in 0 until group.length) {
+                                if (group.isTrackSupported(index) &&
+                                    trackFormatKey(group.getTrackFormat(index)) == saved) {
+                                    val params = exo.trackSelectionParameters.buildUpon()
+                                        .clearOverridesOfType(androidx.media3.common.C.TRACK_TYPE_TEXT)
+                                        .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, false)
+                                        .addOverride(androidx.media3.common.TrackSelectionOverride(group.mediaTrackGroup, listOf(index)))
+                                    exo.trackSelectionParameters = params.build()
+                                    textTrackRestoreAttempted = true
+                                    break@loop
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+          """
+          if "override fun onTracksChanged(tracks: androidx.media3.common.Tracks)" not in s:
+              if s.count(tracks_marker) != 1:
+                  raise SystemExit("onPlaybackStateChanged insertion point missing or ambiguous")
+              s = s.replace(tracks_marker, tracks_callback + tracks_marker, 1)
+
+          # Persist the chosen audio format; Auto means remove the override.
+          audio_anchor = """                if (which > 0) {
+                    val (trackGroup, trackIndex) = choices[which - 1]
+                    builder.addOverride(
+                        androidx.media3.common.TrackSelectionOverride(trackGroup, listOf(trackIndex))
+                    )
+                }
+                exo.trackSelectionParameters = builder.build()"""
+          audio_new = """                if (which > 0) {
+                    val (trackGroup, trackIndex) = choices[which - 1]
+                    builder.addOverride(
+                        androidx.media3.common.TrackSelectionOverride(trackGroup, listOf(trackIndex))
+                    )
+                    mediaUri?.let { video ->
+                        prefs.edit().putString(
+                            trackPreferenceKey(video, "audio"),
+                            trackFormatKey(trackGroup.getTrackFormat(trackIndex))
+                        ).apply()
+                    }
+                } else {
+                    mediaUri?.let { video -> prefs.edit().remove(trackPreferenceKey(video, "audio")).apply() }
+                }
+                exo.trackSelectionParameters = builder.build()"""
+          if audio_anchor in s:
+              s = s.replace(audio_anchor, audio_new, 1)
+          elif audio_new not in s:
+              raise SystemExit("Audio track menu callback anchor missing")
+
+          # Persist embedded subtitle choice or Off; custom Subtitle 1 is also a
+          # Media3 text track and is matched by the same stable format identity.
+          off_anchor = """                        exo.trackSelectionParameters = params.build()
+                        dialog.dismiss()
+                    }
+                    hasEmbeddedTracks && which <= choices.size ->"""
+          off_new = """                        exo.trackSelectionParameters = params.build()
+                        mediaUri?.let { video -> prefs.edit().putString(trackPreferenceKey(video, "text"), "off").apply() }
+                        dialog.dismiss()
+                    }
+                    hasEmbeddedTracks && which <= choices.size ->"""
+          if off_anchor in s:
+              s = s.replace(off_anchor, off_new, 1)
+          elif off_new not in s:
+              raise SystemExit("Subtitle Off callback anchor missing")
+
+          embedded_anchor = """                        exo.trackSelectionParameters = params.build()
+                        dialog.dismiss()
+                    }
+                    which == choices.size + (if (hasEmbeddedTracks) 1 else 0) ->"""
+          embedded_new = """                        exo.trackSelectionParameters = params.build()
+                        mediaUri?.let { video ->
+                            prefs.edit().putString(
+                                trackPreferenceKey(video, "text"),
+                                trackFormatKey(trackGroup.getTrackFormat(trackIndex))
+                            ).apply()
+                        }
+                        dialog.dismiss()
+                    }
+                    which == choices.size + (if (hasEmbeddedTracks) 1 else 0) ->"""
+          if embedded_anchor in s:
+              s = s.replace(embedded_anchor, embedded_new, 1)
+          elif embedded_new not in s:
+              raise SystemExit("Embedded subtitle selection callback anchor missing")
+
+          # Selecting custom Subtitle 1 replaces the external text track, so don't
+          # let a previous embedded override immediately replace it on restart.
+          picker_anchor = """                    if (slot == 1) {
+                        subtitle1Uri = uri"""
+          picker_new = """                    if (slot == 1) {
+                        mediaUri?.let { video -> prefs.edit().remove(trackPreferenceKey(video, "text")).apply() }
+                        subtitle1Uri = uri"""
+          if picker_anchor in s:
+              s = s.replace(picker_anchor, picker_new, 1)
+
+          required = [
+              'prefs.edit().putString(KEY_SUBTITLE_1 + it, uri.toString()).apply()',
+              'prefs.edit().putString(KEY_SUBTITLE_2 + it, uri.toString()).apply()',
+              'override fun onTracksChanged(tracks: androidx.media3.common.Tracks)',
+              'trackPreferenceKey(video, "audio")',
+              'trackPreferenceKey(video, "text")',
+              'trackFormatKey(trackGroup.getTrackFormat(trackIndex))'
+          ]
+          for item in required:
+              if item not in s:
+                  raise SystemExit("Persistence patch verification failed: " + item)
           p.write_text(s)
-          print("Main subtitle menu now saves after every checkbox selection; saved custom Subtitle 2 is reloaded independently from Subtitle 1.")
+          print("Per-video persistence patched: both custom subtitle URIs, Media3 audio format, and embedded/custom text-track format.")
           PY
       - name: Verify and export final post-instrumentation source
         working-directory: ${{ env.PROJECT_DIR }}
