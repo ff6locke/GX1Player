@@ -8563,21 +8563,14 @@ jobs:
           if "saveMainVlcTrackState()" not in s[s.find(audio):s.find(audio)+200]:
               s = s.replace(audio, audio + "\n                      saveMainVlcTrackState()", 1)
 
-          # Save after the entire subtitle checkbox action, including any embedded fallback.
-          callback_end = '''                    "off" -> Unit
-                  }
-              }
-              .setPositiveButton("Done", null)'''
-          callback_new = '''                    "off" -> Unit
-                  }
-                  saveMainVlcTrackState()
-              }
-              .setPositiveButton("Done", null)'''
-          if callback_end in s:
-              s = s.replace(callback_end, callback_new, 1)
-          elif callback_new not in s:
-              raise SystemExit("Could not locate complete main LibVLC subtitle checkbox callback")
-
+          # Save after the complete subtitle selection dialog callback. Match formatting flexibly.
+          import re
+          pattern = r'("off"\\s*->\\s*Unit\\s*\\n)([ \\t]*\\})([ \\t]*\\}\\s*\\n[ \\t]*\\.setPositiveButton\\("Done", null\\))'
+          s, count = re.subn(pattern, r'\\1\\2\\n                  saveMainVlcTrackState()\\n\\3', s, count=1)
+          if count != 1 and "saveMainVlcTrackState()" not in s:
+              raise SystemExit("Could not locate main LibVLC subtitle selection callback")
+          if count == 1:
+              print("Added persistence after subtitle selection callback.")
           # Save again immediately before releasing LibVLC (app background/exit/restart path).
           release_anchor = "mainVlcEngine?.let { engine ->\n    val pos = engine.currentTimeMs()"
           release_new = "mainVlcEngine?.let { engine ->\n    saveMainVlcTrackState()\n    val pos = engine.currentTimeMs()"
