@@ -8806,6 +8806,102 @@ jobs:
           print("Fixed Subtitle 1 URI state for the TV file browser and removed the duplicate subtitle restore task.")
           PY
 
+      - name: Add detailed per-video track persistence diagnostics
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+
+          if "GX1_TRACK_DIAG" in s:
+              raise SystemExit("Track diagnostics already installed")
+
+          old = '''            .putInt(key + "_audio_index", audioIndex)
+            .apply()
+          android.util.Log.i("GX1Player", "Saved per-video track state key=" + key +
+              " audio=" + audioId + " subtitle=" + subtitleId + " external=" + enabled.size)'''
+          new = '''            .putInt(key + "_audio_index", audioIndex)
+            .commit()
+          android.util.Log.i("GX1_TRACK_DIAG", "SAVED uri=" + (playingUri ?: mediaUri).toString() +
+              " key=" + key + " audioId=" + audioId + " audioName=" + audioTracks.getOrNull(audioIndex)?.name +
+              " audioIndex=" + audioIndex + " embeddedSubtitleId=" + subtitleId +
+              " embeddedSubtitleName=" + embeddedTracks.getOrNull(subtitleIndex)?.name +
+              " embeddedSubtitleIndex=" + subtitleIndex + " externalEnabled=" + enabled +
+              " subtitle1Uri=" + subtitle1Uri + " subtitle2Uri=" + subtitle2Uri)'''
+          if old not in s:
+              raise SystemExit("Could not locate exact track-state save block")
+          s = s.replace(old, new, 1)
+
+          old = '''        val index = prefs.getInt(key + "_audio_index", -1)
+          if (saved == Int.MIN_VALUE && name.isNullOrBlank() && index < 0) return
+          val tracks = runCatching { engine.audioTracks() }.getOrDefault(emptyList())'''
+          new = '''        val index = prefs.getInt(key + "_audio_index", -1)
+          val tracks = runCatching { engine.audioTracks() }.getOrDefault(emptyList())
+          android.util.Log.i("GX1_TRACK_DIAG", "RESTORE_AUDIO attempt=" + attempt +
+              " uri=" + (playingUri ?: mediaUri) + " key=" + key + " savedId=" + saved +
+              " savedName=" + name + " savedIndex=" + index +
+              " available=" + tracks.joinToString { it.id.toString() + ":" + it.name })
+          if (saved == Int.MIN_VALUE && name.isNullOrBlank() && index < 0) {
+              android.util.Log.w("GX1_TRACK_DIAG", "NO_SAVED_AUDIO_STATE key=" + key)
+              return
+          }'''
+          if old not in s:
+              raise SystemExit("Could not locate audio restore diagnostic anchor")
+          s = s.replace(old, new, 1)
+
+          old = '''        val index = prefs.getInt(key + "_embedded_subtitle_index", -1)
+          if (saved == Int.MIN_VALUE && name.isNullOrBlank() && index < 0) return
+          val tracks = runCatching { engine.subtitleTracks() }.getOrDefault(emptyList())'''
+          new = '''        val index = prefs.getInt(key + "_embedded_subtitle_index", -1)
+          val tracks = runCatching { engine.subtitleTracks() }.getOrDefault(emptyList())
+          android.util.Log.i("GX1_TRACK_DIAG", "RESTORE_EMBEDDED_SUBTITLE attempt=" + attempt +
+              " uri=" + (playingUri ?: mediaUri) + " key=" + key + " savedId=" + saved +
+              " savedName=" + name + " savedIndex=" + index +
+              " available=" + tracks.joinToString { it.id.toString() + ":" + it.name })
+          if (saved == Int.MIN_VALUE && name.isNullOrBlank() && index < 0) {
+              android.util.Log.w("GX1_TRACK_DIAG", "NO_SAVED_SUBTITLE_STATE key=" + key)
+              return
+          }'''
+          if old not in s:
+              raise SystemExit("Could not locate subtitle restore diagnostic anchor")
+          s = s.replace(old, new, 1)
+
+          old = '''            engine.selectAudioTrack(selected.id)
+                  subtitleUiHandler.postDelayed({'''
+          new = '''            val accepted = engine.selectAudioTrack(selected.id)
+            android.util.Log.i("GX1_TRACK_DIAG", "SELECT_AUDIO requested=" + selected.id +
+                " name=" + selected.name + " accepted=" + accepted + " attempt=" + attempt)
+                  subtitleUiHandler.postDelayed({'''
+          if old not in s: raise SystemExit("Could not locate audio select verification anchor")
+          s = s.replace(old, new, 1)
+
+          old = '''            engine.selectSubtitleTrack(selected.id)
+                  subtitleUiHandler.postDelayed({'''
+          new = '''            val accepted = engine.selectSubtitleTrack(selected.id)
+            android.util.Log.i("GX1_TRACK_DIAG", "SELECT_EMBEDDED_SUBTITLE requested=" + selected.id +
+                " name=" + selected.name + " accepted=" + accepted + " attempt=" + attempt)
+                  subtitleUiHandler.postDelayed({'''
+          if old not in s: raise SystemExit("Could not locate subtitle select verification anchor")
+          s = s.replace(old, new, 1)
+
+          old = '''        val savedExternalEnabled = trackPrefs.getStringSet(stateKey + "_external_enabled", emptySet()).orEmpty()
+          var firstValidExternalEnabled = false'''
+          new = '''        val savedExternalEnabled = trackPrefs.getStringSet(stateKey + "_external_enabled", emptySet()).orEmpty()
+          android.util.Log.i("GX1_TRACK_DIAG", "AUTO_SUBTITLES uri=" + (playingUri ?: mediaUri) +
+              " key=" + stateKey + " hasSavedExternalState=" + hasSavedExternalState +
+              " savedExternal=" + savedExternalEnabled + " sidecars=" + matches.map { it.absolutePath } +
+              " subtitle1Uri=" + subtitle1Uri + " subtitle2Uri=" + subtitle2Uri)
+          var firstValidExternalEnabled = false'''
+          if old not in s: raise SystemExit("Could not locate external subtitle restore diagnostic anchor")
+          s = s.replace(old, new, 1)
+
+          s = s.replace('android.util.Log.i("GX1Player", "Restored saved audio track " + selected.id)',
+                        'android.util.Log.i("GX1_TRACK_DIAG", "AUDIO_RESTORE_REQUESTED id=" + selected.id)', 1)
+          p.write_text(s)
+          print("Installed diagnostics for saved keys, URIs, selected IDs, track inventories, selection acceptance, and external subtitle restoration.")
+          PY
+
       - name: Export final post-persistence Kotlin source for review
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
