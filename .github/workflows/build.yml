@@ -6746,43 +6746,6 @@ jobs:
           print("Added same-folder previous/next playback controls for file, MediaStore, and SAF tree selections.")
           PY
 
-      - name: Enforce hard D-pad boundaries at previous and next file buttons
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
-          s = p.read_text()
-          # The dispatchKeyEvent handler is injected later in this workflow.
-          # Install stable IDs and self-loop focus edges here; the hard key guard
-          # is applied in a separate step after the handler exists.
-          # Give both custom navigation buttons stable IDs and self-loop focus edges.
-          old = """                  val previous = makeButton(android.R.drawable.ic_media_previous, "Previous file") {
-                      playAdjacentGx1File(-1)
-                  }
-                  val next = makeButton(android.R.drawable.ic_media_next, "Next file") {
-                      playAdjacentGx1File(1)
-                  }"""
-          new = """                  val previous = makeButton(android.R.drawable.ic_media_previous, "Previous file") {
-                      playAdjacentGx1File(-1)
-                  }.apply {
-                      id = View.generateViewId()
-                      nextFocusLeftId = id
-                  }
-                  val next = makeButton(android.R.drawable.ic_media_next, "Next file") {
-                      playAdjacentGx1File(1)
-                  }.apply {
-                      id = View.generateViewId()
-                      nextFocusRightId = id
-                  }"""
-          if old in s:
-              s = s.replace(old, new, 1)
-          elif "nextFocusLeftId = id" not in s or "nextFocusRightId = id" not in s:
-              raise SystemExit("Could not install explicit self-focus IDs on file buttons")
-          p.write_text(s)
-          print("Previous File now consumes Left; Next File consumes Right, with explicit self-loop focus IDs.")
-          PY
-
       - name: Test software decoding for the reported 4K AVC sample
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
@@ -8462,17 +8425,28 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
+          # Add explicit self-loop focus targets to the custom file buttons.
+          for name, direction in (("previous", "Left"), ("next", "Right")):
+              pattern = rf'(?m)^(\\s*val {name} = makeButton\\([^\\n]+\\) \\{{\\n.*?^\\s*\\}})(?!\\.apply)'
+              match = re.search(pattern, s, re.S)
+              if match:
+                  indent = re.match(r"\\s*", match.group(1)).group(0)
+                  addition = match.group(1) + f".apply {{\\n{indent}    id = View.generateViewId()\\n{indent}    nextFocus{direction}Id = id\\n{indent}}}"
+                  s = s[:match.start()] + addition + s[match.end():]
           signature = "    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {"
           start = s.find(signature)
           if start < 0:
               raise SystemExit("D-pad dispatch handler was not installed")
           next_method = s.find("\\n    private fun ", start + len(signature))
           if next_method < 0:
+              next_method = s.find("\\n    override fun ", start + len(signature))
+          if next_method < 0:
               raise SystemExit("Could not isolate D-pad dispatch handler")
           block = s[start:next_method]
-          anchor = "                  if (event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT ||"
+          anchor = "if (event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT ||"
           guard = """                  val isLeftBoundary = event.action == android.view.KeyEvent.ACTION_DOWN &&
                       event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT &&
                       currentFocus === gx1PreviousFileButton
@@ -8482,12 +8456,14 @@ jobs:
                   if (isLeftBoundary || isRightBoundary) return true
           """
           if "isLeftBoundary" not in block:
-              if block.count(anchor) != 1:
-                  raise SystemExit("Expected one D-pad handler entry point")
-              block = block.replace(anchor, guard + anchor, 1)
+              pos = block.find(anchor)
+              if pos < 0:
+                  raise SystemExit("Could not locate D-pad handler key dispatch branch")
+              line_start = block.rfind("\\n", 0, pos) + 1
+              block = block[:line_start] + guard + block[line_start:]
               s = s[:start] + block + s[next_method:]
           p.write_text(s)
-          print("Hard D-pad boundary guards installed after seek handler creation.")
+          print("Hard Left/Right boundary guards installed after seek handler creation.")
           PY
 
       - name: Remember selected LibVLC audio and subtitle tracks when restarting a video
