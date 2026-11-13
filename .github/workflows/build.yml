@@ -7631,6 +7631,41 @@ jobs:
           p.write_text(s)
           print("Saved/restored per-video audio and text-track choices; corrected both custom subtitle URI keys.")
           PY
+      - name: Restore selected LibVLC tracks after in-player restart
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s=p.read_text()
+          if "private fun restartMainVlcWithTrackRestore()" not in s:
+              # All existing in-player restart paths reopen the LibVLC media object.
+              old_main="mainVlcEngine?.restartFromBeginning()"
+              old_engine="engine.restartFromBeginning()"
+              if s.count(old_main)!=1 or s.count(old_engine)!=5:
+                  raise SystemExit("Unexpected LibVLC restart call sites: main=%d engine=%d" % (s.count(old_main),s.count(old_engine)))
+              s=s.replace(old_main,"restartMainVlcWithTrackRestore()",1)
+              s=s.replace(old_engine,"restartMainVlcWithTrackRestore()")
+              helper="""    private fun restartMainVlcWithTrackRestore() {
+                  val engine = mainVlcEngine ?: return
+                  saveMainVlcTrackState()
+                  engine.restartFromBeginning()
+                  // Reopening the media resets LibVLC's active track selections.
+                  // Restore audio and re-add sidecar/custom subtitles after tracks load.
+                  subtitleUiHandler.postDelayed({ restoreMainVlcAudioTrack() }, 1000L)
+                  subtitleUiHandler.postDelayed({ autoLoadMainVlcSubtitles(engine) }, 1200L)
+                  loadSecondSubtitleOverlay()
+              }
+
+              """
+              anchor="    private fun startMainLibVlc(uri: Uri) {"
+              if s.count(anchor)!=1: raise SystemExit("Main LibVLC startup insertion point missing")
+              s=s.replace(anchor,helper+anchor,1)
+          for token in ["private fun restartMainVlcWithTrackRestore()","saveMainVlcTrackState()","restoreMainVlcAudioTrack()","autoLoadMainVlcSubtitles(engine)"]:
+              if token not in s: raise SystemExit("Restart persistence verification failed: "+token)
+          p.write_text(s)
+          print("All in-player LibVLC restart paths now save selections and restore audio, embedded/sidecar subtitles, and both custom subtitle slots.")
+          PY
       - name: Verify and export final post-instrumentation source
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
