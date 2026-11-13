@@ -8575,12 +8575,12 @@ jobs:
           callback_start = s.index('.setMultiChoiceItems(labels.toTypedArray(), checked.toBooleanArray())')
           callback_end = s.index('.setPositiveButton("Done", null)', callback_start)
           callback = s[callback_start:callback_end]
-          # Insert immediately before the final lambda close, independent of
-          # indentation in the packaged Kotlin source.
-          lambda_close = callback.rfind("\\n            }")
+          # The last closing brace before the positive-button builder is the
+          # checkbox callback lambda close; insert before it without indentation assumptions.
+          lambda_close = callback.rfind("}")
           if lambda_close < 0:
               raise SystemExit("Could not locate closing brace of actual subtitle checkbox callback")
-          callback = callback[:lambda_close] + "\\n                saveMainVlcTrackState()\\n                subtitleUiHandler.postDelayed({ saveMainVlcTrackState() }, 300L)" + callback[lambda_close:]
+          callback = callback[:lambda_close] + "\\n                saveMainVlcTrackState()\\n                subtitleUiHandler.postDelayed({ saveMainVlcTrackState() }, 300L)\\n            " + callback[lambda_close:]
           s = s[:callback_start] + callback + s[callback_end:]
           callback_start = s.index('.setMultiChoiceItems(labels.toTypedArray(), checked.toBooleanArray())')
           callback_end = s.index('.setPositiveButton("Done", null)', callback_start)
