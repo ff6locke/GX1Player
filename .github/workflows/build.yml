@@ -8551,7 +8551,7 @@ jobs:
                   } else if (!firstValidExternalEnabled && !hasSavedExternalState) {
                       embeddedTracks.firstOrNull()?.let { engine.selectSubtitleTrack(it.id) }
                   }
-                  saveMainVlcTrackState()"""
+          """
           if old_auto in s:
               s = s.replace(old_auto, new_auto, 1)
           elif new_auto not in s:
