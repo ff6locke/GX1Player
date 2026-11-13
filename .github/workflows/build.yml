@@ -7605,45 +7605,26 @@ jobs:
           if "override fun onTracksChanged(tracks:" not in s:
               if s.count(marker)!=1: raise SystemExit("Track restoration insertion point missing")
               s=s.replace(marker,callback+"\n"+marker,1)
-          a="""                if (which > 0) {
-                    val (trackGroup, trackIndex) = choices[which - 1]
-                    builder.addOverride(
-                        androidx.media3.common.TrackSelectionOverride(trackGroup, listOf(trackIndex))
-                    )
-                }
-                exo.trackSelectionParameters = builder.build()"""
-          b="""                if (which > 0) {
-                    val (trackGroup, trackIndex) = choices[which - 1]
-                    builder.addOverride(androidx.media3.common.TrackSelectionOverride(trackGroup, listOf(trackIndex)))
-                }
-                mediaUri?.let { prefs.edit().putInt(trackPref(it,"audio"),which).apply() }
-                exo.trackSelectionParameters = builder.build()"""
-          if a in s: s=s.replace(a,b,1)
-          elif b not in s: raise SystemExit("Audio selection callback missing")
-          a="""                        exo.trackSelectionParameters = params.build()
-                        dialog.dismiss()
-                    }
-                    hasEmbeddedTracks && which <= choices.size ->"""
-          b="""                        exo.trackSelectionParameters = params.build()
-                        mediaUri?.let { prefs.edit().putInt(trackPref(it,"text"),0).apply() }
-                        dialog.dismiss()
-                    }
-                    hasEmbeddedTracks && which <= choices.size ->"""
-          if a in s: s=s.replace(a,b,1)
-          elif b not in s: raise SystemExit("Subtitle Off callback missing")
-          a="""                        exo.trackSelectionParameters = params.build()
-                        dialog.dismiss()
-                    }
-                    which == choices.size + (if (hasEmbeddedTracks) 1 else 0) ->"""
-          b="""                        exo.trackSelectionParameters = params.build()
-                        mediaUri?.let { prefs.edit().putInt(trackPref(it,"text"),which).apply() }
-                        dialog.dismiss()
-                    }
-                    which == choices.size + (if (hasEmbeddedTracks) 1 else 0) ->"""
-          if a in s: s=s.replace(a,b,1)
-          elif b not in s: raise SystemExit("Embedded subtitle callback missing")
-          s=s.replace("                    if (slot == 1) {\n                        subtitle1Uri = uri",
-                      "                    if (slot == 1) {\n                        mediaUri?.let { prefs.edit().remove(trackPref(it,\"text\")).apply() }\n                        subtitle1Uri = uri",1)
+          audioStart=s.index("    private fun showAudioTrackSelection()")
+          textStart=s.index("    private fun showSubtitleTrackSelection()",audioStart)
+          audio=s[audioStart:textStart]
+          saveAudio='                mediaUri?.let { prefs.edit().putInt(trackPref(it,"audio"),which).apply() }\n'
+          anchor="                exo.trackSelectionParameters = builder.build()"
+          if saveAudio not in audio:
+              if audio.count(anchor)!=1: raise SystemExit("Audio selection save point missing")
+              audio=audio.replace(anchor,saveAudio+anchor,1)
+              s=s[:audioStart]+audio+s[textStart:]
+          textStart=s.index("    private fun showSubtitleTrackSelection()")
+          textEnd=s.index("    private fun currentVideoFile()",textStart)
+          sub=s[textStart:textEnd]
+          assign="                        exo.trackSelectionParameters = params.build()"
+          if 'trackPref(it,"text"),0' not in sub:
+              if sub.count(assign)!=2: raise SystemExit("Expected Off and selected subtitle branches")
+              sub=sub.replace(assign,assign+'\n                        mediaUri?.let { prefs.edit().putInt(trackPref(it,"text"),0).apply() }',1)
+              sub=sub.replace(assign,assign+'\n                        mediaUri?.let { prefs.edit().putInt(trackPref(it,"text"),which).apply() }',1)
+              s=s[:textStart]+sub+s[textEnd:]
+          s=s.replace("                        subtitle1Uri = uri",
+                      "                        mediaUri?.let { prefs.edit().remove(trackPref(it,\\"text\\")).apply() }\\n                        subtitle1Uri = uri",1)
           for token in ["subtitle1Uri = uri","KEY_SUBTITLE_2 + it","override fun onTracksChanged(tracks:","trackPref(it,\"audio\")","trackPref(it,\"text\")"]:
               if token not in s: raise SystemExit("Persistence verification failed: "+token)
           p.write_text(s)
