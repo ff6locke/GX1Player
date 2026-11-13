@@ -8718,12 +8718,9 @@ jobs:
           if old not in s: raise SystemExit("Subtitle discovery folder-list anchor missing")
           s = s.replace(old, new, 1)
 
-          old = """                  val exact = byId?.takeIf { name.isNullOrBlank() || it.name == name } ?: byName ?: byId
-                  if (exact == null && attempt < 20)"""
-          new = """                  val exact = byId?.takeIf { name.isNullOrBlank() || it.name == name } ?: byName
-                  if (exact == null && attempt < 20)"""
-          if s.count(old) != 2: raise SystemExit("Expected both audio and subtitle track matching blocks")
-          s = s.replace(old, new)
+          old = "?: byName ?: byId"
+          if s.count(old) != 2: raise SystemExit("Expected both audio and subtitle track matching expressions; found " + str(s.count(old)))
+          s = s.replace(old, "?: byName")
 
           old = """                      engine.selectAudioTrack(selected.id)
                           subtitleUiHandler.postDelayed({
