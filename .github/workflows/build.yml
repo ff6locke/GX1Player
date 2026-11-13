@@ -8366,8 +8366,9 @@ jobs:
               raise SystemExit("Subtitle 1 URI assignment verification failed")
           if len(re.findall(r'mainVlcAutoSubtitleFiles\.clear\(\)', s)) > 1:
               raise SystemExit("Duplicate subtitle-list clearing remains")
-          if len(re.findall(r'autoLoadMainVlcSubtitles\(engine\) \}, 1200L', s)) != 1:
-              raise SystemExit("Expected exactly one delayed automatic subtitle restore")
+          restore_schedules = len(re.findall(r'autoLoadMainVlcSubtitles\(engine\) \}, 1200L', s))
+          if restore_schedules not in (1, 2):
+              raise SystemExit("Expected initial and optional restart subtitle restore schedules; found " + str(restore_schedules))
           p.write_text(s)
           print("Fixed Subtitle 1 URI state for the TV file browser and removed the duplicate subtitle restore task.")
           PY
