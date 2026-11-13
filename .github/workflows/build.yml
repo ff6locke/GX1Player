@@ -8279,7 +8279,7 @@ jobs:
           missing = [x for x in required if x not in s]
           if missing: raise SystemExit("Track persistence verification failed: " + repr(missing))
           p.write_text(s)
-          print("Per-video audio, embedded subtitle, and enabled external subtitle state now saves on selection and before LibVLC release; restoration retries while tracks load.")
+          print("Per-video track persistence patch applied.")
           PY
       - name: Verify track selections after LibVLC applies them and restore custom subtitles for document URIs
         working-directory: ${{ env.PROJECT_DIR }}
@@ -8335,7 +8335,7 @@ jobs:
           if s.count("restore verified saved=") != 2:
               raise SystemExit("Track restore verification was not applied to both track types")
           p.write_text(s)
-          print("Track restoration now verifies LibVLC's selected IDs and retries; custom Subtitle 1 restoration no longer depends on MediaStore file-path resolution.")
+          print("Track restore verification patch applied.")
           PY
       - name: Fix custom Subtitle 1 restart state and remove duplicate subtitle restore
         working-directory: ${{ env.PROJECT_DIR }}
