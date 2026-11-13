@@ -8566,8 +8566,9 @@ jobs:
 
           audio = "engine.selectAudioTrack(tracks[which].id)"
           if s.count(audio) != 1: raise SystemExit("Expected exactly one main LibVLC audio selection callback")
-          if "saveMainVlcTrackState()" not in s[s.find(audio):s.find(audio)+200]:
-              s = s.replace(audio, audio + "\n                      saveMainVlcTrackState()", 1)
+          audio_save = "saveMainVlcTrackState()\n                      subtitleUiHandler.postDelayed({ saveMainVlcTrackState() }, 300L)"
+          if audio_save not in s[s.find(audio):s.find(audio)+300]:
+              s = s.replace(audio, audio + "\n                      " + audio_save, 1)
 
           # Persist every LibVLC subtitle checkbox change. The previous regex silently
           # skipped this because the audio callback had already inserted the same helper call.
