@@ -8307,8 +8307,12 @@ jobs:
                                   subtitle1Uri = uri"""
           if old in s:
               s = s.replace(old, new, 1)
-          elif "if (slot == 1) {\n                                  subtitleUri = uri\n                                  subtitle1Uri = uri" not in s:
-              raise SystemExit("Could not locate Subtitle 1 TV-picker assignment")
+          else:
+              picker_start = s.find("private fun showSubtitleFilePicker")
+              slot_start = s.find("if (slot == 1) {", picker_start)
+              slot_end = s.find("} else {", slot_start)
+              if picker_start < 0 or slot_start < 0 or slot_end < 0 or "subtitle1Uri = uri" not in s[slot_start:slot_end]:
+                  raise SystemExit("Could not locate Subtitle 1 TV-picker assignment")
           pattern = re.compile(
               r'(?m)^(?P<i>\s*)mainVlcAutoSubtitleFiles\.clear\(\)\n'
               r'\s*subtitleUiHandler\.postDelayed\(\{ autoLoadMainVlcSubtitles\(engine\) \}, 1200L\)\n'
