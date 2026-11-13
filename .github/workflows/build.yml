@@ -8453,6 +8453,7 @@ jobs:
       - name: Report resolved LibVLC Android dependency
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
+          chmod +x ./gradlew
           set -o pipefail
           echo "=== LibVLC runtime dependency ==="
           ./gradlew --no-daemon :app:dependencyInsight --dependency libvlc-all --configuration releaseRuntimeClasspath || {
