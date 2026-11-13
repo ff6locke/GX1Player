@@ -6753,27 +6753,9 @@ jobs:
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
-          start = s.find("    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {")
-          end = s.find("\n    private fun ", start + 10)
-          if start < 0 or end < 0:
-              raise SystemExit("Could not locate D-pad dispatch handler")
-          block = s[start:end]
-          anchor = "        val engine = mainVlcEngine\n"
-          guard = """        val isLeft = event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT
-                  val isRight = event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_RIGHT
-                  if (event.action == android.view.KeyEvent.ACTION_DOWN &&
-                      ((currentFocus === gx1PreviousFileButton && isLeft) ||
-                       (currentFocus === gx1NextFileButton && isRight))) {
-                      // Hard boundary: consume the key before Android can move focus
-                      // to controls outside the playback row.
-                      return true
-                  }
-          """
-          if "Hard boundary: consume the key" not in block:
-              if block.count(anchor) != 1:
-                  raise SystemExit("Expected one engine declaration in D-pad handler")
-              block = block.replace(anchor, guard + anchor, 1)
-              s = s[:start] + block + s[end:]
+          # The dispatchKeyEvent handler is injected later in this workflow.
+          # Install stable IDs and self-loop focus edges here; the hard key guard
+          # is applied in a separate step after the handler exists.
           # Give both custom navigation buttons stable IDs and self-loop focus edges.
           old = """                  val previous = makeButton(android.R.drawable.ic_media_previous, "Previous file") {
                       playAdjacentGx1File(-1)
@@ -8473,6 +8455,39 @@ jobs:
               raise SystemExit("D-pad adaptive seek verification failed")
           p.write_text(s)
           print("Android TV Left/Right use 10-second steps for the first 5 minutes of each seek session, then 1-minute steps; key-up resets the session.")
+          PY
+
+      - name: Enforce hard D-pad key boundaries after installing seek handler
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          signature = "    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {"
+          start = s.find(signature)
+          if start < 0:
+              raise SystemExit("D-pad dispatch handler was not installed")
+          next_method = s.find("\\n    private fun ", start + len(signature))
+          if next_method < 0:
+              raise SystemExit("Could not isolate D-pad dispatch handler")
+          block = s[start:next_method]
+          anchor = "                  if (event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT ||"
+          guard = """                  val isLeftBoundary = event.action == android.view.KeyEvent.ACTION_DOWN &&
+                      event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT &&
+                      currentFocus === gx1PreviousFileButton
+                  val isRightBoundary = event.action == android.view.KeyEvent.ACTION_DOWN &&
+                      event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_RIGHT &&
+                      currentFocus === gx1NextFileButton
+                  if (isLeftBoundary || isRightBoundary) return true
+          """
+          if "isLeftBoundary" not in block:
+              if block.count(anchor) != 1:
+                  raise SystemExit("Expected one D-pad handler entry point")
+              block = block.replace(anchor, guard + anchor, 1)
+              s = s[:start] + block + s[next_method:]
+          p.write_text(s)
+          print("Hard D-pad boundary guards installed after seek handler creation.")
           PY
 
       - name: Remember selected LibVLC audio and subtitle tracks when restarting a video
