@@ -8477,10 +8477,10 @@ jobs:
               s = s.replace(anchor, anchor + "\n" + helper, 1)
 
           import re
-          audio_callback = re.compile(r"(?m)^(\\s*)engine\\.selectAudioTrack\\(tracks\\[which\\]\\.id\\)$")
+          audio_callback = re.compile(r"(?m)^(\s*)engine\.selectAudioTrack\(tracks\[which\]\.id\)$")
           audio_matches = list(audio_callback.finditer(s))
           if len(audio_matches) == 1:
-              s = audio_callback.sub(lambda m: m.group(1) + "engine.selectAudioTrack(tracks[which].id)\\n" + m.group(1) + "saveMainVlcTrackState()", s, count=1)
+              s = audio_callback.sub(lambda m: m.group(1) + "engine.selectAudioTrack(tracks[which].id)\n" + m.group(1) + "saveMainVlcTrackState()", s, count=1)
           elif len(audio_matches) != 0 and "saveMainVlcTrackState()" not in s[audio_matches[0].start():audio_matches[0].start() + 180]:
               raise SystemExit("Expected one unambiguous main-player audio track callback, found " + str(len(audio_matches)))
           elif not audio_matches and "saveMainVlcTrackState()" not in s:
