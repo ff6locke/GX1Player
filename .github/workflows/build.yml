@@ -6523,12 +6523,17 @@ jobs:
                       val accepted = mediaPlayer.forceAudioDigitalEncodings(intArrayOf(5, 6, 7, 8, 14))
                       android.util.Log.i("GX1-VLC", "Selective surround passthrough configured=$accepted")
                   } else {
-                      mediaPlayer.setAudioDigitalOutputEnabled(false)
+                      // Explicitly request multichannel PCM (up to 8 channels).
+                      // Disabling digital output alone does not select the PCM device.
+                      val accepted = mediaPlayer.setAudioOutputDevice("pcm")
+                      android.util.Log.i("GX1-VLC", "Explicit multichannel PCM output configured=$accepted")
                   }"""
           if "forceAudioDigitalEncodings(intArrayOf(5, 6, 7, 8, 14))" not in s:
               s = s.replace(anchor, anchor + chr(10) + "                  " + output_config, 1)
-          if "setAudioOutputDevice(" in s:
-              raise SystemExit("Unexpected explicit LibVLC audio-device override remains")
+          if "setAudioOutputDevice(" in s and 'setAudioOutputDevice("pcm")' not in s:
+              raise SystemExit("Unexpected LibVLC audio-device override remains")
+          if s.count('setAudioOutputDevice("pcm")') != 1:
+              raise SystemExit("Expected exactly one explicit PCM output selection")
           p.write_text(s)
           print("LibVLC now follows standalone test order without explicit audio-device overrides.")
           PY
