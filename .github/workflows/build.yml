@@ -8722,11 +8722,9 @@ jobs:
           if s.count(old) != 2: raise SystemExit("Expected both audio and subtitle track matching expressions; found " + str(s.count(old)))
           s = s.replace(old, "?: byName")
 
-          old = """                      engine.selectAudioTrack(selected.id)
-                          subtitleUiHandler.postDelayed({
-                              android.util.Log.i("GX1Player", "Restored saved audio track " + selected.id)
-                          }, 300L)"""
-          new = """                      engine.selectAudioTrack(selected.id)
+          import re
+          audio_pattern = r'engine\\.selectAudioTrack\\(selected\\.id\\)\\s+subtitleUiHandler\\.postDelayed\\(\\{\\s+android\\.util\\.Log\\.i\\("GX1Player", "Restored saved audio track " \\+ selected\\.id\\)\\s+\\}, 300L\\)'
+          audio_replacement = """engine.selectAudioTrack(selected.id)
                           subtitleUiHandler.postDelayed({
                               val actual = runCatching { engine.selectedAudioTrackId() }.getOrDefault(Int.MIN_VALUE)
                               if (actual != selected.id && attempt < 20) {
@@ -8736,12 +8734,11 @@ jobs:
                                   android.util.Log.i("GX1Player", "Audio restore verified saved=" + selected.id + " actual=" + actual)
                               }
                           }, 500L)"""
-          if old not in s: raise SystemExit("Audio restore verification anchor missing")
-          s = s.replace(old, new, 1)
+          s, audio_count = re.subn(audio_pattern, lambda _: audio_replacement, s, count=1)
+          if audio_count != 1: raise SystemExit("Audio restore verification anchor missing; matches=" + str(audio_count))
 
-          old = """                      engine.selectSubtitleTrack(selected.id)
-                          android.util.Log.i("GX1Player", "Restored saved embedded subtitle " + selected.id)"""
-          new = """                      engine.selectSubtitleTrack(selected.id)
+          subtitle_pattern = r'engine\\.selectSubtitleTrack\\(selected\\.id\\)\\s+android\\.util\\.Log\\.i\\("GX1Player", "Restored saved embedded subtitle " \\+ selected\\.id\\)'
+          subtitle_replacement = """engine.selectSubtitleTrack(selected.id)
                           subtitleUiHandler.postDelayed({
                               val actual = runCatching { engine.selectedSubtitleTrackId() }.getOrDefault(Int.MIN_VALUE)
                               if (actual != selected.id && attempt < 20) {
@@ -8751,8 +8748,8 @@ jobs:
                                   android.util.Log.i("GX1Player", "Embedded subtitle restore verified saved=" + selected.id + " actual=" + actual)
                               }
                           }, 500L)"""
-          if old not in s: raise SystemExit("Subtitle restore verification anchor missing")
-          s = s.replace(old, new, 1)
+          s, subtitle_count = re.subn(subtitle_pattern, lambda _: subtitle_replacement, s, count=1)
+          if subtitle_count != 1: raise SystemExit("Subtitle restore verification anchor missing; matches=" + str(subtitle_count))
 
           if "val video = currentVideoFile() ?: return" in s:
               raise SystemExit("Document-URI subtitle restore guard remains")
