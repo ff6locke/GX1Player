@@ -8032,6 +8032,68 @@ jobs:
           print("GX1 Player now advertises video/* and Matroska/MKV handling and opens ACTION_VIEW content URIs.")
           PY
 
+      - name: Save embedded and both custom subtitle selections from the actual menu
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+
+          # Persist immediately after the actual multi-choice callback changes
+          # an embedded track or either external subtitle checkbox.
+          callback_end = """                              "off" -> Unit
+                          }
+                      }
+                      .setPositiveButton("Done", null)"""
+          callback_new = """                              "off" -> Unit
+                          }
+                          saveMainVlcTrackState()
+                          subtitleUiHandler.postDelayed({ saveMainVlcTrackState() }, 300L)
+                      }
+                      .setPositiveButton("Done", null)"""
+          if callback_end in s:
+              s = s.replace(callback_end, callback_new, 1)
+          elif callback_new not in s:
+              raise SystemExit("Actual main subtitle checkbox callback anchor missing")
+
+          # Subtitle 2 was saved by its picker but the restore path only reloaded
+          # Subtitle 1. Recreate its cached file and overlay independently.
+          sub2_restore = """        subtitle2Uri?.let { customUri ->
+                      runCatching {
+                          val display = displayName(customUri)
+                          val extension = display.substringAfterLast(".", "srt").lowercase(java.util.Locale.ROOT)
+                              .let { if (it in setOf("ass", "ssa", "srt")) it else "srt" }
+                          val customFile = java.io.File(cacheDir, "gx1_custom_subtitle2_" + customUri.toString().hashCode() + "." + extension)
+                          val input = contentResolver.openInputStream(customUri) ?: error("Cannot read saved Subtitle 2")
+                          input.use { source -> customFile.outputStream().use { target -> source.copyTo(target) } }
+                          val enabled = if (hasSavedExternalState) savedExternalEnabled.contains(customFile.absolutePath) else true
+                          loadMainVlcExternalSubtitle(customFile, initiallyEnabled = enabled)
+                      }.onFailure { android.util.Log.w("GX1Player", "Saved custom Subtitle 2 could not be restored", it) }
+                  }
+                  restoreMainVlcSubtitleTrack()"""
+          if "Saved custom Subtitle 2 could not be restored" not in s:
+              if "Saved custom Subtitle 1 could not be restored" not in s:
+                  raise SystemExit("Subtitle 1 restore anchor missing; cannot safely add Subtitle 2")
+              import re
+              pattern = re.compile(r'(?P<indent>^[ 	]*)restoreMainVlcSubtitleTrack()', re.M)
+              matches = list(pattern.finditer(s))
+              # The call inside autoLoadMainVlcSubtitles is the first actual restore call.
+              target = next((m for m in matches if "autoLoadMainVlcSubtitles" in s[max(0,m.start()-7000):m.start()]), None)
+              if target is None:
+                  raise SystemExit("Could not locate restore call inside autoLoadMainVlcSubtitles")
+              indent = target.group("indent")
+              addition = sub2_restore.replace("\n        ", "\n" + indent)
+              s = s[:target.start()] + addition + s[target.end():]
+
+          if callback_new not in s:
+              raise SystemExit("Embedded/external subtitle callback save verification failed")
+          if "Saved custom Subtitle 2 could not be restored" not in s:
+              raise SystemExit("Subtitle 2 restore verification failed")
+          p.write_text(s)
+          print("Main subtitle menu now saves after every checkbox selection; saved custom Subtitle 2 is reloaded independently from Subtitle 1.")
+          PY
+
       - name: Verify and export final post-instrumentation source
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
