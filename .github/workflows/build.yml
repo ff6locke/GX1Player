@@ -8572,19 +8572,16 @@ jobs:
 
           # Persist every LibVLC subtitle checkbox change. Anchor on the actual
           # setMultiChoiceItems callback body, not a helper-wide presence check.
-          subtitle_callback_anchor = '''                    "off" -> Unit
-                }
-            }
-            .setPositiveButton("Done", null)'''
-          subtitle_callback_replacement = '''                    "off" -> Unit
-                }
-                saveMainVlcTrackState()
-                subtitleUiHandler.postDelayed({ saveMainVlcTrackState() }, 300L)
-            }
-            .setPositiveButton("Done", null)'''
-          if subtitle_callback_anchor not in s:
-              raise SystemExit("Could not locate actual subtitle checkbox callback; persistence patch must not silently skip")
-          s = s.replace(subtitle_callback_anchor, subtitle_callback_replacement, 1)
+          callback_start = s.index('.setMultiChoiceItems(labels.toTypedArray(), checked.toBooleanArray())')
+          callback_end = s.index('.setPositiveButton("Done", null)', callback_start)
+          callback = s[callback_start:callback_end]
+          # Insert immediately before the final lambda close, independent of
+          # indentation in the packaged Kotlin source.
+          lambda_close = callback.rfind("\\n            }")
+          if lambda_close < 0:
+              raise SystemExit("Could not locate closing brace of actual subtitle checkbox callback")
+          callback = callback[:lambda_close] + "\\n                saveMainVlcTrackState()\\n                subtitleUiHandler.postDelayed({ saveMainVlcTrackState() }, 300L)" + callback[lambda_close:]
+          s = s[:callback_start] + callback + s[callback_end:]
           callback_start = s.index('.setMultiChoiceItems(labels.toTypedArray(), checked.toBooleanArray())')
           callback_end = s.index('.setPositiveButton("Done", null)', callback_start)
           callback = s[callback_start:callback_end]
