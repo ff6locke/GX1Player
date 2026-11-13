@@ -8697,6 +8697,74 @@ jobs:
           print("Per-video audio, embedded subtitle, and enabled external subtitle state now saves on selection and before LibVLC release; restoration retries while tracks load.")
           PY
 
+      - name: Verify track selections after LibVLC applies them and restore custom subtitles for document URIs
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+
+          old = """        val video = currentVideoFile() ?: return
+                  val folder = video.parentFile?.takeIf { it.isDirectory } ?: return
+                  val base = video.nameWithoutExtension"""
+          new = """        val video = currentVideoFile()
+                  val folder = video?.parentFile?.takeIf { it.isDirectory }
+                  val base = video?.nameWithoutExtension.orEmpty()"""
+          if old not in s: raise SystemExit("Subtitle discovery URI guard anchor missing")
+          s = s.replace(old, new, 1)
+          old = """        val matches = folder.listFiles()?.filter { file ->"""
+          new = """        val matches = folder?.listFiles()?.filter { file ->"""
+          if old not in s: raise SystemExit("Subtitle discovery folder-list anchor missing")
+          s = s.replace(old, new, 1)
+
+          old = """                  val exact = byId?.takeIf { name.isNullOrBlank() || it.name == name } ?: byName ?: byId
+                  if (exact == null && attempt < 20)"""
+          new = """                  val exact = byId?.takeIf { name.isNullOrBlank() || it.name == name } ?: byName
+                  if (exact == null && attempt < 20)"""
+          if s.count(old) != 2: raise SystemExit("Expected both audio and subtitle track matching blocks")
+          s = s.replace(old, new)
+
+          old = """                      engine.selectAudioTrack(selected.id)
+                          subtitleUiHandler.postDelayed({
+                              android.util.Log.i("GX1Player", "Restored saved audio track " + selected.id)
+                          }, 300L)"""
+          new = """                      engine.selectAudioTrack(selected.id)
+                          subtitleUiHandler.postDelayed({
+                              val actual = runCatching { engine.selectedAudioTrackId() }.getOrDefault(Int.MIN_VALUE)
+                              if (actual != selected.id && attempt < 20) {
+                                  android.util.Log.w("GX1Player", "Audio restore not applied yet; retry=" + (attempt + 1))
+                                  restoreMainVlcAudioTrack(attempt + 1)
+                              } else {
+                                  android.util.Log.i("GX1Player", "Audio restore verified saved=" + selected.id + " actual=" + actual)
+                              }
+                          }, 500L)"""
+          if old not in s: raise SystemExit("Audio restore verification anchor missing")
+          s = s.replace(old, new, 1)
+
+          old = """                      engine.selectSubtitleTrack(selected.id)
+                          android.util.Log.i("GX1Player", "Restored saved embedded subtitle " + selected.id)"""
+          new = """                      engine.selectSubtitleTrack(selected.id)
+                          subtitleUiHandler.postDelayed({
+                              val actual = runCatching { engine.selectedSubtitleTrackId() }.getOrDefault(Int.MIN_VALUE)
+                              if (actual != selected.id && attempt < 20) {
+                                  android.util.Log.w("GX1Player", "Embedded subtitle restore not applied yet; retry=" + (attempt + 1))
+                                  restoreMainVlcSubtitleTrack(attempt + 1)
+                              } else {
+                                  android.util.Log.i("GX1Player", "Embedded subtitle restore verified saved=" + selected.id + " actual=" + actual)
+                              }
+                          }, 500L)"""
+          if old not in s: raise SystemExit("Subtitle restore verification anchor missing")
+          s = s.replace(old, new, 1)
+
+          if "val video = currentVideoFile() ?: return" in s:
+              raise SystemExit("Document-URI subtitle restore guard remains")
+          if s.count("restore verified saved=") != 2:
+              raise SystemExit("Track restore verification was not applied to both track types")
+          p.write_text(s)
+          print("Track restoration now verifies LibVLC's selected IDs and retries; custom Subtitle 1 restoration no longer depends on MediaStore file-path resolution.")
+          PY
+
       - name: Export final post-persistence Kotlin source for review
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
