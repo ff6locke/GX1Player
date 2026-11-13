@@ -7579,14 +7579,12 @@ jobs:
                         startPlayer()"""),
           ("""                        videoUri?.let { prefs.edit().putString(subKey(it) + "|2", uri.toString()).apply() }""",
            """                        videoUri?.let { prefs.edit().putString(KEY_SUBTITLE_2 + it, uri.toString()).apply() }"""),
-          ("""    subtitleUri2 = uri
-              mediaUri?.let { prefs.edit().putString(subKey(it) + "|2", uri.toString()).apply() }""",
-           """    subtitleUri2 = uri
-              subtitle2Uri = uri
-              mediaUri?.let { prefs.edit().putString(KEY_SUBTITLE_2 + it, uri.toString()).apply() }""")]
+          ]
           for a,b in pairs:
               if a in s: s=s.replace(a,b,1)
-              elif b not in s: raise SystemExit("Custom subtitle picker anchor missing")
+              elif b not in s: raise SystemExit("Custom subtitle picker anchor missing: "+a[:45])
+          s=s.replace('subKey(it) + "|2"', 'KEY_SUBTITLE_2 + it')
+          s=s.replace("    subtitleUri2 = uri\\n    mediaUri?.let", "    subtitleUri2 = uri\\n    subtitle2Uri = uri\\n    mediaUri?.let", 1)
           keyfn='    private fun trackPref(uri: Uri, type: String) = "track|" + type + "|" + uri.toString()\n'
           if "private fun trackPref(" not in s:
               s=s.replace("    private fun startPlayer() {",keyfn+"    private fun startPlayer() {",1)
