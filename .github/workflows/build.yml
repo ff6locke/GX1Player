@@ -8454,11 +8454,19 @@ jobs:
               if s.count(anchor) != 1:
                   raise SystemExit("Unique startPlayer insertion point missing")
               s = s.replace(anchor, helper + anchor, 1)
-          old = """        if (mainVlcSelected) {
+          import re
+          pattern = r'(?m)^(?P<i>[ \\t]*)if \\(mainVlcSelected\\) \\{\\n[ \\t]*startMainLibVlc\\(uri\\)\\n[ \\t]*return\\n[ \\t]*\\}'
+          new_branch = """if (mainVlcSelected && !aac51) {
                       startMainLibVlc(uri)
                       return
                   }"""
-          new = """        val aac51 = isAac51(uri)
+          if "val useLibVlcForThisItem = mainVlcSelected && !aac51" not in s:
+              # The branch is intentionally replaced after the AAC probe has been inserted.
+              match = re.search(pattern, s)
+              if not match:
+                  raise SystemExit("Main engine selection branch not found")
+              indent = match.group("i")
+              branch = """val aac51 = isAac51(uri)
                   val useLibVlcForThisItem = mainVlcSelected && !aac51
                   android.util.Log.i("GX1Player", "Engine routing: aac51=" + aac51 +
                       " preferredLibVlc=" + mainVlcSelected + " actual=" +
@@ -8470,10 +8478,7 @@ jobs:
                   if (aac51) {
                       Toast.makeText(this, "AAC 5.1 detected — using Media3 multichannel audio", Toast.LENGTH_SHORT).show()
                   }"""
-          if old in s:
-              s = s.replace(old, new, 1)
-          elif "val useLibVlcForThisItem = mainVlcSelected && !aac51" not in s:
-              raise SystemExit("Main engine selection branch not found")
+              s = s[:match.start()] + indent + branch.replace("\\n", "\\n" + indent) + s[match.end():]
           if "mime.equals(\"audio/mp4a-latm\", ignoreCase = true) && channels >= 6" not in s:
               raise SystemExit("AAC 5.1 codec/channel detection missing")
           if "val useLibVlcForThisItem = mainVlcSelected && !aac51" not in s:
