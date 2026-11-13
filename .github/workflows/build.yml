@@ -7059,9 +7059,12 @@ jobs:
           new = '''        android.util.Log.i("GX1_FIRST_PLAY_TIMING", "Audio digital-output configuration starting")
                   mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)
                   android.util.Log.i("GX1_FIRST_PLAY_TIMING", "Audio digital-output configuration returned")'''
-          if s.count(old) != 1:
-              raise SystemExit("Expected exactly one digital-output configuration call")
-          s = s.replace(old, new, 1)
+          if s.count(old) == 1:
+              s = s.replace(old, new, 1)
+          elif s.count(old) == 0:
+              print("Digital-output call was already replaced by the selective encoding configuration step.")
+          else:
+              raise SystemExit("Multiple digital-output calls found; refusing ambiguous instrumentation")
           p.write_text(s)
           print("Added timestamped LibVLC event, audio-output configuration, and stop-stage diagnostics only.")
           PY
