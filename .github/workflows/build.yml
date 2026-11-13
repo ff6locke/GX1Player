@@ -8759,6 +8759,53 @@ jobs:
           print("Track restoration now verifies LibVLC's selected IDs and retries; custom Subtitle 1 restoration no longer depends on MediaStore file-path resolution.")
           PY
 
+      - name: Fix custom Subtitle 1 restart state and remove duplicate subtitle restore
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+
+          # The TV file-browser path previously assigned only the legacy Media3
+          # variable. LibVLC restores Subtitle 1 from subtitle1Uri.
+          old = """if (slot == 1) {
+                                  subtitleUri = uri"""
+          new = """if (slot == 1) {
+                                  subtitleUri = uri
+                                  subtitle1Uri = uri"""
+          if old in s:
+              s = s.replace(old, new, 1)
+          elif "if (slot == 1) {\n                                  subtitleUri = uri\n                                  subtitle1Uri = uri" not in s:
+              raise SystemExit("Could not locate Subtitle 1 TV-picker assignment")
+
+          # A duplicated delayed call clears and reloads the external subtitle
+          # list a second time, racing the user's restored selection.
+          pattern = re.compile(
+              r'(?m)^(?P<i>\s*)mainVlcAutoSubtitleFiles\.clear\(\)\n'
+              r'\s*subtitleUiHandler\.postDelayed\(\{ autoLoadMainVlcSubtitles\(engine\) \}, 1200L\)\n'
+              r'\s*mainVlcAutoSubtitleFiles\.clear\(\)\n'
+              r'\s*subtitleUiHandler\.postDelayed\(\{ autoLoadMainVlcSubtitles\(engine\) \}, 1200L\)'
+          )
+          s, count = pattern.subn(
+              lambda m: m.group("i") + "mainVlcAutoSubtitleFiles.clear()\n" +
+                        m.group("i") + "subtitleUiHandler.postDelayed({ autoLoadMainVlcSubtitles(engine) }, 1200L)",
+              s, count=1
+          )
+          if count != 1:
+              raise SystemExit("Expected duplicated automatic subtitle restore schedule; found " + str(count))
+
+          if "subtitle1Uri = uri" not in s:
+              raise SystemExit("Subtitle 1 URI assignment verification failed")
+          if len(re.findall(r'mainVlcAutoSubtitleFiles\.clear\(\)', s)) > 1:
+              raise SystemExit("Duplicate subtitle-list clearing remains")
+          if len(re.findall(r'autoLoadMainVlcSubtitles\(engine\) \}, 1200L', s)) != 1:
+              raise SystemExit("Expected exactly one delayed automatic subtitle restore")
+          p.write_text(s)
+          print("Fixed Subtitle 1 URI state for the TV file browser and removed the duplicate subtitle restore task.")
+          PY
+
       - name: Export final post-persistence Kotlin source for review
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
