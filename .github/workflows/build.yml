@@ -6746,6 +6746,61 @@ jobs:
           print("Added same-folder previous/next playback controls for file, MediaStore, and SAF tree selections.")
           PY
 
+      - name: Enforce hard D-pad boundaries at previous and next file buttons
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          start = s.find("    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {")
+          end = s.find("\n    private fun ", start + 10)
+          if start < 0 or end < 0:
+              raise SystemExit("Could not locate D-pad dispatch handler")
+          block = s[start:end]
+          anchor = "        val engine = mainVlcEngine\n"
+          guard = """        val isLeft = event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT
+                  val isRight = event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_RIGHT
+                  if (event.action == android.view.KeyEvent.ACTION_DOWN &&
+                      ((currentFocus === gx1PreviousFileButton && isLeft) ||
+                       (currentFocus === gx1NextFileButton && isRight))) {
+                      // Hard boundary: consume the key before Android can move focus
+                      // to controls outside the playback row.
+                      return true
+                  }
+          """
+          if "Hard boundary: consume the key" not in block:
+              if block.count(anchor) != 1:
+                  raise SystemExit("Expected one engine declaration in D-pad handler")
+              block = block.replace(anchor, guard + anchor, 1)
+              s = s[:start] + block + s[end:]
+          # Give both custom navigation buttons stable IDs and self-loop focus edges.
+          old = """                  val previous = makeButton(android.R.drawable.ic_media_previous, "Previous file") {
+                      playAdjacentGx1File(-1)
+                  }
+                  val next = makeButton(android.R.drawable.ic_media_next, "Next file") {
+                      playAdjacentGx1File(1)
+                  }"""
+          new = """                  val previous = makeButton(android.R.drawable.ic_media_previous, "Previous file") {
+                      playAdjacentGx1File(-1)
+                  }.apply {
+                      id = View.generateViewId()
+                      nextFocusLeftId = id
+                  }
+                  val next = makeButton(android.R.drawable.ic_media_next, "Next file") {
+                      playAdjacentGx1File(1)
+                  }.apply {
+                      id = View.generateViewId()
+                      nextFocusRightId = id
+                  }"""
+          if old in s:
+              s = s.replace(old, new, 1)
+          elif "nextFocusLeftId = id" not in s or "nextFocusRightId = id" not in s:
+              raise SystemExit("Could not install explicit self-focus IDs on file buttons")
+          p.write_text(s)
+          print("Previous File now consumes Left; Next File consumes Right, with explicit self-loop focus IDs.")
+          PY
+
       - name: Test software decoding for the reported 4K AVC sample
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
