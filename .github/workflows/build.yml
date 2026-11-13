@@ -7568,6 +7568,7 @@ jobs:
           from pathlib import Path
           p=Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s=p.read_text()
+          keyfn='    private fun trackPref(uri: Uri, type: String) = "track|" + type + "|" + uri.toString()\n'
           if "private fun trackPref(" not in s:
               s=s.replace("    private fun startPlayer() {",keyfn+"    private fun startPlayer() {",1)
           if "var audioRestoreDone = false" not in s:
