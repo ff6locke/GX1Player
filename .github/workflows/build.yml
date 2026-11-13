@@ -8380,6 +8380,46 @@ jobs:
           p.write_text(s)
           print("Fixed Subtitle 1 URI state for the TV file browser and removed the duplicate subtitle restore task.")
           PY
+      - name: Add persistent Media3 / LibVLC engine selector
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          old = "        mainVlcSelected = true"
+          new = '        mainVlcSelected = prefs.getBoolean("gx1_use_libvlc_engine", true)'
+          if old in s:
+              if s.count(old) != 1:
+                  raise SystemExit("Expected one default LibVLC engine selection")
+              s = s.replace(old, new, 1)
+          elif new not in s:
+              raise SystemExit("Could not locate startup engine selection")
+          anchor = '        add("Built-in subtitle tracks") { showSubtitleTrackSelection() }'
+          selector = """        add(if (mainVlcSelected) "Playback Engine: LibVLC (switch to Media3)" else "Playback Engine: Media3 (switch to LibVLC)") {
+                      val uri = mediaUri
+                      if (uri == null) {
+                          Toast.makeText(this, "Open a video before changing playback engine", Toast.LENGTH_SHORT).show()
+                      } else {
+                          mainVlcSelected = !mainVlcSelected
+                          prefs.edit().putBoolean("gx1_use_libvlc_engine", mainVlcSelected).apply()
+                          startPlayer()
+                      }
+                  }
+          """
+          if selector.strip() not in s:
+              if s.count(anchor) != 1:
+                  raise SystemExit("Could not locate unique playback menu insertion point")
+              s = s.replace(anchor, selector + anchor, 1)
+          if 'prefs.getBoolean("gx1_use_libvlc_engine", true)' not in s:
+              raise SystemExit("Playback engine preference is not loaded at startup")
+          if 'putBoolean("gx1_use_libvlc_engine", mainVlcSelected)' not in s:
+              raise SystemExit("Playback engine preference is not saved on switch")
+          if 'Playback Engine: LibVLC (switch to Media3)' not in s:
+              raise SystemExit("Playback engine selector menu item missing")
+          p.write_text(s)
+          print("Added persistent playback engine selector; switching restarts the current video through the selected engine.")
+          PY
       - name: Export final post-persistence Kotlin source for review
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
