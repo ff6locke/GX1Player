@@ -8638,6 +8638,29 @@ jobs:
           if restore_line not in s:
               s = s.replace(open_line, open_line + "\n                  " + restore_line, 1)
 
+          # Keep the second custom subtitle under the same key used by selectMedia().
+          # Older builds wrote it below KEY_SUBTITLE_1 with a "|2" suffix.
+          old_sub2_load = 'subtitle2Uri = prefs.getString(KEY_SUBTITLE_2 + uri, null)?.let { Uri.parse(it) }'
+          new_sub2_load = 'subtitle2Uri = (prefs.getString(KEY_SUBTITLE_2 + uri, null) ?: prefs.getString(KEY_SUBTITLE_1 + uri + "|2", null))?.let { Uri.parse(it) }'
+          if old_sub2_load in s:
+              s = s.replace(old_sub2_load, new_sub2_load, 1)
+          elif new_sub2_load not in s:
+              raise SystemExit("Could not locate Subtitle 2 restore preference")
+
+          old_sub2_picker = 'videoUri?.let { prefs.edit().putString(subKey(it) + "|2", uri.toString()).apply() }'
+          new_sub2_picker = 'videoUri?.let { prefs.edit().putString(KEY_SUBTITLE_2 + it, uri.toString()).remove(KEY_SUBTITLE_1 + it + "|2").apply() }'
+          if old_sub2_picker in s:
+              s = s.replace(old_sub2_picker, new_sub2_picker, 1)
+          elif new_sub2_picker not in s:
+              raise SystemExit("Could not locate custom Subtitle 2 picker save")
+
+          old_sub2_picker2 = 'mediaUri?.let { prefs.edit().putString(subKey(it) + "|2", uri.toString()).apply() }'
+          new_sub2_picker2 = 'mediaUri?.let { prefs.edit().putString(KEY_SUBTITLE_2 + it, uri.toString()).remove(KEY_SUBTITLE_1 + it + "|2").apply() }'
+          if old_sub2_picker2 in s:
+              s = s.replace(old_sub2_picker2, new_sub2_picker2, 1)
+          elif new_sub2_picker2 not in s:
+              raise SystemExit("Could not locate alternate Subtitle 2 picker save")
+
           required = [
               "private fun mainVlcTrackStateKey()",
               "private fun saveMainVlcTrackState()",
