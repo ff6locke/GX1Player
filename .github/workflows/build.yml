@@ -8679,6 +8679,183 @@ jobs:
           print("Per-video audio, embedded subtitle, and enabled external subtitle state now saves on selection and before LibVLC release; restoration retries while tracks load.")
           PY
 
+      - name: Load saved custom Subtitle 1 and verify restored LibVLC tracks
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+
+          # Use the canonical file path when Android's provider exposes one, so a
+          # different content-URI representation still maps to the same video.
+          start = s.index("    private fun mainVlcTrackStateKey()")
+          end = s.index("    private fun saveMainVlcTrackState()", start)
+          key_fn = '''    private fun mainVlcTrackStateKey(): String {
+                  val uri = playingUri ?: mediaUri ?: return "gx1_tracks_none"
+                  val filePath = runCatching { currentVideoFile()?.canonicalPath }.getOrNull()
+                  val value = filePath ?: if (uri.scheme == "file") {
+                      runCatching { uri.path?.let { java.io.File(it).canonicalPath } }.getOrNull()
+                          ?: uri.normalizeScheme().toString()
+                  } else uri.normalizeScheme().toString()
+                  val encoded = android.util.Base64.encodeToString(
+                      value.toByteArray(Charsets.UTF_8),
+                      android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING
+                  )
+                  return "gx1_tracks_" + encoded
+              }
+
+          '''
+          s = s[:start] + key_fn + s[end:]
+
+          # Verify the track actually changes after selection. Some LibVLC builds
+          # publish their track list before the selected-track state is ready.
+          a = s.index("    private fun restoreMainVlcAudioTrack(")
+          b = s.index("    private fun restoreMainVlcSubtitleTrack(", a)
+          audio_fn = '''    private fun restoreMainVlcAudioTrack(attempt: Int = 0) {
+                  val engine = mainVlcEngine ?: return
+                  val key = mainVlcTrackStateKey()
+                  val prefs = getSharedPreferences("gx1_player", android.content.Context.MODE_PRIVATE)
+                  val saved = prefs.getInt(key + "_audio", Int.MIN_VALUE)
+                  val name = prefs.getString(key + "_audio_name", null)
+                  val index = prefs.getInt(key + "_audio_index", -1)
+                  if (saved == Int.MIN_VALUE && name.isNullOrBlank() && index < 0) return
+                  val tracks = runCatching { engine.audioTracks() }.getOrDefault(emptyList())
+                  if (tracks.isEmpty()) {
+                      if (attempt < 20) subtitleUiHandler.postDelayed({ restoreMainVlcAudioTrack(attempt + 1) }, 500L)
+                      else android.util.Log.w("GX1Player", "Audio tracks unavailable; key=" + key)
+                      return
+                  }
+                  val selected = tracks.firstOrNull { it.id == saved }
+                      ?: tracks.firstOrNull { !name.isNullOrBlank() && it.name == name }
+                      ?: tracks.getOrNull(index)
+                  if (selected == null) {
+                      if (attempt < 20) subtitleUiHandler.postDelayed({ restoreMainVlcAudioTrack(attempt + 1) }, 500L)
+                      else android.util.Log.w("GX1Player", "Saved audio track not found; id=" + saved + " name=" + name + " index=" + index)
+                      return
+                  }
+                  if (engine.selectedAudioTrackId() != selected.id) engine.selectAudioTrack(selected.id)
+                  subtitleUiHandler.postDelayed({
+                      val actual = runCatching { engine.selectedAudioTrackId() }.getOrDefault(Int.MIN_VALUE)
+                      if (actual != selected.id && attempt < 20) {
+                          android.util.Log.w("GX1Player", "Audio restore not applied yet; expected=" + selected.id + " actual=" + actual)
+                          subtitleUiHandler.postDelayed({ restoreMainVlcAudioTrack(attempt + 1) }, 500L)
+                      } else {
+                          android.util.Log.i("GX1Player", "Audio restore verified; selected=" + actual + " key=" + key)
+                      }
+                  }, 400L)
+              }
+
+          '''
+          s = s[:a] + audio_fn + s[b:]
+
+          a = s.index("    private fun restoreMainVlcSubtitleTrack(")
+          b = s.index("    private var selectedMainVlcScale", a)
+          sub_fn = '''    private fun restoreMainVlcSubtitleTrack(attempt: Int = 0) {
+                  val engine = mainVlcEngine ?: return
+                  val key = mainVlcTrackStateKey()
+                  val prefs = getSharedPreferences("gx1_player", android.content.Context.MODE_PRIVATE)
+                  val saved = prefs.getInt(key + "_embedded_subtitle", Int.MIN_VALUE)
+                  val name = prefs.getString(key + "_embedded_subtitle_name", null)
+                  val index = prefs.getInt(key + "_embedded_subtitle_index", -1)
+                  if (saved == Int.MIN_VALUE && name.isNullOrBlank() && index < 0) return
+                  val tracks = runCatching { engine.subtitleTracks() }.getOrDefault(emptyList())
+                  if (saved != -1 && tracks.isEmpty()) {
+                      if (attempt < 20) subtitleUiHandler.postDelayed({ restoreMainVlcSubtitleTrack(attempt + 1) }, 500L)
+                      else android.util.Log.w("GX1Player", "Embedded subtitle tracks unavailable; key=" + key)
+                      return
+                  }
+                  val selected = if (saved == -1) null else
+                      tracks.firstOrNull { it.id == saved }
+                          ?: tracks.firstOrNull { !name.isNullOrBlank() && it.name == name }
+                          ?: tracks.getOrNull(index)
+                  if (saved != -1 && selected == null) {
+                      if (attempt < 20) subtitleUiHandler.postDelayed({ restoreMainVlcSubtitleTrack(attempt + 1) }, 500L)
+                      else android.util.Log.w("GX1Player", "Saved embedded subtitle not found; id=" + saved + " name=" + name + " index=" + index)
+                      return
+                  }
+                  val targetId = selected?.id ?: -1
+                  if (engine.selectedSubtitleTrackId() != targetId) engine.selectSubtitleTrack(targetId)
+                  subtitleUiHandler.postDelayed({
+                      val actual = runCatching { engine.selectedSubtitleTrackId() }.getOrDefault(Int.MIN_VALUE)
+                      if (actual != targetId && attempt < 20) {
+                          android.util.Log.w("GX1Player", "Subtitle restore not applied yet; expected=" + targetId + " actual=" + actual)
+                          subtitleUiHandler.postDelayed({ restoreMainVlcSubtitleTrack(attempt + 1) }, 500L)
+                      } else {
+                          android.util.Log.i("GX1Player", "Embedded subtitle restore verified; selected=" + actual + " key=" + key)
+                      }
+                  }, 400L)
+              }
+
+          '''
+          s = s[:a] + sub_fn + s[b:]
+
+          # A manually selected Subtitle 1 is persisted as a URI, but was never
+          # added to the LibVLC overlay renderer. Copy it to a stable cache file
+          # and feed it through the same ASS/SRT parser as discovered sidecars.
+          helper_anchor = "    private fun loadMainVlcExternalSubtitle(file: java.io.File, initiallyEnabled: Boolean) {"
+          if "private fun cacheCustomMainVlcSubtitle" not in s:
+              helper = '''    private fun cacheCustomMainVlcSubtitle(uri: Uri, slot: Int): java.io.File? {
+                  val displayName = runCatching {
+                      contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                          if (c.moveToFirst()) c.getString(0) else null
+                      }
+                  }.getOrNull() ?: uri.lastPathSegment.orEmpty()
+                  val ext = displayName.substringAfterLast('.', "srt").lowercase(java.util.Locale.ROOT)
+                      .takeIf { it in setOf("ass", "ssa", "srt") } ?: "srt"
+                  val target = java.io.File(cacheDir, "gx1_custom_subtitle_" + slot + "." + ext)
+                  val input = contentResolver.openInputStream(uri) ?: return null
+                  input.use { source -> target.outputStream().use { output -> source.copyTo(output) } }
+                  return target.takeIf { it.isFile && it.length() > 0L }
+              }
+
+          '''
+              if helper_anchor not in s: raise SystemExit("External subtitle loader anchor missing")
+              s = s.replace(helper_anchor, helper_anchor, 1)
+              s = s.replace(helper_anchor, helper + helper_anchor, 1)
+
+          old_head = '''        val video = currentVideoFile() ?: return
+                  val folder = video.parentFile?.takeIf { it.isDirectory } ?: return
+                  val base = video.nameWithoutExtension
+                  val extensions = setOf("ass", "ssa", "srt")
+                  val matches = folder.listFiles()?.filter { file ->'''
+          new_head = '''        val video = currentVideoFile()
+                  val folder = video?.parentFile?.takeIf { it.isDirectory }
+                  val base = video?.nameWithoutExtension
+                  val extensions = setOf("ass", "ssa", "srt")
+                  val matches = folder?.listFiles()?.filter { file ->'''
+          if old_head not in s: raise SystemExit("Could not locate auto subtitle discovery header")
+          s = s.replace(old_head, new_head, 1)
+          s = s.replace('''                stem.equals(base, ignoreCase = true) || stem.startsWith(base + ".", ignoreCase = true)''',
+                        '''                base != null && (stem.equals(base, ignoreCase = true) || stem.startsWith(base + ".", ignoreCase = true))''', 1)
+          s = s.replace('''        }?.sortedBy { it.name.lowercase(java.util.Locale.ROOT) }.orEmpty()''',
+                        '''        }?.sortedBy { it.name.lowercase(java.util.Locale.ROOT) }.orEmpty()''', 1)
+
+          custom_anchor = '''        restoreMainVlcSubtitleTrack()
+                  if (!hasSavedExternalState && !firstValidExternalEnabled) {'''
+          custom_new = '''        subtitle1Uri?.let { customUri ->
+                      runCatching {
+                          val file = cacheCustomMainVlcSubtitle(customUri, 1)
+                          if (file != null) {
+                              val enabled = if (hasSavedExternalState) savedExternalEnabled.contains(file.absolutePath) else true
+                              loadMainVlcExternalSubtitle(file, initiallyEnabled = enabled)
+                          }
+                      }.onFailure { android.util.Log.w("GX1Player", "Custom Subtitle 1 restore failed", it) }
+                  }
+                  restoreMainVlcSubtitleTrack()
+                  if (!hasSavedExternalState && !firstValidExternalEnabled && subtitle1Uri == null) {'''
+          if custom_anchor not in s: raise SystemExit("Could not locate post-discovery subtitle restore anchor")
+          s = s.replace(custom_anchor, custom_new, 1)
+
+          # The manual picker stores subtitle 1/2 permissions and URIs. Refresh
+          # the custom Subtitle 1 overlay immediately after loading a new file.
+          if "subtitle1Uri?.let { customUri ->" not in s:
+              raise SystemExit("Custom Subtitle 1 load insertion missing")
+          p.write_text(s)
+          print("Added actual LibVLC custom Subtitle 1 loading, canonical per-file state keys, and verified audio/embedded subtitle restoration.")
+          PY
+
       - name: Export final post-persistence Kotlin source for review
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
