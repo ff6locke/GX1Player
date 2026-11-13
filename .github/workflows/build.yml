@@ -8476,14 +8476,14 @@ jobs:
                   raise SystemExit("Main LibVLC engine field missing for track persistence")
               s = s.replace(anchor, anchor + "\n" + helper, 1)
 
-          old_audio = """                      engine.selectAudioTrack(tracks[which].id)
-                      dialog.dismiss()"""
-          new_audio = """                      engine.selectAudioTrack(tracks[which].id)
-                      saveMainVlcTrackState()
-                      dialog.dismiss()"""
-          if old_audio in s:
-              s = s.replace(old_audio, new_audio, 1)
-          elif new_audio not in s:
+          import re
+          audio_callback = re.compile(r"(?m)^(\\s*)engine\\.selectAudioTrack\\(tracks\\[which\\]\\.id\\)$")
+          audio_matches = list(audio_callback.finditer(s))
+          if len(audio_matches) == 1:
+              s = audio_callback.sub(lambda m: m.group(1) + "engine.selectAudioTrack(tracks[which].id)\\n" + m.group(1) + "saveMainVlcTrackState()", s, count=1)
+          elif len(audio_matches) != 0 and "saveMainVlcTrackState()" not in s[audio_matches[0].start():audio_matches[0].start() + 180]:
+              raise SystemExit("Expected one unambiguous main-player audio track callback, found " + str(len(audio_matches)))
+          elif not audio_matches and "saveMainVlcTrackState()" not in s:
               raise SystemExit("Could not locate main-player audio track selection callback")
 
           old_external = """                              "external" -> {
