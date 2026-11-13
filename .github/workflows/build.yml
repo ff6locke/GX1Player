@@ -8421,6 +8421,48 @@ jobs:
           p.write_text(s)
           print("Added persistent playback engine selector; switching restarts the current video through the selected engine.")
           PY
+      - name: Route AAC 5.1 files through Media3
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          method = "    private fun startPlayer() {"
+          helper = """    private fun isAac51(uri: Uri): Boolean {
+              val extractor = android.media.MediaExtractor()
+              return try {
+                  extractor.setDataSource(this, uri, null)
+                  (0 until extractor.trackCount).any { index ->
+                      val track = extractor.getTrackFormat(index)
+                      val mime = track.getString(android.media.MediaFormat.KEY_MIME).orEmpty()
+                      val channels = if (track.containsKey(android.media.MediaFormat.KEY_CHANNEL_COUNT)) track.getInteger(android.media.MediaFormat.KEY_CHANNEL_COUNT) else 0
+                      mime == "audio/mp4a-latm" && channels >= 6
+                  }
+              } catch (e: Exception) {
+                  android.util.Log.w("GX1Player", "AAC 5.1 detection failed; using selected engine", e)
+                  false
+              } finally {
+                  runCatching { extractor.release() }
+              }
+          }
+
+          """
+          if "private fun isAac51(uri: Uri): Boolean" not in s:
+              if s.count(method) != 1:
+                  raise SystemExit("Expected exactly one startPlayer method")
+              s = s.replace(method, helper + method, 1)
+          old = "        if (mainVlcSelected) {"
+          new = "        if (mainVlcSelected && !isAac51(uri)) {"
+          if old in s:
+              if s.count(old) != 1:
+                  raise SystemExit("Expected exactly one main engine selection condition")
+              s = s.replace(old, new, 1)
+          elif new not in s:
+              raise SystemExit("Main engine selection condition missing")
+          p.write_text(s)
+          print("AAC 5.1 detection and Media3 routing applied.")
+          PY
       - name: Restore Media3 video surface
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
