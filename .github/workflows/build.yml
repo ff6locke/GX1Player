@@ -8192,13 +8192,6 @@ jobs:
               s = s.replace(release_anchor, release_new, 1)
           elif release_new not in s:
               raise SystemExit("Could not locate LibVLC release path for final track-state save")
-          open_anchor = "        engine.open(uri, resumeAt, digitalOutput = passthrough)"
-          open_restore = open_anchor + "\n        subtitleUiHandler.postDelayed({ restoreMainVlcAudioTrack() }, 1000L)"
-          if open_anchor in s:
-              if open_restore not in s:
-                  s = s.replace(open_anchor, open_restore, 1)
-          elif open_restore not in s:
-              raise SystemExit("Could not locate normal LibVLC media-open call for audio restoration")
           auto_old = "\n".join([
               '        mainVlcExternalSubtitles.clear()',
               '        var firstValidExternalEnabled = false',
