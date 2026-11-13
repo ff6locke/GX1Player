@@ -6523,16 +6523,12 @@ jobs:
                       val accepted = mediaPlayer.forceAudioDigitalEncodings(intArrayOf(5, 6, 7, 8, 14))
                       android.util.Log.i("GX1-VLC", "Selective surround passthrough configured=$accepted")
                   } else {
-                      // Force Android AudioTrack to expose up to 8-channel PCM.
-                      // Disabling bitstream detection alone can leave this TV box
-                      // on a stereo/unsupported HDMI route for AAC 5.1.
-                      val accepted = mediaPlayer.setAudioOutputDevice("pcm")
-                      android.util.Log.i("GX1-VLC", "Explicit multichannel PCM output configured=$accepted")
+                      mediaPlayer.setAudioDigitalOutputEnabled(false)
                   }"""
           if "forceAudioDigitalEncodings(intArrayOf(5, 6, 7, 8, 14))" not in s:
               s = s.replace(anchor, anchor + chr(10) + "                  " + output_config, 1)
-          if "setAudioOutputDevice(" in s and 'setAudioOutputDevice("pcm")' not in s:
-              raise SystemExit("Unexpected LibVLC audio-device override remains")
+          if "setAudioOutputDevice(" in s:
+              raise SystemExit("Unexpected explicit LibVLC audio-device override remains")
           p.write_text(s)
           print("LibVLC now follows standalone test order without explicit audio-device overrides.")
           PY
