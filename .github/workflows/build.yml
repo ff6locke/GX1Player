@@ -6518,19 +6518,24 @@ jobs:
           if anchor not in s:
               raise SystemExit("Could not find LibVLC media assignment")
           output_config = """if (digitalOutput) {
-                      // Keep compressed surround formats on passthrough; AAC and other
-                      // non-listed formats are decoded to multichannel PCM (up to 8ch).
+                      // Preserve encoded passthrough for supported surround codecs.
+                      // Other formats, including AAC, should be decoded to PCM.
                       val accepted = mediaPlayer.forceAudioDigitalEncodings(intArrayOf(5, 6, 7, 8, 14))
                       android.util.Log.i("GX1-VLC", "Selective surround passthrough configured=$accepted")
                   } else {
-                      mediaPlayer.setAudioDigitalOutputEnabled(false)
+                      // Explicitly request multichannel PCM when passthrough is disabled.
+                      // This is a diagnostic and avoids relying on HDMI auto-device selection.
+                      val accepted = mediaPlayer.setAudioOutputDevice("pcm")
+                      android.util.Log.i("GX1-VLC", "Explicit multichannel PCM output configured=$accepted")
                   }"""
           if "forceAudioDigitalEncodings(intArrayOf(5, 6, 7, 8, 14))" not in s:
               s = s.replace(anchor, anchor + chr(10) + "                  " + output_config, 1)
-          if "setAudioOutputDevice(" in s:
-              raise SystemExit("Unexpected explicit LibVLC audio-device override remains")
+          if s.count('mediaPlayer.setAudioOutputDevice("pcm")') != 1:
+              raise SystemExit("Expected exactly one explicit PCM output configuration")
+          if "setAudioOutputDevice(" in s and s.count("setAudioOutputDevice(") != 1:
+              raise SystemExit("Unexpected additional LibVLC audio-device override remains")
           p.write_text(s)
-          print("LibVLC now follows standalone test order without explicit audio-device overrides.")
+          print("LibVLC now explicitly selects 8-channel PCM when passthrough is disabled and retains selective encoded passthrough when enabled.")
           PY
       - name: Package 32-bit and 64-bit ARM variants for Android TV boxes
         working-directory: ${{ env.PROJECT_DIR }}
