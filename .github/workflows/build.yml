@@ -8567,7 +8567,7 @@ jobs:
           import re
           pattern = r'("off"\\s*->\\s*Unit\\s*\\n)([ \\t]*\\})([ \\t]*\\}\\s*\\n[ \\t]*\\.setPositiveButton\\("Done", null\\))'
           s, count = re.subn(pattern, r'\\1\\2\\n                  saveMainVlcTrackState()\\n\\3', s, count=1)
-          if count != 1 and "saveMainVlcTrackState()" not in s:
+          if count != 1:
               raise SystemExit("Could not locate main LibVLC subtitle selection callback")
           if count == 1:
               print("Added persistence after subtitle selection callback.")
