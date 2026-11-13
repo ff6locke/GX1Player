@@ -8450,18 +8450,6 @@ jobs:
           path: gx1-final-persistence-source.zip
           if-no-files-found: error
           retention-days: 30
-      - name: Report resolved LibVLC Android dependency
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          chmod +x ./gradlew
-          set -o pipefail
-          echo "=== LibVLC runtime dependency ==="
-          ./gradlew --no-daemon :app:dependencyInsight --dependency libvlc-all --configuration releaseRuntimeClasspath || {
-            echo "releaseRuntimeClasspath lookup failed; trying debugRuntimeClasspath"
-            ./gradlew --no-daemon :app:dependencyInsight --dependency libvlc-all --configuration debugRuntimeClasspath
-          }
-          echo "=== VLC artifacts declared in project ==="
-          grep -RniE 'libvlc(-all)?|videolan' --include='*.gradle' --include='*.gradle.kts' --include='*.toml' . || true
       - name: Build separate 32-bit and 64-bit ARM APKs
         working-directory: ${{ env.PROJECT_DIR }}
         env:
