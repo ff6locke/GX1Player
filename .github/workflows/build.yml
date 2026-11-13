@@ -5116,17 +5116,26 @@ jobs:
           if 'mainVlcSelected = prefs.getBoolean' not in s:
               s = once('        passthrough = prefs.getBoolean(KEY_PASSTHROUGH, true)', '''        mainVlcSelected = true
           passthrough = prefs.getBoolean(KEY_PASSTHROUGH, true)''', 'engine preference')
-              start_old = '''        val uri = mediaUri ?: return
-                  val renderers = if (passthrough) {
+          start_fn = s.find('private fun startPlayer()')
+          if start_fn < 0:
+              raise SystemExit('startPlayer function not found')
+          build_fn = s.find('private fun buildMediaItem', start_fn)
+          if build_fn < 0:
+              build_fn = len(s)
+          player_block = s[start_fn:build_fn]
+          if 'if (mainVlcSelected) {' not in player_block:
+              marker = 'val uri = mediaUri ?: return'
+              marker_at = player_block.find(marker)
+              if marker_at < 0:
+                  raise SystemExit('media URI line not found inside startPlayer')
+              insert = marker + '''
+                  if (mainVlcSelected) {
+                      startMainLibVlc(uri)
+                      return
+                  }
               '''
-          start_new = '''        val uri = mediaUri ?: return
-          if (mainVlcSelected) {
-              startMainLibVlc(uri)
-              return
-          }
-          val renderers = if (passthrough) {'''
-          if 'if (mainVlcSelected) {' not in s[s.find('private fun startPlayer()'):s.find('private fun buildMediaItem')]:
-              s = once(start_old, start_new, 'startPlayer')
+              player_block = player_block[:marker_at] + player_block[marker_at:].replace(marker, insert, 1)
+              s = s[:start_fn] + player_block + s[build_fn:]
           if 'private fun startMainLibVlc(uri: Uri)' not in s:
               anchor = '    private fun buildMediaItem(uri: Uri): MediaItem {'
               methods = '''    private fun startMainLibVlc(uri: Uri) {
