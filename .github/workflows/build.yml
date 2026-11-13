@@ -7724,7 +7724,7 @@ jobs:
                     mediaUri?.let { video ->
                         prefs.edit().putString(
                             trackPreferenceKey(video, "audio"),
-                            trackFormatKey(trackGroup.getTrackFormat(trackIndex))
+                            trackFormatKey(trackGroup.getFormat(trackIndex))
                         ).apply()
                     }
                 } else {
@@ -7760,7 +7760,7 @@ jobs:
                         mediaUri?.let { video ->
                             prefs.edit().putString(
                                 trackPreferenceKey(video, "text"),
-                                trackFormatKey(trackGroup.getTrackFormat(trackIndex))
+                                trackFormatKey(trackGroup.getFormat(trackIndex))
                             ).apply()
                         }
                         dialog.dismiss()
@@ -7787,7 +7787,7 @@ jobs:
               'override fun onTracksChanged(tracks: androidx.media3.common.Tracks)',
               'trackPreferenceKey(video, "audio")',
               'trackPreferenceKey(video, "text")',
-              'trackFormatKey(trackGroup.getTrackFormat(trackIndex))'
+              'trackFormatKey(trackGroup.getFormat(trackIndex))'
           ]
           for item in required:
               if item not in s:
