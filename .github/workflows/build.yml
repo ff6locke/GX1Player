@@ -8453,7 +8453,7 @@ jobs:
           PY
 
       - name: Persist and restore selected LibVLC tracks across player restarts
-        working-directory: \${{ env.PROJECT_DIR }}
+        working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -8644,7 +8644,7 @@ jobs:
           PY
 
       - name: Export final post-persistence Kotlin source for review
-        working-directory: \${{ env.PROJECT_DIR }}
+        working-directory: ${{ env.PROJECT_DIR }}
         run: |
           mkdir -p "$GITHUB_WORKSPACE/gx1-final-persistence-source"
           cp app/src/main/java/com/example/gx1player/MainActivity.kt "$GITHUB_WORKSPACE/gx1-final-persistence-source/MainActivity.kt"
@@ -8655,7 +8655,7 @@ jobs:
       - name: Upload final post-persistence source review
         uses: actions/upload-artifact@v4
         with:
-          name: gx1-final-persistence-source-b\${{ github.run_number }}
+          name: gx1-final-persistence-source-b${{ github.run_number }}
           path: gx1-final-persistence-source.zip
           if-no-files-found: error
           retention-days: 30
