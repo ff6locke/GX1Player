@@ -8723,7 +8723,7 @@ jobs:
           s = s.replace(old, "?: byName")
 
           import re
-          audio_pattern = r'engine\\.selectAudioTrack\\(selected\\.id\\)\\s+subtitleUiHandler\\.postDelayed\\(\\{\\s+android\\.util\\.Log\\.i\\("GX1Player", "Restored saved audio track " \\+ selected\\.id\\)\\s+\\}, 300L\\)'
+          audio_pattern = r'engine\.selectAudioTrack\(selected\.id\)\s+subtitleUiHandler\.postDelayed\(\{\s+android\.util\.Log\.i\("GX1Player", "Restored saved audio track " \+ selected\.id\)\s+\}, 300L\)'
           audio_replacement = """engine.selectAudioTrack(selected.id)
                           subtitleUiHandler.postDelayed({
                               val actual = runCatching { engine.selectedAudioTrackId() }.getOrDefault(Int.MIN_VALUE)
@@ -8737,7 +8737,7 @@ jobs:
           s, audio_count = re.subn(audio_pattern, lambda _: audio_replacement, s, count=1)
           if audio_count != 1: raise SystemExit("Audio restore verification anchor missing; matches=" + str(audio_count))
 
-          subtitle_pattern = r'engine\\.selectSubtitleTrack\\(selected\\.id\\)\\s+android\\.util\\.Log\\.i\\("GX1Player", "Restored saved embedded subtitle " \\+ selected\\.id\\)'
+          subtitle_pattern = r'engine\.selectSubtitleTrack\(selected\.id\)\s+android\.util\.Log\.i\("GX1Player", "Restored saved embedded subtitle " \+ selected\.id\)'
           subtitle_replacement = """engine.selectSubtitleTrack(selected.id)
                           subtitleUiHandler.postDelayed({
                               val actual = runCatching { engine.selectedSubtitleTrackId() }.getOrDefault(Int.MIN_VALUE)
