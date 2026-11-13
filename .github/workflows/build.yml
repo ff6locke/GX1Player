@@ -8515,8 +8515,11 @@ jobs:
                       else android.util.Log.w("GX1Player", "Audio tracks did not become available for restoration")
                       return
                   }
-                  val exact = tracks.firstOrNull { it.id == saved }
-                      ?: tracks.firstOrNull { !name.isNullOrBlank() && it.name == name }
+                  val byId = tracks.firstOrNull { it.id == saved }
+                  val byName = tracks.firstOrNull { !name.isNullOrBlank() && it.name == name }
+                  // LibVLC track IDs can change when the media is reopened; prefer the
+                  // saved track label when the old ID now refers to a different track.
+                  val exact = byId?.takeIf { name.isNullOrBlank() || it.name == name } ?: byName ?: byId
                   if (exact == null && attempt < 20) {
                       subtitleUiHandler.postDelayed({ restoreMainVlcAudioTrack(attempt + 1) }, 500L)
                       return
@@ -8543,8 +8546,11 @@ jobs:
                       if (attempt < 20) subtitleUiHandler.postDelayed({ restoreMainVlcSubtitleTrack(attempt + 1) }, 500L)
                       return
                   }
-                  val exact = tracks.firstOrNull { it.id == saved }
-                      ?: tracks.firstOrNull { !name.isNullOrBlank() && it.name == name }
+                  val byId = tracks.firstOrNull { it.id == saved }
+                  val byName = tracks.firstOrNull { !name.isNullOrBlank() && it.name == name }
+                  // LibVLC track IDs can change when the media is reopened; prefer the
+                  // saved track label when the old ID now refers to a different track.
+                  val exact = byId?.takeIf { name.isNullOrBlank() || it.name == name } ?: byName ?: byId
                   if (exact == null && saved != -1 && attempt < 20) {
                       subtitleUiHandler.postDelayed({ restoreMainVlcSubtitleTrack(attempt + 1) }, 500L)
                       return
@@ -8624,6 +8630,18 @@ jobs:
               '                if (enabled) firstValidExternalEnabled = true',
               '            }.onFailure { android.util.Log.w("GX1Player", "Subtitle parse failed: " + file.name, it) }',
               '        }',
+              '        subtitle1Uri?.let { customUri ->',
+              '            runCatching {',
+              '                val display = displayName(customUri)',
+              '                val extension = display.substringAfterLast(".", "srt").lowercase(java.util.Locale.ROOT)',
+              '                    .let { if (it in setOf("ass", "ssa", "srt")) it else "srt" }',
+              '                val customFile = java.io.File(cacheDir, "gx1_custom_subtitle1_" + customUri.toString().hashCode() + "." + extension)',
+              '                val input = contentResolver.openInputStream(customUri) ?: error("Cannot read saved Subtitle 1")',
+              '                input.use { source -> customFile.outputStream().use { target -> source.copyTo(target) } }',
+              '                val enabled = if (hasSavedExternalState) savedExternalEnabled.contains(customFile.absolutePath) else true',
+              '                loadMainVlcExternalSubtitle(customFile, initiallyEnabled = enabled)',
+              '            }.onFailure { android.util.Log.w("GX1Player", "Saved custom Subtitle 1 could not be restored", it) }',
+              '        }'
               '        restoreMainVlcSubtitleTrack()',
               '        if (!hasSavedExternalState && !firstValidExternalEnabled) {',
               '            engine.subtitleTracks().firstOrNull()?.let { engine.selectSubtitleTrack(it.id) }',
