@@ -8420,6 +8420,166 @@ jobs:
           print("Android TV Left/Right use 10-second steps for the first 5 minutes of each seek session, then 1-minute steps; key-up resets the session.")
           PY
 
+      - name: Remember selected LibVLC audio and subtitle tracks when restarting a video
+        working-directory: \${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+
+          helper = r'''    private fun mainVlcTrackStateKey(): String {
+                  val value = mediaUri?.toString() ?: return "gx1_tracks_none"
+                  val encoded = android.util.Base64.encodeToString(
+                      value.toByteArray(Charsets.UTF_8),
+                      android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING
+                  )
+                  return "gx1_tracks_" + encoded
+              }
+
+              private fun saveMainVlcTrackState() {
+                  val engine = mainVlcEngine ?: return
+                  val key = mainVlcTrackStateKey()
+                  val enabled = mainVlcExternalSubtitles.filter { it.enabled }
+                      .map { it.file.absolutePath }.toSet()
+                  getSharedPreferences("gx1_player", android.content.Context.MODE_PRIVATE).edit()
+                      .putStringSet(key + "_external_enabled", enabled)
+                      .putInt(key + "_embedded_subtitle", engine.selectedSubtitleTrackId())
+                      .putInt(key + "_audio", engine.selectedAudioTrackId())
+                      .apply()
+              }
+
+              private fun restoreMainVlcAudioTrack(attempt: Int = 0) {
+                  val engine = mainVlcEngine ?: return
+                  val key = mainVlcTrackStateKey()
+                  val saved = getSharedPreferences("gx1_player", android.content.Context.MODE_PRIVATE)
+                      .getInt(key + "_audio", Int.MIN_VALUE)
+                  if (saved == Int.MIN_VALUE) return
+                  val tracks = runCatching { engine.audioTracks() }.getOrDefault(emptyList())
+                  if (tracks.isEmpty() && attempt < 6) {
+                      subtitleUiHandler.postDelayed({ restoreMainVlcAudioTrack(attempt + 1) }, 500L)
+                      return
+                  }
+                  if (tracks.any { it.id == saved }) {
+                      engine.selectAudioTrack(saved)
+                      android.util.Log.i("GX1Player", "Restored saved audio track " + saved)
+                  } else {
+                      android.util.Log.w("GX1Player", "Saved audio track " + saved + " is not present in this file")
+                  }
+              }
+
+          '''
+          if "private fun mainVlcTrackStateKey()" not in s:
+              anchor = "    private var mainVlcEngine: Gx1LibVlcEngine? = null"
+              if anchor not in s:
+                  raise SystemExit("Main LibVLC engine field missing for track persistence")
+              s = s.replace(anchor, anchor + "\n" + helper, 1)
+
+          old_audio = """                      engine.selectAudioTrack(tracks[which].id)
+                      dialog.dismiss()"""
+          new_audio = """                      engine.selectAudioTrack(tracks[which].id)
+                      saveMainVlcTrackState()
+                      dialog.dismiss()"""
+          if old_audio in s:
+              s = s.replace(old_audio, new_audio, 1)
+          elif new_audio not in s:
+              raise SystemExit("Could not locate main-player audio track selection callback")
+
+          old_external = """                              "external" -> {
+                                  mainVlcExternalSubtitles[value].enabled = isChecked"""
+          new_external = """                              "external" -> {
+                                  mainVlcExternalSubtitles[value].enabled = isChecked
+                                  saveMainVlcTrackState()"""
+          if old_external in s:
+              s = s.replace(old_external, new_external, 1)
+          elif new_external not in s:
+              raise SystemExit("Could not locate external subtitle checkbox callback")
+
+          old_embedded = """                                  if (isChecked) {
+                                      mainVlcEngine?.selectSubtitleTrack(value)"""
+          new_embedded = """                                  if (isChecked) {
+                                      mainVlcEngine?.selectSubtitleTrack(value)
+                                      saveMainVlcTrackState()"""
+          if old_embedded in s:
+              s = s.replace(old_embedded, new_embedded, 1)
+          elif new_embedded not in s:
+              raise SystemExit("Could not locate embedded subtitle checkbox callback")
+
+          old_embedded_off = """                                  } else if (mainVlcEngine?.selectedSubtitleTrackId() == value) {
+                                      mainVlcEngine?.selectSubtitleTrack(-1)"""
+          new_embedded_off = """                                  } else if (mainVlcEngine?.selectedSubtitleTrackId() == value) {
+                                      mainVlcEngine?.selectSubtitleTrack(-1)
+                                      saveMainVlcTrackState()"""
+          if old_embedded_off in s:
+              s = s.replace(old_embedded_off, new_embedded_off, 1)
+          elif new_embedded_off not in s:
+              raise SystemExit("Could not locate embedded subtitle-off callback")
+
+          old_auto = """                  mainVlcExternalSubtitles.clear()
+                  var firstValidExternalEnabled = false
+                  matches.forEach { file ->
+                      runCatching {
+                          loadMainVlcExternalSubtitle(file, initiallyEnabled = !firstValidExternalEnabled)
+                          firstValidExternalEnabled = true
+                      }.onFailure { android.util.Log.w("GX1Player", "Subtitle parse failed: " + file.name, it) }
+                  }
+                  if (!firstValidExternalEnabled) {
+                      engine.subtitleTracks().firstOrNull()?.let { engine.selectSubtitleTrack(it.id) }
+                  }"""
+          new_auto = """                  mainVlcExternalSubtitles.clear()
+                  val stateKey = mainVlcTrackStateKey()
+                  val trackPrefs = getSharedPreferences("gx1_player", android.content.Context.MODE_PRIVATE)
+                  val hasSavedExternalState = trackPrefs.contains(stateKey + "_external_enabled")
+                  val savedExternalEnabled = trackPrefs.getStringSet(stateKey + "_external_enabled", emptySet()).orEmpty()
+                  var firstValidExternalEnabled = false
+                  matches.forEach { file ->
+                      runCatching {
+                          val enabled = if (hasSavedExternalState) {
+                              savedExternalEnabled.contains(file.absolutePath)
+                          } else {
+                              !firstValidExternalEnabled
+                          }
+                          loadMainVlcExternalSubtitle(file, initiallyEnabled = enabled)
+                          if (enabled) firstValidExternalEnabled = true
+                      }.onFailure { android.util.Log.w("GX1Player", "Subtitle parse failed: " + file.name, it) }
+                  }
+                  val savedEmbedded = trackPrefs.getInt(stateKey + "_embedded_subtitle", Int.MIN_VALUE)
+                  val embeddedTracks = engine.subtitleTracks()
+                  if (savedEmbedded != Int.MIN_VALUE && embeddedTracks.any { it.id == savedEmbedded }) {
+                      engine.selectSubtitleTrack(savedEmbedded)
+                  } else if (!firstValidExternalEnabled && !hasSavedExternalState) {
+                      embeddedTracks.firstOrNull()?.let { engine.selectSubtitleTrack(it.id) }
+                  }
+                  saveMainVlcTrackState()"""
+          if old_auto in s:
+              s = s.replace(old_auto, new_auto, 1)
+          elif new_auto not in s:
+              raise SystemExit("Automatic subtitle discovery block did not match expected source")
+
+          open_line = "engine.open(uri, resumeAt, digitalOutput = passthrough)"
+          if "restoreMainVlcAudioTrack()" not in s:
+              if s.count(open_line) != 1:
+                  raise SystemExit("Expected exactly one main LibVLC open call")
+              s = s.replace(open_line, open_line + "\n                  subtitleUiHandler.postDelayed({ restoreMainVlcAudioTrack() }, 1600L)", 1)
+
+          required = [
+              "private fun mainVlcTrackStateKey()",
+              "private fun saveMainVlcTrackState()",
+              "private fun restoreMainVlcAudioTrack",
+              'putStringSet(key + "_external_enabled"',
+              'putInt(key + "_embedded_subtitle"',
+              'putInt(key + "_audio"',
+              "savedExternalEnabled.contains(file.absolutePath)",
+              "engine.selectAudioTrack(saved)"
+          ]
+          missing = [item for item in required if item not in s]
+          if missing:
+              raise SystemExit("Track persistence verification failed: " + repr(missing))
+          p.write_text(s)
+          print("Per-video LibVLC audio, embedded subtitle, and enabled external subtitle selections are now saved and restored on restart.")
+          PY
+
       - name: Build separate 32-bit and 64-bit ARM APKs
         working-directory: ${{ env.PROJECT_DIR }}
         env:
