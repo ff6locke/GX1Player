@@ -6523,15 +6523,16 @@ jobs:
                       val accepted = mediaPlayer.forceAudioDigitalEncodings(intArrayOf(5, 6, 7, 8, 14))
                       android.util.Log.i("GX1-VLC", "Selective surround passthrough configured=$accepted")
                   } else {
-                      // Explicitly request multichannel PCM when passthrough is disabled.
-                      // This is a diagnostic and avoids relying on HDMI auto-device selection.
-                      val accepted = mediaPlayer.setAudioOutputDevice("pcm")
-                      android.util.Log.i("GX1-VLC", "Explicit multichannel PCM output configured=$accepted")
+                      // Diagnostic fallback: force Android AudioTrack stereo compatibility mode.
+                      // Some Android TV HDMI stacks advertise 5.1 PCM but never activate the
+                      // DIRECT 5.1 AudioTrack. Stereo mode tests the shared/mixer output path.
+                      val accepted = mediaPlayer.setAudioOutputDevice("stereo")
+                      android.util.Log.i("GX1-VLC", "Stereo compatibility output configured=$accepted")
                   }"""
           if "forceAudioDigitalEncodings(intArrayOf(5, 6, 7, 8, 14))" not in s:
               s = s.replace(anchor, anchor + chr(10) + "                  " + output_config, 1)
-          if s.count('mediaPlayer.setAudioOutputDevice("pcm")') != 1:
-              raise SystemExit("Expected exactly one explicit PCM output configuration")
+          if s.count('mediaPlayer.setAudioOutputDevice("stereo")') != 1:
+              raise SystemExit("Expected exactly one explicit stereo compatibility output configuration")
           if "setAudioOutputDevice(" in s and s.count("setAudioOutputDevice(") != 1:
               raise SystemExit("Unexpected additional LibVLC audio-device override remains")
           p.write_text(s)
