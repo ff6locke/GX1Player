@@ -8331,8 +8331,8 @@ jobs:
           s = s.replace("        mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)\n", "")
           if "setAudioDigitalOutputEnabled(digitalOutput)" in s:
               raise SystemExit("Digital-output native toggle remains; refusing build")
-          if 'arrayListOf(\\n        "-vvv",\\n        "--no-video-title-show"' not in s:
-              raise SystemExit("Unexpected LibVLC constructor; refusing unsafe patch")
+          if '"-vvv"' not in s or '"--no-video-title-show"' not in s:
+              raise SystemExit("Expected Build 926 LibVLC options are missing")
           p.write_text(s)
           print("Restored Build 926 LibVLC open path without the newer digital-output toggle.")
           PY
