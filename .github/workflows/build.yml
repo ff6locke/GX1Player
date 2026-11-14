@@ -3612,7 +3612,10 @@ jobs:
               private val appContext = context.applicationContext
               private val libVlc = LibVLC(appContext, arrayListOf(
                   "-vvv",
-                  "--no-video-title-show"
+                  "--no-video-title-show",
+                  // Force Android AudioTrack: unlike legacy OpenSL ES, this backend
+                  // supports HDMI multichannel PCM and Android's encoded passthrough.
+                  "--aout=android_audiotrack"
               ))
               private val mediaPlayer = MediaPlayer(libVlc)
               private var activeAssetDescriptor: AssetFileDescriptor? = null
