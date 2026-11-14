@@ -8318,22 +8318,68 @@ jobs:
               s=s.replace(a,b,1)
               p.write_text(s)
           PY
-      - name: Restore Build 926 LibVLC initialization and playback path
+      - name: Restore LibVLC media opening and forward SAF URI permission
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
           s = p.read_text()
-          # Revert only the experimental digital-output API call.
-          s = s.replace("        mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)\\n", "")
-          s = s.replace("        mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)\n", "")
+          # The Build 926 path did not use this experimental native output toggle.
+          s, removed = re.subn(r"^\\s*mediaPlayer\\.setAudioDigitalOutputEnabled\\(digitalOutput\\)\\s*\\n", "", s, flags=re.M)
           if "setAudioDigitalOutputEnabled(digitalOutput)" in s:
               raise SystemExit("Digital-output toggle remains; refusing build")
-          if "class Gx1LibVlcEngine" not in s or "mediaPlayer.media = media" not in s or "mediaPlayer.play()" not in s:
-              raise SystemExit("LibVLC engine open path is incomplete; refusing build")
+          # Always open SAF content URIs through a retained file descriptor. Some
+          # providers expose a content:// URI that LibVLC cannot open as an MRL.
+          old = """        val media = if (uri.scheme == "content") {
+                      try {
+                          Media(libVlc, uri).also {
+                              android.util.Log.i("GX1-VLC", "Using direct content Uri source")
+                          }
+                      } catch (uriError: Exception) {
+                          android.util.Log.w(
+                              "GX1-VLC",
+                              "Direct content Uri open failed; falling back to AssetFileDescriptor",
+                              uriError
+                          )
+                          val afd = appContext.contentResolver.openAssetFileDescriptor(uri, "r")
+                              ?: throw java.io.IOException("Could not open selected media provider descriptor")
+                          activeAssetDescriptor = afd
+                          Media(libVlc, afd)
+                      }
+                  } else {
+                      Media(libVlc, uri)
+                  }"""
+          new = """        val media = if (uri.scheme == "content") {
+                      val afd = appContext.contentResolver.openAssetFileDescriptor(uri, "r")
+                          ?: throw java.io.IOException("Could not open selected media provider descriptor")
+                      activeAssetDescriptor = afd
+                      android.util.Log.i("GX1-VLC", "Using retained AssetFileDescriptor for content URI")
+                      Media(libVlc, afd)
+                  } else {
+                      Media(libVlc, uri)
+                  }"""
+          if old in s:
+              s = s.replace(old, new)
+          else:
+              # Avoid making assumptions about indentation: replace the content branch by boundaries.
+              start = s.find('        val media = if (uri.scheme == "content") {')
+              finish = s.find('        try {\n            mediaPlayer.media = media', start)
+              if start < 0 or finish < 0:
+                  raise SystemExit("Could not safely locate content URI branch")
+              s = s[:start] + new + "\n" + s[finish:]
           p.write_text(s)
-          print("Restored LibVLC media-open path without the experimental digital-output toggle.")
+          print("Removed experimental native output toggle and routed content URIs through retained file descriptors; removed", removed, "toggle(s).")
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          old = "startActivity(Intent(this, VlcTestActivity::class.java).setData(uri))"
+          new = "startActivity(Intent(this, VlcTestActivity::class.java).setData(uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))"
+          if old in s:
+              s = s.replace(old, new)
+          elif new not in s:
+              raise SystemExit("Could not locate VLC activity launch for URI grant")
+          p.write_text(s)
           PY
       - name: Export final post-persistence Kotlin source for review
         working-directory: ${{ env.PROJECT_DIR }}
