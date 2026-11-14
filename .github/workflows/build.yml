@@ -6449,17 +6449,17 @@ jobs:
                       val accepted = mediaPlayer.forceAudioDigitalEncodings(intArrayOf(5, 6, 7, 8, 14))
                       android.util.Log.i("GX1-VLC", "Selective surround passthrough configured=$accepted")
                   } else {
-                      val accepted = mediaPlayer.setAudioOutputDevice("pcm")
+                      val accepted = mediaPlayer.setAudioOutputDevice("stereo")
                       android.util.Log.i("GX1-VLC", "Explicit multichannel PCM output configured=$accepted")
                   }"""
           if "forceAudioDigitalEncodings(intArrayOf(5, 6, 7, 8, 14))" not in s:
               s = s.replace(anchor, anchor + chr(10) + "                  " + output_config, 1)
-          if s.count('mediaPlayer.setAudioOutputDevice("pcm")') != 1:
+          if s.count('mediaPlayer.setAudioOutputDevice("stereo")') != 1:
               raise SystemExit("Expected exactly one explicit multichannel PCM output configuration")
           if "setAudioOutputDevice(" in s and s.count("setAudioOutputDevice(") != 1:
               raise SystemExit("Unexpected additional LibVLC audio-device override remains")
           p.write_text(s)
-          print("LibVLC now explicitly selects 8-channel PCM when passthrough is disabled and retains selective encoded passthrough when enabled.")
+          print("Diagnostic build selects LibVLC stereo compatibility output when passthrough is disabled to test whether the forced multichannel PCM route causes AAC silence; selective encoded passthrough remains unchanged.")
           PY
       - name: Package 32-bit and 64-bit ARM variants for Android TV boxes
         working-directory: ${{ env.PROJECT_DIR }}
