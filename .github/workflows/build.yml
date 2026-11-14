@@ -8488,14 +8488,14 @@ jobs:
           if s.count(start_anchor) != 1:
               raise SystemExit("Could not locate unique startPlayer method")
           helper = """    private fun isAacMultichannel(uri: android.net.Uri): Boolean {
-                  val extractor = androidx.media3.extractor.MediaExtractor()
+                  val extractor = android.media.MediaExtractor()
                   return try {
                       extractor.setDataSource(this, uri, emptyMap())
                       (0 until extractor.trackCount).any { index ->
                           val format = extractor.getTrackFormat(index)
-                          val mime = format.getString(androidx.media3.common.Format.KEY_SAMPLE_MIME_TYPE)
-                          val channels = if (format.containsKey(androidx.media3.common.Format.KEY_CHANNEL_COUNT)) {
-                              format.getInteger(androidx.media3.common.Format.KEY_CHANNEL_COUNT)
+                          val mime = format.getString(android.media.MediaFormat.KEY_MIME)
+                          val channels = if (format.containsKey(android.media.MediaFormat.KEY_CHANNEL_COUNT)) {
+                              format.getInteger(android.media.MediaFormat.KEY_CHANNEL_COUNT)
                           } else 0
                           mime == "audio/mp4a-latm" && channels >= 6
                       }.also { detected ->
