@@ -8389,12 +8389,12 @@ jobs:
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
           s = p.read_text()
           import re
-          event_matches = list(re.finditer(r"(?m)^(\\s*)MediaPlayer\\.Event\\.Playing -> \\{\\s*$", s))
+          event_matches = list(re.finditer(r"(?m)^(\s*)MediaPlayer\.Event\.Playing -> \{\s*$", s))
           if len(event_matches) != 1:
               raise SystemExit("Could not locate unique LibVLC Playing event; matches=" + str(len(event_matches)))
           if "scheduleAudioInventoryProbe()" not in s:
               m = event_matches[0]
-              s = s[:m.end()] + "\\n" + m.group(1) + "    scheduleAudioInventoryProbe()" + s[m.end():]
+              s = s[:m.end()] + "\n" + m.group(1) + "    scheduleAudioInventoryProbe()" + s[m.end():]
           method_anchor = "    private fun checkActive() {"
           if s.count(method_anchor) != 1:
               raise SystemExit("Could not locate unique LibVLC engine method insertion point")
