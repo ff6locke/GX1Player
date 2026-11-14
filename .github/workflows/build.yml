@@ -8325,16 +8325,15 @@ jobs:
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
           s = p.read_text()
-          # Build 926 did not call setAudioDigitalOutputEnabled(); that newer
-          # native toggle is the only functional change in the engine open path.
+          # Revert only the experimental digital-output API call.
           s = s.replace("        mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)\\n", "")
           s = s.replace("        mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)\n", "")
           if "setAudioDigitalOutputEnabled(digitalOutput)" in s:
-              raise SystemExit("Digital-output native toggle remains; refusing build")
-          if '"-vvv"' not in s or '"--no-video-title-show"' not in s:
-              raise SystemExit("Expected Build 926 LibVLC options are missing")
+              raise SystemExit("Digital-output toggle remains; refusing build")
+          if "class Gx1LibVlcEngine" not in s or "mediaPlayer.media = media" not in s or "mediaPlayer.play()" not in s:
+              raise SystemExit("LibVLC engine open path is incomplete; refusing build")
           p.write_text(s)
-          print("Restored Build 926 LibVLC open path without the newer digital-output toggle.")
+          print("Restored LibVLC media-open path without the experimental digital-output toggle.")
           PY
       - name: Export final post-persistence Kotlin source for review
         working-directory: ${{ env.PROJECT_DIR }}
