@@ -8474,6 +8474,170 @@ jobs:
       - name: Route multichannel AAC to Media3 while keeping LibVLC default
         working-directory: ${{ env.PROJECT_DIR }}
         run: python3 "$GITHUB_WORKSPACE/.github/scripts/route_aac_multichannel.py"
+      - name: Match Media3 controls and remote seeking to LibVLC
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+
+          # Install the same previous/next file buttons for native Media3 playback.
+          start = s.find("    private fun startPlayer() {")
+          end = s.find("\n    private fun ", start + 10)
+          if start < 0 or end < 0:
+              raise SystemExit("Could not isolate startPlayer()")
+          block = s[start:end]
+          attach = "playerView.player = exo"
+          if "installGx1FileNavigationButtons()" not in block:
+              if block.count(attach) != 1:
+                  raise SystemExit("Could not locate unique Media3 PlayerView attachment")
+              block = block.replace(
+                  attach,
+                  attach + """
+                  playerView.post {
+                      installGx1FileNavigationButtons()
+                      updateGx1NavigationButtonStates()
+                  }""",
+                  1
+              )
+              s = s[:start] + block + s[end:]
+          elif attach not in block:
+              raise SystemExit("Media3 navigation call exists but PlayerView attachment is missing")
+
+          # Apply the same D-pad seek behavior and visual feedback to both engines.
+          signature = "    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {"
+          start = s.find(signature)
+          end = s.find("\n    private fun startMainLibVlc(uri: Uri)", start + len(signature))
+          if start < 0 or end < 0:
+              raise SystemExit("Could not isolate the existing D-pad dispatch handler")
+          handler = r'''    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+                  val isLeftBoundary = event.action == android.view.KeyEvent.ACTION_DOWN &&
+                      event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT &&
+                      currentFocus === gx1PreviousFileButton
+                  val isRightBoundary = event.action == android.view.KeyEvent.ACTION_DOWN &&
+                      event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_RIGHT &&
+                      currentFocus === gx1NextFileButton
+                  if (isLeftBoundary || isRightBoundary) return true
+
+                  if (event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT ||
+                      event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_RIGHT) {
+                      val engine = mainVlcEngine
+                      val media3Player = if (engine == null) player else null
+                      if ((engine != null || media3Player != null) && ::playerView.isInitialized) {
+                          var focused = currentFocus
+                          var focusInsidePlayerView = false
+                          while (focused != null) {
+                              if (focused === playerView) {
+                                  focusInsidePlayerView = true
+                                  break
+                              }
+                              focused = focused.parent as? android.view.View
+                          }
+                          val anotherUiHasFocus = currentFocus != null && !focusInsidePlayerView
+                          if (playerView.isControllerFullyVisible() && focusInsidePlayerView) {
+                              gx1PreviousFileButton?.let { previousFile ->
+                                  if (previousFile.id != View.NO_ID) {
+                                      previousFile.nextFocusLeftId = previousFile.id
+                                  }
+                              }
+                              gx1NextFileButton?.let { nextFile ->
+                                  if (nextFile.id != View.NO_ID) {
+                                      nextFile.nextFocusRightId = nextFile.id
+                                  }
+                              }
+                          }
+                          if (playerView.isControllerFullyVisible() || anotherUiHasFocus) {
+                              return super.dispatchKeyEvent(event)
+                          }
+                          if (event.action == android.view.KeyEvent.ACTION_DOWN &&
+                              event.repeatCount > 0 && event.repeatCount % 4 != 0) {
+                              return true
+                          }
+                          if (event.action == android.view.KeyEvent.ACTION_DOWN) {
+                              val current = engine?.currentTimeMs() ?: media3Player?.currentPosition ?: 0L
+                              val duration = engine?.durationMs()?.takeIf { it > 0L }
+                                  ?: media3Player?.duration?.takeIf { it > 0L }
+                                  ?: 0L
+                              val step = if (gx1SeekSessionProgressMs < 5 * 60_000L) 10_000L else 60_000L
+                              val target = if (event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT) {
+                                  (current - step).coerceAtLeast(0L)
+                              } else {
+                                  val next = current + step
+                                  if (duration > 0L) next.coerceAtMost(duration) else next
+                              }
+                              if (engine != null) {
+                                  engine.seekTo(target)
+                                  mainVlcControllerClock?.seekTo(target)
+                              } else {
+                                  media3Player?.seekTo(target)
+                              }
+                              gx1SeekSessionProgressMs += step
+
+                              val overlayRoot = playerView.parent as? android.widget.FrameLayout
+                              if (overlayRoot != null) {
+                                  var feedback = overlayRoot.findViewWithTag<android.widget.TextView>("gx1_seek_feedback")
+                                  if (feedback == null) {
+                                      feedback = android.widget.TextView(this).apply {
+                                          tag = "gx1_seek_feedback"
+                                          setTextColor(android.graphics.Color.WHITE)
+                                          textSize = 24f
+                                          typeface = android.graphics.Typeface.DEFAULT_BOLD
+                                          gravity = android.view.Gravity.CENTER
+                                          setPadding((22 * resources.displayMetrics.density).toInt(),
+                                              (14 * resources.displayMetrics.density).toInt(),
+                                              (22 * resources.displayMetrics.density).toInt(),
+                                              (14 * resources.displayMetrics.density).toInt())
+                                          background = android.graphics.drawable.GradientDrawable().apply {
+                                              setColor(0xCC111111.toInt())
+                                              cornerRadius = 14f * resources.displayMetrics.density
+                                          }
+                                          isFocusable = false
+                                      }
+                                      overlayRoot.addView(feedback, android.widget.FrameLayout.LayoutParams(
+                                          android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                                          android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                                          android.view.Gravity.CENTER
+                                      ))
+                                  }
+                                  fun seekClock(value: Long): String {
+                                      val seconds = (value.coerceAtLeast(0L) / 1000L)
+                                      val hours = seconds / 3600L
+                                      val minutes = (seconds % 3600L) / 60L
+                                      val secs = seconds % 60L
+                                      return if (hours > 0L) String.format("%d:%02d:%02d", hours, minutes, secs)
+                                          else String.format("%02d:%02d", minutes, secs)
+                                  }
+                                  val direction = if (event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT) "⏪" else "⏩"
+                                  feedback.text = direction + "  " + seekClock(target) + " / " + seekClock(duration)
+                                  feedback.visibility = View.VISIBLE
+                                  feedback.bringToFront()
+                              }
+                          } else if (event.action == android.view.KeyEvent.ACTION_UP) {
+                              gx1SeekSessionProgressMs = 0L
+                              (playerView.parent as? android.widget.FrameLayout)
+                                  ?.findViewWithTag<android.widget.TextView>("gx1_seek_feedback")
+                                  ?.visibility = View.GONE
+                          }
+                          return true
+                      }
+                  }
+                  return super.dispatchKeyEvent(event)
+              }
+          '''
+          s = s[:start] + handler + s[end:]
+
+          media_start = s.find("    private fun startPlayer() {")
+          media_end = s.find("\n    private fun ", media_start + 10)
+          if "installGx1FileNavigationButtons()" not in s[media_start:media_end]:
+              raise SystemExit("Media3 previous/next controls were not wired")
+          if "val media3Player = if (engine == null) player else null" not in s:
+              raise SystemExit("Media3 D-pad seek routing verification failed")
+          if "gx1_seek_feedback" not in s or "media3Player?.seekTo(target)" not in s:
+              raise SystemExit("Media3 seek indicator or seek command verification failed")
+          p.write_text(s)
+          print("Media3 now receives the same previous/next file controls and left/right seek overlay as LibVLC.")
+          PY
       - name: Export final post-persistence Kotlin source for review
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
