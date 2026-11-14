@@ -7266,30 +7266,6 @@ jobs:
           # AssetFileDescriptor fallback. Do not re-patch this existing logic.
           print("Repeat now loops the LibVLC video; aspect options use menu-style checkboxes; content URIs use a retained provider descriptor; shortcut icons stay white.")
           PY
-      - name: Restore working LibVLC content URI source handling
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-          engine = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
-          src = engine.read_text()
-          pattern = r"(?ms)^ {10}val media = if \(uri[.]scheme == \"content\"\) \{.*?^ {10}\} else \{\n^ {14}Media\(libVlc, uri\)\n^ {10}\}"
-          replacement = """          val media = if (uri.scheme == "content") {
-                      val afd = appContext.contentResolver.openAssetFileDescriptor(uri, "r")
-                          ?: throw java.io.IOException("Could not open selected media provider descriptor")
-                      activeAssetDescriptor = afd
-                      android.util.Log.i("GX1-VLC", "Using content Uri AssetFileDescriptor source")
-                      Media(libVlc, afd)
-                  } else {
-                      Media(libVlc, uri)
-                  }"""
-          src, count = re.subn(pattern, replacement, src, count=1)
-          if count != 1:
-              raise SystemExit(f"Expected one LibVLC content URI source block, found {count}")
-          engine.write_text(src)
-          print("Restored AssetFileDescriptor-first LibVLC source handling.")
-          PY
       - name: Connect aspect ratio menu to the LibVLC video output
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
