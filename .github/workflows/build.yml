@@ -8395,7 +8395,7 @@ jobs:
           end = s.find(end_marker, start)
           if end < 0:
               raise SystemExit("Could not find forced stereo output branch")
-          end = s.find("\\n        }", end)
+          end = s.find("\n        }", end)
           if end < 0:
               raise SystemExit("Could not find end of LibVLC audio-output override")
           end += len("\n        }")
