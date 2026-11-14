@@ -8381,6 +8381,58 @@ jobs:
               raise SystemExit("Could not locate VLC activity launch for URI grant")
           p.write_text(s)
           PY
+      - name: Log LibVLC audio-track inventory after playback opens
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
+          s = p.read_text()
+          event_anchor = "                          MediaPlayer.Event.Playing -> {\n"
+          if s.count(event_anchor) != 1:
+              raise SystemExit("Could not locate unique LibVLC Playing event")
+          if "scheduleAudioInventoryProbe()" not in s:
+              s = s.replace(event_anchor, event_anchor + "                              scheduleAudioInventoryProbe()\n", 1)
+          method_anchor = "    private fun checkActive() {"
+          if s.count(method_anchor) != 1:
+              raise SystemExit("Could not locate unique LibVLC engine method insertion point")
+          if "private fun scheduleAudioInventoryProbe()" not in s:
+              methods = """    private fun scheduleAudioInventoryProbe() {
+                  val generation = sourceGeneration
+                  Thread({
+                      val delays = longArrayOf(0L, 500L, 1500L, 3000L)
+                      for (delay in delays) {
+                          if (delay > 0L) {
+                              try { Thread.sleep(delay) } catch (_: InterruptedException) { return@Thread }
+                          }
+                          if (released || generation != sourceGeneration) break
+                          val tracks = runCatching { mediaPlayer.getAudioTracks()?.toList().orEmpty() }
+                              .getOrElse {
+                                  android.util.Log.e("GX1-VLC-AUDIO", "stage=probe tracks-query-failed", it)
+                                  emptyList()
+                              }
+                          val selected = runCatching { mediaPlayer.getAudioTrack() }.getOrDefault(Int.MIN_VALUE)
+                          val playing = runCatching { mediaPlayer.isPlaying }.getOrDefault(false)
+                          android.util.Log.i(
+                              "GX1-VLC-AUDIO",
+                              "stage=Playing+${delay}ms playing=$playing selectedTrackId=$selected trackCount=${tracks.size}"
+                          )
+                          tracks.forEach { track ->
+                              android.util.Log.i("GX1-VLC-AUDIO", "track id=${track.id} name=${track.name ?: "Unknown"}")
+                          }
+                      }
+                  }, "gx1-vlc-audio-probe").apply {
+                      isDaemon = true
+                      start()
+                  }
+              }
+          """
+              s = s.replace(method_anchor, methods + method_anchor, 1)
+          if "GX1-VLC-AUDIO" not in s or "scheduleAudioInventoryProbe()" not in s:
+              raise SystemExit("LibVLC audio inventory diagnostic verification failed")
+          p.write_text(s)
+          print("Added delayed LibVLC audio-track inventory probes after Playing; playback configuration is unchanged.")
+          PY
       - name: Export final post-persistence Kotlin source for review
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
