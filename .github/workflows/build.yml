@@ -8420,7 +8420,33 @@ jobs:
                               "stage=Playing+${delay}ms playing=$playing selectedTrackId=$selected trackCount=${tracks.size}"
                           )
                           tracks.forEach { track ->
-                              android.util.Log.i("GX1-VLC-AUDIO", "track id=${track.id} name=${track.name ?: "Unknown"}")
+                              android.util.Log.i(
+                                  "GX1-VLC-AUDIO",
+                                  "track id=\${track.id} name=\${track.name ?: "Unknown"} class=\${track.javaClass.name} value=$track"
+                              )
+                              // LibVLC Android versions expose different AudioTrack metadata.
+                              // Inspect public zero-argument getters reflectively to remain
+                              // source-compatible across bundled LibVLC versions.
+                              runCatching {
+                                  track.javaClass.methods
+                                      .filter { it.parameterCount == 0 && it.name != "getClass" }
+                                      .sortedBy { it.name }
+                                      .forEach { getter ->
+                                          runCatching {
+                                              val value = getter.invoke(track)
+                                              if (value != null) {
+                                                  android.util.Log.i(
+                                                      "GX1-VLC-AUDIO",
+                                                      "track-meta id=\${track.id} \${getter.name}=$value"
+                                                  )
+                                              }
+                                          }.onFailure {
+                                              android.util.Log.w("GX1-VLC-AUDIO", "track-meta id=\${track.id} \${getter.name} failed: \${it.javaClass.simpleName}")
+                                          }
+                                      }
+                              }.onFailure {
+                                  android.util.Log.w("GX1-VLC-AUDIO", "track metadata reflection failed", it)
+                              }
                           }
                       }
                   }, "gx1-vlc-audio-probe").apply {
