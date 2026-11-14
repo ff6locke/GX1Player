@@ -8333,10 +8333,12 @@ jobs:
               raise SystemExit("Unexpected LibVLC constructor; refusing unsafe patch")
           # Restore the known-working digital-output setting before assigning media.
           if "mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)" not in s:
-              anchor = "        val durationGeneration = ++sourceGeneration"
-              if s.count(anchor) != 1:
+              lines = s.splitlines(keepends=True)
+              anchors = [i for i, line in enumerate(lines) if "val durationGeneration = ++sourceGeneration" in line]
+              if len(anchors) != 1:
                   raise SystemExit("Could not find unique duration-generation anchor")
-              s = s.replace(anchor, anchor + "\\n        mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)", 1)
+              lines.insert(anchors[0] + 1, "        mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)\\n")
+              s = "".join(lines)
           # Remove the experimental selective-encoding/stereo-device block by its
           # exact log markers, checking the complete block before modifying it.
           lines = s.splitlines(keepends=True)
