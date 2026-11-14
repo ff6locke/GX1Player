@@ -4471,13 +4471,13 @@ jobs:
           refresh = """        playerView.post {
                       playerView.findViewWithTag<android.widget.TextView>("gx1_playback_title")?.apply {
                           text = displayName(uri)
-                          visibility = android.view.View.VISIBLE
+                          visibility = android.view.View.GONE
                           bringToFront()
                           invalidate()
                       }
                   }
           """
-          if 'playerView.findViewWithTag<android.widget.TextView>("gx1_playback_title")' not in s:
+          if True:
               s = s.replace(anchor, anchor + "\n" + refresh.rstrip(), 1)
           p.write_text(s)
           print("Filename is now refreshed on the Media3 overlay after playback starts.")
