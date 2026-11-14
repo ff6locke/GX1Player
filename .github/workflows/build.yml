@@ -3746,11 +3746,11 @@ jobs:
                   android.util.Log.i("GX1-VLC", "Opened media using ${uri.scheme} source; digitalOutput=$digitalOutput")
                   mediaPlayer.play()
                   publish(opening = true, error = null)
-                  // Only transport-stream files need the Android metadata fallback.
-                  // Running MediaMetadataRetriever against large MKV/MP4 files can scan
-                  // substantial media data during first playback and compete with LibVLC
-                  // for storage I/O. Let LibVLC provide duration for normal containers.
-                  if (uri.lastPathSegment?.substringAfterLast('.', "")?.lowercase() == "ts") {
+                  // Transport-stream containers may report zero duration in LibVLC.
+                  // Probe TS, M2TS and MTS so Media3 receives a real seekable timeline.
+                  // Avoid probing large MKV/MP4 files during first playback.
+                  val transportExtension = uri.lastPathSegment?.substringAfterLast('.', "")?.lowercase()
+                  if (transportExtension in setOf("ts", "m2ts", "mts")) {
                       Thread({
                           val retriever = android.media.MediaMetadataRetriever()
                           val extracted = try {
