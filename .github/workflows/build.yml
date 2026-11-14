@@ -7262,23 +7262,8 @@ jobs:
           '''                imageTintList = android.content.res.ColorStateList.valueOf(Color.WHITE)''',
           "Previous/Next icon tint")
           main.write_text(src)
-          engine = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
-          vlc = engine.read_text()
-          source_pattern = r"(?ms)^ {8}// Match the known-working VLC test path first:.*?^ {8}[}]" + chr(10) + r"(?= {8}try [{])"
-          new_source = """        // Use an AssetFileDescriptor for content:// sources. MediaStore and
-                  val media = if (uri.scheme == "content") {
-                      val afd = appContext.contentResolver.openAssetFileDescriptor(uri, "r")
-                          ?: throw java.io.IOException("Could not open selected media provider descriptor")
-                      activeAssetDescriptor = afd
-                      android.util.Log.i("GX1-VLC", "Using content Uri AssetFileDescriptor source")
-                      Media(libVlc, afd)
-                  } else {
-                      Media(libVlc, uri)
-                  }""" + chr(10)
-          vlc, source_count = re.subn(source_pattern, new_source, vlc)
-          if source_count != 1:
-              raise SystemExit(f"Content-URI LibVLC source block: expected one match, found {source_count}")
-          engine.write_text(vlc)
+          # The engine already handles content:// URIs directly with an
+          # AssetFileDescriptor fallback. Do not re-patch this existing logic.
           print("Repeat now loops the LibVLC video; aspect options use menu-style checkboxes; content URIs use a retained provider descriptor; shortcut icons stay white.")
           PY
       - name: Connect aspect ratio menu to the LibVLC video output
