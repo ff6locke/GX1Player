@@ -245,8 +245,6 @@ jobs:
           import androidx.media3.exoplayer.audio.AudioCapabilities
           import androidx.media3.exoplayer.audio.AudioSink
           import androidx.media3.exoplayer.audio.DefaultAudioSink
-          // An AudioCapabilities instance with no encoded formats forces Media3 to
-          // decode TrueHD/AC3/etc. to PCM instead of opening an encoded HDMI track.
           class PcmRenderersFactory(context: Context) : DefaultRenderersFactory(context) {
               override fun buildAudioSink(
                   context: Context,
@@ -423,7 +421,6 @@ jobs:
                   "        setContentView(playerView)",
                   """        val root = FrameLayout(this)
                   rootLayout = root
-                  // Use clean white captions with fully transparent background/window and no edge.
                   playerView.subtitleView?.setStyle(
                       androidx.media3.ui.CaptionStyleCompat(
                           Color.WHITE, Color.TRANSPARENT, Color.TRANSPARENT,
@@ -435,7 +432,6 @@ jobs:
                       FrameLayout.LayoutParams.MATCH_PARENT,
                       FrameLayout.LayoutParams.MATCH_PARENT
                   ))
-                  // Show the current media filename at the top of the video screen.
                   val playbackTitle = android.widget.TextView(this).apply {
                       tag = "gx1_playback_title"
                       setTextColor(Color.WHITE)
@@ -451,8 +447,6 @@ jobs:
                       }
                       visibility = android.view.View.GONE
                   }
-                  // Attach to Media3's dedicated overlay layer so it renders above
-                  // the video surface (a SurfaceView can cover sibling views in the root).
                   val playbackOverlay = playerView.findViewById<FrameLayout>(
                       androidx.media3.ui.R.id.exo_overlay
                   )
@@ -470,8 +464,6 @@ jobs:
                       FrameLayout.LayoutParams.MATCH_PARENT
                   ))
                   playerView.visibility = android.view.View.GONE
-                  // Keep Media3's own settings gear, but route its click into
-                  // GX1's complete playback menu instead of Media3's limited Speed/Audio popup.
                   val media3SettingsGear = playerView.findViewById<android.view.View>(
                       androidx.media3.ui.R.id.exo_settings
                   )
@@ -480,7 +472,6 @@ jobs:
                       setOnClickListener { showMenu() }
                       contentDescription = "Playback settings"
                   }
-                  // Add a folder with a blue video-file symbol immediately left of Media3's gear.
                   media3SettingsGear?.let { gear ->
                       val gearParent = gear.parent as? android.view.ViewGroup
                       if (gearParent != null && gearParent.findViewWithTag<android.view.View>("gx1_open_video") == null) {
@@ -540,7 +531,6 @@ jobs:
                               contentDescription = "Open video"
                               isFocusable = true
                               isClickable = true
-                              // Match Media3 gear's full icon footprint; remove ImageButton inset padding.
                               setPadding(0, 0, 0, 0)
                               scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
                               setOnClickListener {
@@ -557,8 +547,6 @@ jobs:
                       }
                   }
                   val menuButton = Button(this).apply {
-                      // Force text presentation so Android draws a crisp white gear glyph,
-                      // not a gray emoji-style icon.
                       text = "\u2699\uFE0E"
                       textSize = 36f
                       typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
@@ -584,7 +572,6 @@ jobs:
                           }
                       }
                       setOnClickListener { showMenu() }
-                      // Use Media3's built-in gear as the sole visible entry point.
                       visibility = android.view.View.GONE
                   }
                   val menuParams = FrameLayout.LayoutParams(
@@ -593,7 +580,6 @@ jobs:
                       Gravity.BOTTOM or Gravity.END
                   ).apply { setMargins(0, 0, 30, 30) }
                   menuButtonRef = menuButton
-                  // Do not attach the custom GX1 gear at all; Media3's gear is the only control.
                   menuButton.visibility = android.view.View.GONE
                   setContentView(root)""",
                   1
@@ -1003,7 +989,6 @@ jobs:
               homePanel.visibility = View.VISIBLE
               playerView.visibility = View.GONE
               if (::menuButtonRef.isInitialized) menuButtonRef.visibility = View.GONE
-              // Keep focus on a selectable home tile, not the full-screen container.
               homePanel.descendantFocusability = android.view.ViewGroup.FOCUS_AFTER_DESCENDANTS
               homePanel.post { homeFirstTile?.requestFocus() }
           }
@@ -1181,8 +1166,6 @@ jobs:
               panel.post { tabs.getChildAt(0)?.requestFocus() }
               } catch (e: Exception) {
                   android.util.Log.e("GX1Player", "GX1 in-app Library browser failed", e)
-                  // A saved tree URI can outlive its Android provider grant. Do not keep retrying
-                  // the inaccessible URI: clear it and ask the user to grant the folder again.
                   AlertDialog.Builder(this)
                       .setTitle("Cannot open Library folder")
                       .setMessage("GX1 Player could not read this folder.\n\n" +
@@ -1547,7 +1530,6 @@ jobs:
               val raw = String(bytes, charset).removePrefix("\uFEFF")
                   .replace("\u0000", "").replace("\r\n", "\n").replace('\r', '\n')
               val cues = mutableListOf<Gx1SubtitleCue>()
-              // SubStation Alpha / Advanced SubStation Alpha (.ssa/.ass)
               if (raw.contains("[Events]", ignoreCase = true)) {
                   val lines = raw.lines()
                   var format = listOf("Layer", "Start", "End", "Style", "Name", "MarginL",
@@ -1584,7 +1566,6 @@ jobs:
                       }
                   }
               } else {
-                  // SubRip (.srt)
                   val time = Regex("""(?i)(?:(\\d{1,2}):)?(\\d{1,2}):(\\d{2})[,.](\\d{1,3})""")
                   fun toMs(value: String): Long {
                       val m = time.find(value) ?: return 0L
@@ -1662,7 +1643,6 @@ jobs:
                       setTextColor(Color.WHITE)
                       textSize = 22f
                       gravity = Gravity.CENTER
-                      // Transparent subtitle text: no black outline, shadow, or background.
                       setPadding(24, 8, 24, 28)
                       visibility = View.GONE
                   }
@@ -1814,7 +1794,6 @@ jobs:
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
           helper = """    private fun setPlaybackFullscreen(enabled: Boolean) {
-              // Hide only the top status bar; keep phone navigation controls visible.
               window.decorView.systemUiVisibility = if (enabled) {
                   View.SYSTEM_UI_FLAG_FULLSCREEN or
                       View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
@@ -2058,7 +2037,6 @@ jobs:
                               format.label?.takeIf { it.isNotBlank() },
                               language
                           ).distinct().joinToString(" · ")
-                          // Never expose internal MIME names such as x-media3-cues in the subtitle list.
                           val trackName = if (details.isBlank()) "Embedded subtitle ${choices.size + 1}" else details
                           labels.add(trackName + if (supported) "" else " (unsupported by current decoder)")
                           choices.add(group.mediaTrackGroup to index)
@@ -2529,8 +2507,6 @@ jobs:
           marker = "    buildFeatures { buildConfig = true }"
           block = """    packaging {
                       jniLibs {
-                          // Store native .so libraries compressed in the APK.
-                          // Android extracts them at install time; this reduces upload size.
                           useLegacyPackaging = true
                       }
                   }
@@ -2620,8 +2596,6 @@ jobs:
                   val cut = dir.absolutePath.indexOf(marker)
                   if (cut > 0) java.io.File(dir.absolutePath.substring(0, cut)) else null
               }
-              // USB OTG volumes are not consistently returned by getExternalFilesDirs()
-              // (notably on Samsung phones). Ask StorageManager for mounted volume roots too.
               val mountedVolumes = if (Build.VERSION.SDK_INT >= 24) {
                   try {
                       val manager = getSystemService(android.content.Context.STORAGE_SERVICE) as? android.os.storage.StorageManager
@@ -2688,7 +2662,6 @@ jobs:
                   .create()
               loading.show()
               Thread {
-                  // Keep slow storage enumeration and recursive video checks off the UI thread.
                   fun containsPlayableVideo(dir: java.io.File, depth: Int = 0): Boolean {
                       if (depth >= 4) return false
                       val children = dir.listFiles() ?: return false
@@ -3636,10 +3609,6 @@ jobs:
                   val timeMs: Long = 0L,
                   val lengthMs: Long = 0L
               )
-              // Match the audio output used by the successful standalone VLC Test:
-              // Android AudioTrack, with LibVLC selecting the codec/HDMI passthrough path.
-              // Keep this shared engine configuration identical for the upcoming main-player
-              // integration so the two paths do not behave differently on the GX1.
               private val appContext = context.applicationContext
               private val libVlc = LibVLC(appContext, arrayListOf(
                   "-vvv",
@@ -3711,10 +3680,6 @@ jobs:
                   durationHintMs = 0L
                   val durationGeneration = ++sourceGeneration
                   mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)
-                  // Match the known-working VLC test path first: pass the Android Uri
-                  // directly to LibVLC. In particular, SAF content:// playback must use
-                  // the same MRL path as the test player rather than forcing an
-                  // AssetFileDescriptor for every provider.
                   val media = if (uri.scheme == "content") {
                       try {
                           Media(libVlc, uri).also {
@@ -3746,16 +3711,10 @@ jobs:
                   android.util.Log.i("GX1-VLC", "Opened media using ${uri.scheme} source; digitalOutput=$digitalOutput")
                   mediaPlayer.play()
                   publish(opening = true, error = null)
-                  // Transport-stream containers may report zero duration in LibVLC.
-                  // Probe TS, M2TS and MTS so Media3 receives a real seekable timeline.
-                  // Avoid probing large MKV/MP4 files during first playback.
                   val transportExtension = uri.lastPathSegment?.substringAfterLast('.', "")?.lowercase()
                   if (transportExtension in setOf("ts", "m2ts", "mts")) {
                       Thread({
                           val retriever = android.media.MediaMetadataRetriever()
-                          // Prefer MediaExtractor: it can expose per-track duration for
-                          // MPEG transport streams even when MediaMetadataRetriever cannot.
-                          // Keep MetadataRetriever as a secondary fallback for device codecs.
                           val extracted = try {
                               val extractor = android.media.MediaExtractor()
                               try {
@@ -3799,9 +3758,6 @@ jobs:
               fun play() {
                   checkActive()
                   if (reachedEnd) {
-                      // LibVLC does not reliably restart a MediaPlayer after EndReached.
-                      // Reopen the same source at zero so the Play button works without
-                      // requiring the user to switch files or reopen the video.
                       val uri = activeUri
                       if (uri != null) open(uri, 0L, activeDigitalOutput)
                       else mediaPlayer.play()
@@ -4831,7 +4787,6 @@ jobs:
                       }
                   }.getOrNull()
                   if (!direct.isNullOrBlank()) return direct
-                  // ACTION_OPEN_DOCUMENT often returns a document URI rather than a MediaStore URI.
                   val documentId = runCatching {
                       if (android.provider.DocumentsContract.isDocumentUri(this, uri))
                           android.provider.DocumentsContract.getDocumentId(uri)
@@ -5023,7 +4978,6 @@ jobs:
           start=s.find("    private fun showSubtitleTracks() {"); end=s.find("    override fun onStop()",start)
           if start<0 or end<0: raise SystemExit("subtitle dialog anchors missing")
           dialog="""    private fun showSubtitleTracks() {
-                  // Refresh filename-matched external subtitles whenever the checkbox list opens.
                   autoLoadMatchingSubtitles()
                   val embedded = runCatching { engine?.subtitleTracks().orEmpty() }.getOrDefault(emptyList())
                   val labels = mutableListOf<String>()
@@ -5165,13 +5119,9 @@ jobs:
               anchor = '    private fun buildMediaItem(uri: Uri): MediaItem {'
               methods = '''    private fun startMainLibVlc(uri: Uri) {
               val resumeAt = prefs.getLong(posKey(uri), 0L)
-              // M2TS duration can arrive after the Media3 controller is attached.
-              // Rebind once when LibVLC reports it so the seekbar is recalculated.
               vlcTimelineBound = false
               try {
                   playerView.player = null
-                  // Keep Media3 controls (gear, track menus and timeline) visible.
-                  // Only its video content frame is hidden; LibVLC renders underneath.
                   playerView.visibility = View.VISIBLE
                   playerView.setBackgroundColor(Color.TRANSPARENT)
                   playerView.findViewById<android.widget.FrameLayout>(
@@ -5188,7 +5138,6 @@ jobs:
                   mainVlcEngine = engine
                   engine.attach(mainVlcLayout)
                   engine.open(uri, resumeAt, digitalOutput = passthrough)
-                  // On Android TV, put D-pad focus on the playback toggle for every new video.
                   playerView.showController()
                   playerView.post {
                       val playPause = playerView.findViewById<android.view.View>(
@@ -5267,8 +5216,6 @@ jobs:
                        'private var mainVlcEngine: Gx1LibVlcEngine? = null\n    private var mainVlcControllerClock: ExoPlayer? = null\n    private var mainVlcControllerPlayer: Player? = null\n    private var vlcTimelineBound = false',
                        'VLC controller fields')
           s = s.replace('root.addView(mainVlcLayout, FrameLayout.LayoutParams(-1, -1))', '''// Match the working standalone VLC test: keep VLCVideoLayout as a direct
-          // fullscreen sibling, not nested inside PlayerView's shutter/content frame.
-          // PlayerView remains above it solely for Media3 controls and touch handling.
           root.addView(mainVlcLayout, 0, FrameLayout.LayoutParams(-1, -1))
           mainVlcLayout.setBackgroundColor(Color.BLACK)
           playerView.setBackgroundColor(Color.TRANSPARENT)
@@ -5329,7 +5276,6 @@ jobs:
                   playingUri = uri
                   engine.open(uri, resumeAt, digitalOutput = passthrough)
                   loadSecondSubtitleOverlay()
-                  // Silent Media3 timeline/controller clock. LibVLC alone renders video and audio.
                   val clock = ExoPlayer.Builder(this).build()
                   clock.trackSelectionParameters = clock.trackSelectionParameters.buildUpon()
                       .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, true)
@@ -5372,9 +5318,6 @@ jobs:
                           mainVlcEngine?.currentTimeMs() ?: super.getCurrentPosition()
                       override fun getDuration(): Long =
                           mainVlcEngine?.durationMs()?.takeIf { it > 0L } ?: super.getDuration()
-                      // Supply a real one-window Media3 timeline from LibVLC metadata.
-                      // PlayerControlView hides its time bar when the clock's timeline is empty,
-                      // even when duration and seek commands are overridden.
                       override fun getCurrentTimeline(): Timeline {
                           val durationMs = mainVlcEngine?.durationMs() ?: 0L
                           return if (durationMs > 0L) {
@@ -5390,13 +5333,8 @@ jobs:
                               super.getCurrentTimeline()
                           }
                       }
-                      // Media3's hidden clock may mark transport streams as unseekable.
-                      // Use LibVLC's real duration/seek support so the controller timeline stays visible.
                       override fun isCurrentMediaItemSeekable(): Boolean =
                           (mainVlcEngine?.durationMs() ?: 0L) > 0L
-                      // ForwardingPlayer normally inherits the hidden ExoPlayer clock's
-                      // command set. For M2TS that clock can omit seek commands even though
-                      // LibVLC has a seekable timeline. Explicitly advertise those commands.
                       override fun getAvailableCommands(): Player.Commands {
                           val commands = Player.Commands.Builder()
                               .addAll(super.getAvailableCommands())
@@ -5422,7 +5360,6 @@ jobs:
                   }
                   mainVlcControllerPlayer = controller
                   playerView.player = controller
-                  // Also handle files whose LibVLC length is known before attachment.
                   if (engine.durationMs() > 0L) {
                       vlcTimelineBound = true
                       playerView.player = null
@@ -5430,9 +5367,6 @@ jobs:
                   }
                   if (engine.isPlaying()) clock.playWhenReady = true
                   playerView.showController()
-                  // The stock controller can disable its scrubber based on the silent
-                  // ExoPlayer clock's M2TS capabilities. LibVLC is the real seek engine,
-                  // so keep Media3's existing scrubber enabled for the user.
                   playerView.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_progress)?.apply {
                       visibility = View.VISIBLE
                       isEnabled = true
@@ -5832,8 +5766,6 @@ jobs:
                       actions.add("external" to index)
                   }
                   var selectedEmbedded = mainVlcEngine?.selectedSubtitleTrackId() ?: -1
-                  // If no external subtitle is enabled, never present "Off" as the default:
-                  // choose and visibly tick the first available embedded track instead.
                   if (mainVlcExternalSubtitles.none { it.enabled } && selectedEmbedded < 0 && embedded.isNotEmpty()) {
                       selectedEmbedded = embedded.first().id
                       mainVlcEngine?.selectSubtitleTrack(selectedEmbedded)
@@ -5933,7 +5865,6 @@ jobs:
                   if (!firstValidExternalEnabled) {
                       engine.subtitleTracks().firstOrNull()?.let { engine.selectSubtitleTrack(it.id) }
                   }
-                  // Silent automatic subtitle discovery; do not show a notification.
               }
           '''
           s = s[:start] + method + s[end:]
@@ -6148,8 +6079,6 @@ jobs:
               block = block.replace(marker, marker + """
                   gx1MainPlaybackTitle?.apply {
                       text = displayName(uri)
-                      // Keep the filename hidden during clean fullscreen playback.
-                      // The controller visibility listener reveals it with the controls.
                       visibility = View.GONE
                       bringToFront()
                   }""", 1)
@@ -6440,10 +6369,6 @@ jobs:
               playerView.findViewById<android.view.View>(
                   androidx.media3.ui.R.id.exo_artwork
               )?.visibility = View.GONE
-              // PlayerView can retain its own SurfaceView even after its content
-              // frame is hidden. That empty Media3 surface can sit over the
-              // independent LibVLC surface and leave audio playing over black.
-              // Hide only video-surface children; keep the controller/menus intact.
               fun hideVideoSurfaces(group: android.view.ViewGroup) {
                   for (index in 0 until group.childCount) {
                       val child = group.getChildAt(index)
@@ -6542,14 +6467,9 @@ jobs:
           if anchor not in s:
               raise SystemExit("Could not find LibVLC media assignment")
           output_config = """if (digitalOutput) {
-                      // Preserve encoded passthrough for supported surround codecs.
-                      // Other formats, including AAC, should be decoded to PCM.
                       val accepted = mediaPlayer.forceAudioDigitalEncodings(intArrayOf(5, 6, 7, 8, 14))
                       android.util.Log.i("GX1-VLC", "Selective surround passthrough configured=$accepted")
                   } else {
-                      // Diagnostic fallback: force Android AudioTrack stereo compatibility mode.
-                      // Some Android TV HDMI stacks advertise 5.1 PCM but never activate the
-                      // DIRECT 5.1 AudioTrack. Stereo mode tests the shared/mixer output path.
                       val accepted = mediaPlayer.setAudioOutputDevice("stereo")
                       android.util.Log.i("GX1-VLC", "Stereo compatibility output configured=$accepted")
                   }"""
@@ -7004,9 +6924,6 @@ jobs:
               val process = Runtime.getRuntime().exec(command)
               val output = process.inputStream.bufferedReader().use { it.readText() }
               process.waitFor()
-              // Keep the complete app-process logcat tail for this diagnostic.
-              // Filtering can discard the exact native wait/window/access message
-              // that explains the gap before decoder allocation.
               output.lineSequence()
                   .toList().takeLast(2500).joinToString("\\n")
           }.getOrElse { "Could not read app logcat: " + (it.message ?: it.javaClass.simpleName) }
@@ -7349,9 +7266,6 @@ jobs:
           vlc = engine.read_text()
           source_pattern = r"(?ms)^ {8}// Match the known-working VLC test path first:.*?^ {8}[}]" + chr(10) + r"(?= {8}try [{])"
           new_source = """        // Use an AssetFileDescriptor for content:// sources. MediaStore and
-                  // document providers may accept a direct Uri Media object but fail
-                  // later when LibVLC tries to read it; the descriptor keeps the
-                  // granted provider stream open for the full playback session.
                   val media = if (uri.scheme == "content") {
                       val afd = appContext.contentResolver.openAssetFileDescriptor(uri, "r")
                           ?: throw java.io.IOException("Could not open selected media provider descriptor")
@@ -7475,7 +7389,6 @@ jobs:
           s = p.read_text()
           anchor = '                MediaPlayer.Event.Paused -> publish(playing = false)'
           replacement = """                // LibVLC can recreate its native video output for each media item.
-                // Vout fires when that output exists, so apply the remembered scale here.
                 MediaPlayer.Event.Vout -> {
                     runCatching { mediaPlayer.setVideoScale(currentVideoScale) }
                         .onFailure { android.util.Log.w("GX1-VLC", "Could not reapply selected video scale", it) }
@@ -7507,19 +7420,15 @@ jobs:
                           }"""
           new = """            if (state.ended) {
                               if (prefs.getBoolean("gx1_repeat_enabled", false)) {
-                                  // Repeat One takes priority over automatic folder advance.
                                   mainVlcEngine?.restartFromBeginning()
                                   mainVlcControllerClock?.seekTo(0L)
                                   mainVlcControllerClock?.playWhenReady = true
                               } else if (gx1PlaybackQueueIndex >= 0 &&
                                   gx1PlaybackQueueIndex < gx1PlaybackQueue.lastIndex) {
-                                  // EndReached is raised by the real LibVLC playback engine.
-                                  // Advance the queue on the UI thread and start the next file.
                                   prefs.edit().remove(posKey(uri)).apply()
                                   android.util.Log.i("GX1Player", "Auto-playing next folder item after: " + uri)
                                   playAdjacentGx1File(1)
                               } else {
-                                  // No next item: finish normally and clear this resume point.
                                   prefs.edit().remove(posKey(uri)).apply()
                               }
                           }"""
@@ -7581,7 +7490,6 @@ jobs:
           src = main.read_text()
           old = "        val initial: Uri? = null"
           new = """        // Accept videos opened from Android file managers and other apps.
-                  // Do not auto-resume the last video when launching normally.
                   val initial: Uri? = if (intent?.action == android.content.Intent.ACTION_VIEW) intent.data else null"""
           if src.count(old) != 1:
               raise SystemExit(f"Expected one home-start URI declaration, found {src.count(old)}")
@@ -7683,8 +7591,6 @@ jobs:
                   val engine = mainVlcEngine ?: return
                   saveMainVlcTrackState()
                   engine.restartFromBeginning()
-                  // Reopening the media resets LibVLC's active track selections.
-                  // Restore audio and re-add sidecar/custom subtitles after tracks load.
                   subtitleUiHandler.postDelayed({ restoreMainVlcAudioTrack() }, 1000L)
                   subtitleUiHandler.postDelayed({ autoLoadMainVlcSubtitles(engine) }, 1200L)
                   loadSecondSubtitleOverlay()
@@ -7939,8 +7845,6 @@ jobs:
                       event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_RIGHT) {
                       val engine = mainVlcEngine
                       if (engine != null && ::playerView.isInitialized) {
-                          // Never steal Left/Right while a Media3 controller or menu/dialog
-                          // is active: those keys must move D-pad focus and operate menu items.
                           var focused = currentFocus
                           var focusInsidePlayerView = false
                           while (focused != null) {
@@ -7952,9 +7856,6 @@ jobs:
                           }
                           val anotherUiHasFocus = currentFocus != null && !focusInsidePlayerView
                           if (playerView.isControllerFullyVisible() && focusInsidePlayerView) {
-                              // The actual file-navigation buttons are custom controls at
-                              // the far left/right of the controller. Media3 exo_prev is the
-                              // restart/rewind control, so it must not be used as the boundary.
                               gx1PreviousFileButton?.let { previousFile ->
                                   if (previousFile.id != View.NO_ID) {
                                       previousFile.nextFocusLeftId = previousFile.id
@@ -7969,10 +7870,6 @@ jobs:
                           if (playerView.isControllerFullyVisible() || anotherUiHasFocus) {
                               return super.dispatchKeyEvent(event)
                           }
-                          // With the playback menu hidden, each press seeks and key repeats
-                          // keep seeking while held. Do not reveal the controller on key-up.
-                          // Keep the initial seek immediate, then process only every fourth
-                          // Android key-repeat event to make held-button seeking less aggressive.
                           if (event.action == android.view.KeyEvent.ACTION_DOWN &&
                               event.repeatCount > 0 && event.repeatCount % 4 != 0) {
                               return true
@@ -7990,7 +7887,6 @@ jobs:
                               engine.seekTo(target)
                               gx1SeekSessionProgressMs += step
                               mainVlcControllerClock?.seekTo(target)
-                              // VLC-style seek feedback: directional icon plus current/total time.
                               val overlayRoot = playerView.parent as? android.widget.FrameLayout
                               if (overlayRoot != null) {
                                   var feedback = overlayRoot.findViewWithTag<android.widget.TextView>("gx1_seek_feedback")
@@ -8032,7 +7928,6 @@ jobs:
                                   feedback.bringToFront()
                               }
                           } else if (event.action == android.view.KeyEvent.ACTION_UP) {
-                              // A new seek session always starts again with 10-second steps.
                               gx1SeekSessionProgressMs = 0L
                               (playerView.parent as? android.widget.FrameLayout)
                                   ?.findViewWithTag<android.widget.TextView>("gx1_seek_feedback")
@@ -8090,8 +7985,6 @@ jobs:
           s = p.read_text()
           helper = r'''    private fun mainVlcTrackStateKey(): String {
                   val uri = playingUri ?: mediaUri ?: return "gx1_tracks_none"
-                  // Keep the identity deterministic across picker/provider queries.
-                  // MediaStore DATA can be null on one open and populated on another.
                   val value = if (uri.scheme == "file") {
                       runCatching { uri.path?.let { java.io.File(it).canonicalPath } }.getOrNull()
                           ?: uri.normalizeScheme().toString()
@@ -8142,8 +8035,6 @@ jobs:
                   }
                   val byId = tracks.firstOrNull { it.id == saved }
                   val byName = tracks.firstOrNull { !name.isNullOrBlank() && it.name == name }
-                  // LibVLC track IDs can change when the media is reopened; prefer the
-                  // saved track label when the old ID now refers to a different track.
                   val exact = byId?.takeIf { name.isNullOrBlank() || it.name == name } ?: byName ?: byId
                   if (exact == null && attempt < 20) {
                       subtitleUiHandler.postDelayed({ restoreMainVlcAudioTrack(attempt + 1) }, 500L)
@@ -8172,8 +8063,6 @@ jobs:
                   }
                   val byId = tracks.firstOrNull { it.id == saved }
                   val byName = tracks.firstOrNull { !name.isNullOrBlank() && it.name == name }
-                  // LibVLC track IDs can change when the media is reopened; prefer the
-                  // saved track label when the old ID now refers to a different track.
                   val exact = byId?.takeIf { name.isNullOrBlank() || it.name == name } ?: byName ?: byId
                   if (exact == null && saved != -1 && attempt < 20) {
                       subtitleUiHandler.postDelayed({ restoreMainVlcSubtitleTrack(attempt + 1) }, 500L)
