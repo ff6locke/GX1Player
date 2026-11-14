@@ -7966,12 +7966,16 @@ jobs:
                   val enabled = mainVlcExternalSubtitles.filter { it.enabled }
                       .map { it.file.absolutePath }.toSet()
                   val audioTracks = runCatching { engine.audioTracks() }.getOrDefault(emptyList())
-                  val audioId = runCatching { engine.selectedAudioTrackId() }.getOrDefault(Int.MIN_VALUE)
+                  val reportedAudioId = runCatching { engine.selectedAudioTrackId() }.getOrDefault(Int.MIN_VALUE)
+                  val prefs = getSharedPreferences("gx1_player", android.content.Context.MODE_PRIVATE)
+                  val previousAudioId = prefs.getInt(key + "_audio", Int.MIN_VALUE)
+                  // LibVLC may briefly report -1 while tracks are being negotiated.
+                  // Never overwrite a previously selected real track with that transient state.
+                  val audioId = if (reportedAudioId >= 0) reportedAudioId else previousAudioId
                   val audioIndex = audioTracks.indexOfFirst { it.id == audioId }
                   val embeddedTracks = runCatching { engine.subtitleTracks() }.getOrDefault(emptyList())
                   val subtitleId = runCatching { engine.selectedSubtitleTrackId() }.getOrDefault(Int.MIN_VALUE)
                   val subtitleIndex = embeddedTracks.indexOfFirst { it.id == subtitleId }
-                  val prefs = getSharedPreferences("gx1_player", android.content.Context.MODE_PRIVATE)
                   prefs.edit()
                       .putStringSet(key + "_external_enabled", enabled)
                       .putInt(key + "_embedded_subtitle", subtitleId)
@@ -7991,21 +7995,23 @@ jobs:
                   val saved = prefs.getInt(key + "_audio", Int.MIN_VALUE)
                   val name = prefs.getString(key + "_audio_name", null)
                   val index = prefs.getInt(key + "_audio_index", -1)
-                  if (saved == Int.MIN_VALUE && name.isNullOrBlank() && index < 0) return
+                  if (saved == -1) {
+                      android.util.Log.w("GX1Player", "Ignoring saved disabled audio state; selecting first available audio track")
+                  } else if (saved == Int.MIN_VALUE && name.isNullOrBlank() && index < 0) return
                   val tracks = runCatching { engine.audioTracks() }.getOrDefault(emptyList())
                   if (tracks.isEmpty()) {
                       if (attempt < 20) subtitleUiHandler.postDelayed({ restoreMainVlcAudioTrack(attempt + 1) }, 500L)
                       else android.util.Log.w("GX1Player", "Audio tracks did not become available for restoration")
                       return
                   }
-                  val byId = tracks.firstOrNull { it.id == saved }
-                  val byName = tracks.firstOrNull { !name.isNullOrBlank() && it.name == name }
+                  val byId = if (saved >= 0) tracks.firstOrNull { it.id == saved } else null
+                  val byName = tracks.firstOrNull { !name.isNullOrBlank() && it.name == name && it.id >= 0 }
                   val exact = byId?.takeIf { name.isNullOrBlank() || it.name == name } ?: byName ?: byId
-                  if (exact == null && attempt < 20) {
+                  if (exact == null && saved != -1 && attempt < 20) {
                       subtitleUiHandler.postDelayed({ restoreMainVlcAudioTrack(attempt + 1) }, 500L)
                       return
                   }
-                  val selected = exact ?: tracks.getOrNull(index)
+                  val selected = exact ?: tracks.getOrNull(index)?.takeIf { it.id >= 0 } ?: tracks.firstOrNull { it.id >= 0 }
                   if (selected != null) {
                       engine.selectAudioTrack(selected.id)
                       subtitleUiHandler.postDelayed({
