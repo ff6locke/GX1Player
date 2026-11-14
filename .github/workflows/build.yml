@@ -8485,12 +8485,12 @@ jobs:
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
           old = """                  val tracks = runCatching { engine.audioTracks() }.getOrDefault(emptyList())
-                            if (tracks.isEmpty()) {
-                                if (attempt < 20) subtitleUiHandler.postDelayed({ restoreMainVlcAudioTrack(attempt + 1) }, 500L)
-                                else android.util.Log.w("GX1Player", "Audio tracks did not become available for restoration")
-                                return
-                            }
-                            val byId = tracks.firstOrNull { it.id == saved }"""
+                  if (tracks.isEmpty()) {
+                      if (attempt < 20) subtitleUiHandler.postDelayed({ restoreMainVlcAudioTrack(attempt + 1) }, 500L)
+                      else android.util.Log.w("GX1Player", "Audio tracks did not become available for restoration")
+                      return
+                  }
+                  val byId = tracks.firstOrNull { it.id == saved }"""
           new = """                  val tracks = runCatching { engine.audioTracks() }.getOrDefault(emptyList())
                   if (tracks.isEmpty()) {
                       if (attempt < 20) subtitleUiHandler.postDelayed({ restoreMainVlcAudioTrack(attempt + 1) }, 500L)
@@ -8520,7 +8520,7 @@ jobs:
               raise SystemExit("Audio restore insertion anchor missing or ambiguous: " + str(s.count(old)))
           s = s.replace(old, new, 1)
           old_click = """                      engine.selectAudioTrack(tracks[which].id)
-                                dialog.dismiss()"""
+                      dialog.dismiss()"""
           new_click = """                      val chosenId = tracks[which].id
                       getSharedPreferences("gx1_player", android.content.Context.MODE_PRIVATE)
                           .edit().putBoolean(mainVlcTrackStateKey() + "_audio_explicit_disabled", chosenId == -1).apply()
