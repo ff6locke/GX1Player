@@ -8381,30 +8381,6 @@ jobs:
               raise SystemExit("Could not locate VLC activity launch for URI grant")
           p.write_text(s)
           PY
-      - name: Restore LibVLC default Android audio routing for decoded AAC and multichannel PCM
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
-          s = p.read_text()
-          start = s.find("if (digitalOutput) {")
-          if start < 0:
-              raise SystemExit("Could not find LibVLC audio-output override")
-          end_marker = 'setAudioOutputDevice("stereo")'
-          end = s.find(end_marker, start)
-          if end < 0:
-              raise SystemExit("Could not find forced stereo output branch")
-          end = s.find("\n        }", end)
-          if end < 0:
-              raise SystemExit("Could not find end of LibVLC audio-output override")
-          end += len("\n        }")
-          s = s[:start] + 'android.util.Log.i("GX1-VLC", "Using LibVLC default Android audio output; no forced device or digital-encoding override")' + s[end:]
-          if "forceAudioDigitalEncodings(intArrayOf(5, 6, 7, 8, 14))" in s or 'setAudioOutputDevice("stereo")' in s:
-              raise SystemExit("LibVLC audio-output override remains")
-          p.write_text(s)
-          print("Removed forced encoded-output and forced stereo-device overrides; LibVLC now uses Android default audio routing.")
-          PY
       - name: Export final post-persistence Kotlin source for review
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
