@@ -3753,7 +3753,30 @@ jobs:
                   if (transportExtension in setOf("ts", "m2ts", "mts")) {
                       Thread({
                           val retriever = android.media.MediaMetadataRetriever()
+                          // Prefer MediaExtractor: it can expose per-track duration for
+                          // MPEG transport streams even when MediaMetadataRetriever cannot.
+                          // Keep MetadataRetriever as a secondary fallback for device codecs.
                           val extracted = try {
+                              val extractor = android.media.MediaExtractor()
+                              try {
+                                  extractor.setDataSource(appContext, uri, null)
+                                  var longestUs = 0L
+                                  for (trackIndex in 0 until extractor.trackCount) {
+                                      val format = extractor.getTrackFormat(trackIndex)
+                                      if (format.containsKey(android.media.MediaFormat.KEY_DURATION)) {
+                                          longestUs = maxOf(
+                                              longestUs,
+                                              format.getLong(android.media.MediaFormat.KEY_DURATION)
+                                          )
+                                      }
+                                  }
+                                  longestUs / 1000L
+                              } finally {
+                                  runCatching { extractor.release() }
+                              }
+                          } catch (_: Exception) {
+                              0L
+                          }.takeIf { it > 0L } ?: try {
                               retriever.setDataSource(appContext, uri)
                               retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
                                   ?.toLongOrNull() ?: 0L
@@ -3762,6 +3785,7 @@ jobs:
                           } finally {
                               runCatching { retriever.release() }
                           }
+                          android.util.Log.i("GX1-VLC", "Transport duration probe: uri=$uri, durationMs=$extracted")
                           if (durationGeneration == sourceGeneration && extracted > 0L) {
                               durationHintMs = extracted
                               publish()
