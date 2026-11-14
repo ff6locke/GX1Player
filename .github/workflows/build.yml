@@ -6449,15 +6449,16 @@ jobs:
                       val accepted = mediaPlayer.forceAudioDigitalEncodings(intArrayOf(5, 6, 7, 8, 14))
                       android.util.Log.i("GX1-VLC", "Selective surround passthrough configured=$accepted")
                   } else {
-                      val accepted = mediaPlayer.setAudioOutputDevice("stereo")
-                      android.util.Log.i("GX1-VLC", "Explicit multichannel PCM output configured=$accepted")
+                      // Do not force LibVLC's Android output device to "stereo".
+                      // Let Android negotiate the PCM channel layout from the decoded track.
+                      android.util.Log.i("GX1-VLC", "Pass-through disabled; using native Android PCM output negotiation")
                   }"""
           if "forceAudioDigitalEncodings(intArrayOf(5, 6, 7, 8, 14))" not in s:
               s = s.replace(anchor, anchor + chr(10) + "                  " + output_config, 1)
-          if s.count('mediaPlayer.setAudioOutputDevice("stereo")') != 1:
-              raise SystemExit("Expected exactly one explicit multichannel PCM output configuration")
-          if "setAudioOutputDevice(" in s and s.count("setAudioOutputDevice(") != 1:
-              raise SystemExit("Unexpected additional LibVLC audio-device override remains")
+          if "setAudioOutputDevice(" in s:
+              raise SystemExit("Explicit LibVLC output-device override remains; Android must negotiate PCM channels")
+          if "Pass-through disabled; using native Android PCM output negotiation" not in s:
+              raise SystemExit("Native PCM output negotiation verification failed")
           p.write_text(s)
           print("Diagnostic build selects LibVLC stereo compatibility output when passthrough is disabled to test whether the forced multichannel PCM route causes AAC silence; selective encoded passthrough remains unchanged.")
           PY
