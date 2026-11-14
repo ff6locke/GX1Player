@@ -8422,7 +8422,7 @@ jobs:
                           tracks.forEach { track ->
                               android.util.Log.i(
                                   "GX1-VLC-AUDIO",
-                                  "track id=\${track.id} name=\${track.name ?: "Unknown"} class=\${track.javaClass.name} value=$track"
+                                  "track id=${track.id} name=${track.name ?: "Unknown"} class=${track.javaClass.name} value=$track"
                               )
                               // LibVLC Android versions expose different AudioTrack metadata.
                               // Inspect public zero-argument getters reflectively to remain
@@ -8437,11 +8437,11 @@ jobs:
                                               if (value != null) {
                                                   android.util.Log.i(
                                                       "GX1-VLC-AUDIO",
-                                                      "track-meta id=\${track.id} \${getter.name}=$value"
+                                                      "track-meta id=${track.id} ${getter.name}=$value"
                                                   )
                                               }
                                           }.onFailure {
-                                              android.util.Log.w("GX1-VLC-AUDIO", "track-meta id=\${track.id} \${getter.name} failed: \${it.javaClass.simpleName}")
+                                              android.util.Log.w("GX1-VLC-AUDIO", "track-meta id=${track.id} ${getter.name} failed: ${it.javaClass.simpleName}")
                                           }
                                       }
                               }.onFailure {
