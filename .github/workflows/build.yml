@@ -8318,47 +8318,23 @@ jobs:
               s=s.replace(a,b,1)
               p.write_text(s)
           PY
-      - name: Restore Build 926 LibVLC initialization and digital output path
+      - name: Restore Build 926 LibVLC initialization and playback path
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
           s = p.read_text()
-          old = 'private val libVlc = try { LibVLC(appContext, arrayListOf<String>("--no-sub-autodetect-file")) } catch (t: Throwable) {'
-          new = 'private val libVlc = try { LibVLC(appContext, arrayListOf<String>("-vvv", "--no-video-title-show", "--no-sub-autodetect-file")) } catch (t: Throwable) {'
-          if old in s:
-              s = s.replace(old, new, 1)
-          elif new not in s:
+          # Build 926 did not call setAudioDigitalOutputEnabled(); that newer
+          # native toggle is the only functional change in the engine open path.
+          s = s.replace("        mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)\\n", "")
+          s = s.replace("        mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)\n", "")
+          if "setAudioDigitalOutputEnabled(digitalOutput)" in s:
+              raise SystemExit("Digital-output native toggle remains; refusing build")
+          if 'arrayListOf(\\n        "-vvv",\\n        "--no-video-title-show"' not in s:
               raise SystemExit("Unexpected LibVLC constructor; refusing unsafe patch")
-          # Restore the known-working digital-output setting before assigning media.
-          if "mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)" not in s:
-              lines = s.splitlines(keepends=True)
-              anchors = [i for i, line in enumerate(lines) if "val durationGeneration = ++sourceGeneration" in line]
-              if len(anchors) != 1:
-                  raise SystemExit("Could not find unique duration-generation anchor")
-              lines.insert(anchors[0] + 1, "        mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)\n")
-              s = "".join(lines)
-          # Remove the experimental selective-encoding/stereo-device block by its
-          # exact log markers, checking the complete block before modifying it.
-          lines = s.splitlines(keepends=True)
-          starts = [i for i, line in enumerate(lines) if "if (digitalOutput) {" in line]
-          if starts:
-              if len(starts) != 1:
-                  raise SystemExit("Found multiple digital-output override blocks")
-              a = starts[0]
-              b = next((i for i in range(a, len(lines)) if "Stereo compatibility output configured=" in lines[i]), -1)
-              if b < 0:
-                  raise SystemExit("Could not find end marker for experimental audio-output block")
-              c = next((i for i in range(b + 1, len(lines)) if lines[i].strip() == "}"), -1)
-              if c < 0:
-                  raise SystemExit("Could not find closing brace for experimental audio-output block")
-              del lines[a:c + 1]
-              s = "".join(lines)
-          if "forceAudioDigitalEncodings" in s or 'setAudioOutputDevice("stereo")' in s:
-              raise SystemExit("Experimental audio-output override remains after cleanup")
           p.write_text(s)
-          print("Restored Build 926 LibVLC options and digital-output control.")
+          print("Restored Build 926 LibVLC open path without the newer digital-output toggle.")
           PY
       - name: Export final post-persistence Kotlin source for review
         working-directory: ${{ env.PROJECT_DIR }}
