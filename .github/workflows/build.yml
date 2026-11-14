@@ -3733,6 +3733,7 @@ jobs:
                           start()
                       }
                   }
+              }
               fun play() {
                   checkActive()
                   if (reachedEnd) {
