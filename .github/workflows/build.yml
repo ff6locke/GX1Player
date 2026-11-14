@@ -8337,7 +8337,7 @@ jobs:
               anchors = [i for i, line in enumerate(lines) if "val durationGeneration = ++sourceGeneration" in line]
               if len(anchors) != 1:
                   raise SystemExit("Could not find unique duration-generation anchor")
-              lines.insert(anchors[0] + 1, "        mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)\\n")
+              lines.insert(anchors[0] + 1, "        mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)\n")
               s = "".join(lines)
           # Remove the experimental selective-encoding/stereo-device block by its
           # exact log markers, checking the complete block before modifying it.
