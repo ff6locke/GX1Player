@@ -8325,26 +8325,36 @@ jobs:
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
           s = p.read_text()
-          old_ctor = 'private val libVlc = try { LibVLC(appContext, arrayListOf<String>("--no-sub-autodetect-file")) } catch (t: Throwable) {'
-          new_ctor = 'private val libVlc = try { LibVLC(appContext, arrayListOf<String>("-vvv", "--no-video-title-show", "--no-sub-autodetect-file")) } catch (t: Throwable) {'
-          if old_ctor in s:
-              s = s.replace(old_ctor, new_ctor, 1)
-          elif new_ctor not in s:
+          old = 'private val libVlc = try { LibVLC(appContext, arrayListOf<String>("--no-sub-autodetect-file")) } catch (t: Throwable) {'
+          new = 'private val libVlc = try { LibVLC(appContext, arrayListOf<String>("-vvv", "--no-video-title-show", "--no-sub-autodetect-file")) } catch (t: Throwable) {'
+          if old in s:
+              s = s.replace(old, new, 1)
+          elif new not in s:
               raise SystemExit("Unexpected LibVLC constructor; refusing unsafe patch")
-          duration_line = "        val durationGeneration = ++sourceGeneration\\n"
-          digital_line = "        mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)\\n"
-          if digital_line.strip() not in s:
-              if s.count(duration_line) != 1:
-                  raise SystemExit("Could not locate unique duration-generation anchor")
-              s = s.replace(duration_line, duration_line + digital_line, 1)
-          # Remove later experimental output-device/encoding overrides; Build 926
-          # used setAudioDigitalOutputEnabled() as the single output-mode control.
-          import re
-          pattern = r"(?m)^\\s*if \\(digitalOutput\\) \\{\\n\\s*val accepted = mediaPlayer\\.forceAudioDigitalEncodings\\(intArrayOf\\(5, 6, 7, 8, 14\\)\\)\\n\\s*android\\.util\\.Log\\.i\\(\\"GX1-VLC\\", \\"Selective surround passthrough configured=\\$accepted\\"\\)\\n\\s*\\} else \\{\\n\\s*val accepted = mediaPlayer\\.setAudioOutputDevice\\(\\"stereo\\"\\)\\n\\s*android\\.util\\.Log\\.i\\(\\"GX1-VLC\\", \\"Stereo compatibility output configured=\\$accepted\\"\\)\\n\\s*\\}\\n"
-          s2, n = re.subn(pattern, "", s, count=1)
-          if n == 0 and ("forceAudioDigitalEncodings" in s or 'setAudioOutputDevice("stereo")' in s):
-              raise SystemExit("Could not safely remove experimental audio-output override")
-          s = s2
+          # Restore the known-working digital-output setting before assigning media.
+          if "mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)" not in s:
+              anchor = "        val durationGeneration = ++sourceGeneration"
+              if s.count(anchor) != 1:
+                  raise SystemExit("Could not find unique duration-generation anchor")
+              s = s.replace(anchor, anchor + "\\n        mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)", 1)
+          # Remove the experimental selective-encoding/stereo-device block by its
+          # exact log markers, checking the complete block before modifying it.
+          lines = s.splitlines(keepends=True)
+          starts = [i for i, line in enumerate(lines) if "if (digitalOutput) {" in line]
+          if starts:
+              if len(starts) != 1:
+                  raise SystemExit("Found multiple digital-output override blocks")
+              a = starts[0]
+              b = next((i for i in range(a, len(lines)) if "Stereo compatibility output configured=" in lines[i]), -1)
+              if b < 0:
+                  raise SystemExit("Could not find end marker for experimental audio-output block")
+              c = next((i for i in range(b + 1, len(lines)) if lines[i].strip() == "}"), -1)
+              if c < 0:
+                  raise SystemExit("Could not find closing brace for experimental audio-output block")
+              del lines[a:c + 1]
+              s = "".join(lines)
+          if "forceAudioDigitalEncodings" in s or 'setAudioOutputDevice("stereo")' in s:
+              raise SystemExit("Experimental audio-output override remains after cleanup")
           p.write_text(s)
           print("Restored Build 926 LibVLC options and digital-output control.")
           PY
