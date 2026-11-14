@@ -8381,22 +8381,6 @@ jobs:
               raise SystemExit("Could not locate VLC activity launch for URI grant")
           p.write_text(s)
           PY
-      - name: Add LibVLC audio track diagnostics (no playback changes)
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-          p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
-          s = p.read_text()
-          if "GX1-VLC-AUDIO" not in s:
-              pattern = r'(MediaPlayer\\.Event\\.Playing\\s*->\\s*\\{\\s*\\n)'
-              s, count = re.subn(pattern, r'\\1                    android.util.Log.i("GX1-VLC-AUDIO", "Playing event; digitalOutput=" + activeDigitalOutput)\\n                    runCatching { audioTracks().forEach { track -> android.util.Log.i("GX1-VLC-AUDIO", "track id=" + track.id + " codec=" + track.codec + " channels=" + track.channels + " rate=" + track.sampleRate + " bitrate=" + track.bitrate + " language=" + track.language + " description=" + track.description) } }.onFailure { android.util.Log.e("GX1-VLC-AUDIO", "Could not inspect active audio tracks", it) }\\n', s, count=1)
-              if count != 1:
-                  raise SystemExit("Could not find LibVLC Playing event for diagnostics")
-              p.write_text(s)
-          print("Added audio-track diagnostics only; no playback configuration changed.")
-          PY
       - name: Export final post-persistence Kotlin source for review
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
