@@ -8318,6 +8318,36 @@ jobs:
               s=s.replace(a,b,1)
               p.write_text(s)
           PY
+      - name: Restore Build 926 LibVLC initialization and digital output path
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
+          s = p.read_text()
+          old_ctor = 'private val libVlc = try { LibVLC(appContext, arrayListOf<String>("--no-sub-autodetect-file")) } catch (t: Throwable) {'
+          new_ctor = 'private val libVlc = try { LibVLC(appContext, arrayListOf<String>("-vvv", "--no-video-title-show", "--no-sub-autodetect-file")) } catch (t: Throwable) {'
+          if old_ctor in s:
+              s = s.replace(old_ctor, new_ctor, 1)
+          elif new_ctor not in s:
+              raise SystemExit("Unexpected LibVLC constructor; refusing unsafe patch")
+          duration_line = "        val durationGeneration = ++sourceGeneration\\n"
+          digital_line = "        mediaPlayer.setAudioDigitalOutputEnabled(digitalOutput)\\n"
+          if digital_line.strip() not in s:
+              if s.count(duration_line) != 1:
+                  raise SystemExit("Could not locate unique duration-generation anchor")
+              s = s.replace(duration_line, duration_line + digital_line, 1)
+          # Remove later experimental output-device/encoding overrides; Build 926
+          # used setAudioDigitalOutputEnabled() as the single output-mode control.
+          import re
+          pattern = r"(?m)^\\s*if \\(digitalOutput\\) \\{\\n\\s*val accepted = mediaPlayer\\.forceAudioDigitalEncodings\\(intArrayOf\\(5, 6, 7, 8, 14\\)\\)\\n\\s*android\\.util\\.Log\\.i\\(\\"GX1-VLC\\", \\"Selective surround passthrough configured=\\$accepted\\"\\)\\n\\s*\\} else \\{\\n\\s*val accepted = mediaPlayer\\.setAudioOutputDevice\\(\\"stereo\\"\\)\\n\\s*android\\.util\\.Log\\.i\\(\\"GX1-VLC\\", \\"Stereo compatibility output configured=\\$accepted\\"\\)\\n\\s*\\}\\n"
+          s2, n = re.subn(pattern, "", s, count=1)
+          if n == 0 and ("forceAudioDigitalEncodings" in s or 'setAudioOutputDevice("stereo")' in s):
+              raise SystemExit("Could not safely remove experimental audio-output override")
+          s = s2
+          p.write_text(s)
+          print("Restored Build 926 LibVLC options and digital-output control.")
+          PY
       - name: Export final post-persistence Kotlin source for review
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
