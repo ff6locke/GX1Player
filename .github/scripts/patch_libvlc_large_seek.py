@@ -25,17 +25,8 @@ if when_line_start <= line_start:
     raise SystemExit("Invalid event-dispatch block boundaries.")
 s = s[:line_start] + s[when_line_start:]
 
-# The main playback UI polls current position/duration independently. These
-# event callbacks need not dispatch redundant UI state updates.
-old = """                          MediaPlayer.Event.TimeChanged,
-                          MediaPlayer.Event.PositionChanged,
-                          MediaPlayer.Event.LengthChanged -> publish()"""
-new = """                          MediaPlayer.Event.TimeChanged,
-                          MediaPlayer.Event.PositionChanged,
-                          MediaPlayer.Event.LengthChanged -> Unit"""
-if s.count(old) != 1:
-    raise SystemExit(f"Expected one time-event publish block; found {s.count(old)}.")
-s = s.replace(old, new, 1)
+# Leave the existing time/position/duration event dispatch unchanged. The generated
+# source varies between branches, and this optimization is not required for the seek fix.
 
 # Verify the failed Build 1060 pre-play workaround is absent from this patch.
 if 'media.addOption(":start-time=$startSeconds")' in s:
