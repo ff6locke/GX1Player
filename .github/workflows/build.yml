@@ -4488,6 +4488,49 @@ jobs:
           p.write_text(s)
           print("Playback filename now follows Media3 controller visibility.")
           PY
+      - name: Focus Play Pause for remote playback
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          helper = """    private fun focusPlaybackPlayPause() {
+                  if (!::playerView.isInitialized) return
+                  playerView.post {
+                      playerView.showController()
+                      playerView.post {
+                          playerView.findViewById<android.view.View>(
+                              androidx.media3.ui.R.id.exo_play_pause
+                          )?.apply {
+                              isFocusable = true
+                              isFocusableInTouchMode = true
+                              requestFocus()
+                          }
+                      }
+                  }
+              }
+
+          """
+          if "private fun focusPlaybackPlayPause()" not in s:
+              anchor = "    private fun startPlayer()"
+              if anchor not in s: raise SystemExit("startPlayer insertion point missing")
+              s = s.replace(anchor, helper + anchor, 1)
+          start = s.find("    private fun startMainLibVlc(uri: Uri)")
+          end = s.find("    private fun buildMediaItem(uri: Uri)", start)
+          if start < 0 or end < 0: raise SystemExit("LibVLC method bounds missing")
+          block = s[start:end]
+          target = "                  playerView.showController()"
+          if target not in block: raise SystemExit("LibVLC controller setup missing")
+          block = block.replace(target, target + "\n                  focusPlaybackPlayPause()", 1)
+          s = s[:start] + block + s[end:]
+          media3 = "        exo.playWhenReady = true"
+          if media3 not in s: raise SystemExit("Media3 playback start missing")
+          if "focusPlaybackPlayPause()" not in s[s.find(media3):s.find(media3)+180]:
+              s = s.replace(media3, media3 + "\n        focusPlaybackPlayPause()", 1)
+          p.write_text(s)
+          print("Play/Pause receives remote focus after Media3 and LibVLC playback starts.")
+          PY
       - name: Add in-app dual subtitle picker to LibVLC playback
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
