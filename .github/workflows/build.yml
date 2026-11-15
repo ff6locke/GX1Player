@@ -8435,6 +8435,57 @@ jobs:
           path: gx1-final-persistence-source.zip
           if-no-files-found: error
           retention-days: 30
+      - name: Restore Play/Pause focus after playback changes
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          helper = """private fun focusGx1PlayPauseAfterPlaybackChange() {
+              if (!::playerView.isInitialized) return
+              playerView.postDelayed({
+                  if (!::playerView.isInitialized || playerView.visibility != android.view.View.VISIBLE) return@postDelayed
+                  playerView.showController()
+                  val playPause = playerView.findViewById<android.view.View>(
+                      androidx.media3.ui.R.id.exo_play_pause
+                  )
+                  if (playPause != null && playPause.isShown && playPause.isEnabled) {
+                      playPause.isFocusable = true
+                      playPause.isFocusableInTouchMode = true
+                      val focused = playPause.requestFocus()
+                      android.util.Log.i("GX1PlayerFocus", "Playback-change Play/Pause focus requested; success=" + focused)
+                  } else {
+                      android.util.Log.w("GX1PlayerFocus", "Play/Pause control not visible after playback change")
+                  }
+              }, 500L)
+          }
+          """
+          helper_anchor = "private fun playAdjacentGx1File(direction: Int) {"
+          if "private fun focusGx1PlayPauseAfterPlaybackChange()" not in s:
+              if s.count(helper_anchor) != 1:
+                  raise SystemExit("Could not find unique playback navigation helper insertion point")
+              s = s.replace(helper_anchor, helper + "\n" + helper_anchor, 1)
+          media_anchor = "        playerView.player = exo\n"
+          if s.count(media_anchor) != 1:
+              raise SystemExit("Could not find unique Media3 player attachment")
+          if "playerView.player = exo\n        focusGx1PlayPauseAfterPlaybackChange()" not in s:
+              s = s.replace(media_anchor, media_anchor + "        focusGx1PlayPauseAfterPlaybackChange()\n", 1)
+          vlc_anchor = "                  ensureMainVlcSubtitleTrackButton()"
+          if s.count(vlc_anchor) != 1:
+              raise SystemExit("Could not find unique LibVLC controller setup completion")
+          if vlc_anchor + "\n        focusGx1PlayPauseAfterPlaybackChange()" not in s:
+              s = s.replace(vlc_anchor, vlc_anchor + "\n        focusGx1PlayPauseAfterPlaybackChange()", 1)
+          for token in [
+              "private fun focusGx1PlayPauseAfterPlaybackChange()",
+              "playerView.player = exo\n        focusGx1PlayPauseAfterPlaybackChange()",
+              "ensureMainVlcSubtitleTrackButton()\n        focusGx1PlayPauseAfterPlaybackChange()"
+          ]:
+              if token not in s:
+                  raise SystemExit("Focus patch verification failed: " + token)
+          p.write_text(s)
+          print("Play/Pause focus is now requested after both Media3 and LibVLC controller attachment.")
+          PY
       - name: Build separate 32-bit and 64-bit ARM APKs
         working-directory: ${{ env.PROJECT_DIR }}
         env:
