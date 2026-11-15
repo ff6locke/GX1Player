@@ -8313,6 +8313,7 @@ jobs:
               if s.count(a)!=1: raise SystemExit("Media3 renderer anchor missing or ambiguous")
               s=s.replace(a,b,1)
               p.write_text(s)
+          p.write_text(s)
           PY
       - name: Restore LibVLC media opening and forward SAF URI permission
         working-directory: ${{ env.PROJECT_DIR }}
