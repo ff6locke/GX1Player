@@ -38,12 +38,15 @@ if "private var rebuildVideoOutputOnNextOpen" not in s:
     s = s.replace(anchor, anchor + "\n    private var rebuildVideoOutputOnNextOpen = false", 1)
 
 # Rebind the actual VLCVideoLayout after assigning the new media, before play().
-play_anchor = "media.release()\n                  android.util.Log.i(android.util.Log.i"
-# Use the unique media-release/log sequence from the engine's open() implementation.
-needle = """media.release()
-                  android.util.Log.i("GX1-VLC", "Opened media using ${uri.scheme} source; digitalOutput=$digitalOutput")
-                  mediaPlayer.play()"""
-insert = """media.release()
+open_start = s.find("fun open(uri: Uri")
+open_end = s.find("fun play()", open_start)
+if open_start < 0 or open_end < 0:
+    raise SystemExit("Could not locate LibVLC open() method boundaries.")
+open_body = s[open_start:open_end]
+media_release = "media.release()"
+if open_body.count(media_release) != 1:
+    raise SystemExit(f"Expected one media.release() in open(); found {open_body.count(media_release)}.")
+rebind = """media.release()
                   if (rebuildVideoOutputOnNextOpen) {
                       rebuildVideoOutputOnNextOpen = false
                       val layout = attachedLayout
@@ -55,12 +58,9 @@ insert = """media.release()
                       } else {
                           android.util.Log.w("GX1-VLC", "Cannot rebind video output: no attached VLCVideoLayout")
                       }
-                  }
-                  android.util.Log.i("GX1-VLC", "Opened media using ${uri.scheme} source; digitalOutput=$digitalOutput")
-                  mediaPlayer.play()"""
-if s.count(needle) != 1:
-    raise SystemExit(f"Could not uniquely locate open() media/play sequence; found {s.count(needle)}.")
-s = s.replace(needle, insert, 1)
+                  }"""
+open_body = open_body.replace(media_release, rebind, 1)
+s = s[:open_start] + open_body + s[open_end:]
 
 required = [
     "private var rebuildVideoOutputOnNextOpen = false",
