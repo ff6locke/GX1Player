@@ -8426,43 +8426,67 @@ jobs:
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
-          helper = """    private fun focusPlaybackPlayPause() {
+          helper = """    private fun focusPlaybackPlayPauseNow() {
                   if (!::playerView.isInitialized) return
-                  playerView.post {
-                      playerView.showController()
-                      playerView.post {
-                          playerView.findViewById<android.view.View>(
-                              androidx.media3.ui.R.id.exo_play_pause
-                          )?.apply {
-                              isFocusable = true
-                              isFocusableInTouchMode = true
-                              requestFocus()
-                          }
+                  val playPause = playerView.findViewById<android.view.View>(
+                      androidx.media3.ui.R.id.exo_play_pause
+                  ) ?: return
+                  playPause.isFocusable = true
+                  playPause.isFocusableInTouchMode = true
+                  playPause.requestFocus()
+                  android.util.Log.d("GX1Player", "Play/Pause focus requested; focused=" + playPause.isFocused)
+              }
+
+              private fun focusPlaybackPlayPause() {
+                  if (!::playerView.isInitialized) return
+                  playerView.setControllerVisibilityListener { visibility ->
+                      if (visibility == android.view.View.VISIBLE) {
+                          playerView.post { focusPlaybackPlayPauseNow() }
                       }
+                  }
+                  playerView.showController()
+                  playerView.post {
+                      focusPlaybackPlayPauseNow()
+                      playerView.postDelayed({ focusPlaybackPlayPauseNow() }, 180L)
+                      playerView.postDelayed({ focusPlaybackPlayPauseNow() }, 500L)
                   }
               }
 
           """
-          if "private fun focusPlaybackPlayPause()" not in s:
+          if "private fun focusPlaybackPlayPauseNow()" not in s:
               anchor = "    private fun startPlayer()"
               if anchor not in s: raise SystemExit("startPlayer insertion point missing")
               s = s.replace(anchor, helper + anchor, 1)
-          media3 = "        exo.playWhenReady = true"
-          if media3 not in s: raise SystemExit("Media3 playback start missing")
-          pos = s.find(media3)
-          if "focusPlaybackPlayPause()" not in s[pos:pos+180]:
-              s = s.replace(media3, media3 + "\n        focusPlaybackPlayPause()", 1)
+
+          # Put the Media3 call inside the actual startPlayer() method,
+          # not at an unrelated playWhenReady assignment elsewhere.
+          start = s.find("    private fun startPlayer()")
+          end = s.find("\n    private fun ", start + 1)
+          if start < 0 or end < 0: raise SystemExit("startPlayer method bounds missing")
+          block = s[start:end]
+          marker = "exo.playWhenReady = true"
+          pos = block.rfind(marker)
+          if pos < 0: raise SystemExit("Media3 startPlayer playWhenReady line missing")
+          after = pos + len(marker)
+          if "focusPlaybackPlayPause()" not in block[after:after+160]:
+              block = block[:after] + "\n        focusPlaybackPlayPause()" + block[after:]
+              s = s[:start] + block + s[end:]
+
+          # LibVLC uses the same Media3 controller surface; focus only after
+          # its forwarding Player has been attached and the controller shown.
           start = s.find("    private fun startMainLibVlc(uri: Uri) {")
           end = s.find("\n    private fun ", start + 1)
           if start < 0 or end < 0: raise SystemExit("Final LibVLC method bounds missing")
           block = s[start:end]
-          target = "playerView.showController()"
-          if target not in block: raise SystemExit("Final LibVLC controller setup missing")
-          if "focusPlaybackPlayPause()" not in block:
-              block = block.replace(target, target + "\n                  focusPlaybackPlayPause()", 1)
+          marker = "playerView.showController()"
+          pos = block.rfind(marker)
+          if pos < 0: raise SystemExit("LibVLC controller setup missing")
+          after = pos + len(marker)
+          if "focusPlaybackPlayPause()" not in block[after:after+180]:
+              block = block[:after] + "\n                  focusPlaybackPlayPause()" + block[after:]
               s = s[:start] + block + s[end:]
           p.write_text(s)
-          print("Final playback startup now returns D-pad focus to Play/Pause for Media3 and LibVLC.")
+          print("Play/Pause focus is now tied to the actual Media3 and LibVLC startup methods and controller visibility.")
           PY
       - name: Export final Kotlin source
         working-directory: ${{ env.PROJECT_DIR }}
