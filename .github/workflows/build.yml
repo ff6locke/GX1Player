@@ -7727,7 +7727,7 @@ jobs:
               if s.count(nav_anchor) != 1:
                   raise SystemExit("Could not find unique playback navigation method")
               nav_pos = s.find(nav_anchor)
-              nav_line = s.rfind("\\n", 0, nav_pos) + 1
+              nav_line = s.rfind(chr(10), 0, nav_pos) + 1
               nav_indent = s[nav_line:nav_pos]
               s = s[:nav_line] + nav_indent + focus_helper + s[nav_line:]
           nav_pos = s.find(nav_anchor)
@@ -7738,7 +7738,7 @@ jobs:
               raise SystemExit("Could not find controller refresh in next/previous")
           if "focusGx1PlayPauseAfterPlaybackChange()" not in nav_block:
               show_pos = nav_pos + nav_block.find(show_line) + len(show_line)
-              s = s[:show_pos] + "\\n              focusGx1PlayPauseAfterPlaybackChange()" + s[show_pos:]
+              s = s[:show_pos] + chr(10) + "              focusGx1PlayPauseAfterPlaybackChange()" + s[show_pos:]
           tile_old = 'if (last != null) { selectMedia(last); startPlayer() }'
           tile_new = 'if (last != null) { selectMedia(last); startPlayer(); focusGx1PlayPauseAfterPlaybackChange() }'
           if tile_old in s:
