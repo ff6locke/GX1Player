@@ -1402,7 +1402,7 @@ jobs:
           p.write_text(s)
           print("Installed touch-friendly VLC-style floating menu panel.")
           PY
-      - name: Make the playback gear menu vertically scrollable
+      - name: Make gear menu scrollable
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -6062,7 +6062,7 @@ jobs:
           p.write_text(s)
           print("Added a filename overlay as a sibling above PlayerView; it is shown for main LibVLC playback and hidden on release.")
           PY
-      - name: Add previous and next file controls to main LibVLC playback
+      - name: Add previous/next controls
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -7917,7 +7917,7 @@ jobs:
           p.write_text(s)
           print("Hard Left/Right boundary guards installed.")
           PY
-      - name: Persist and restore selected LibVLC tracks across player restarts
+      - name: Persist LibVLC tracks across restarts
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -8476,7 +8476,7 @@ jobs:
       - name: Route multichannel AAC to Media3 while keeping LibVLC default
         working-directory: ${{ env.PROJECT_DIR }}
         run: python3 "$GITHUB_WORKSPACE/.github/scripts/route_aac_multichannel.py"
-      - name: Export final post-persistence Kotlin source for review
+      - name: Export final Kotlin source
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           mkdir -p "$GITHUB_WORKSPACE/gx1-final-persistence-source"
@@ -8557,7 +8557,7 @@ jobs:
             echo "64-bit APK unexpectedly contains ARMv7 libraries"
             exit 1
           fi
-      - name: Publish APKs to GX1 Player GitHub release
+      - name: Publish APKs to release
         if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
