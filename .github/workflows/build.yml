@@ -8283,24 +8283,26 @@ jobs:
           from pathlib import Path
           p=Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s=p.read_text()
-          old = """            override fun onPlaybackStateChanged(playbackState: Int) {
-                if (playbackState == Player.STATE_ENDED || playbackState == Player.STATE_READY) {
-                    savePosition(exo)
-                }
-            }"""
-          new = """            override fun onPlaybackStateChanged(playbackState: Int) {
-                if (playbackState == Player.STATE_ENDED && prefs.getBoolean("gx1_repeat_enabled", false)) {
-                    savePosition(exo)
-                    android.util.Log.i("GX1Player", "Media3 Repeat One: restarting ended video")
-                    exo.seekTo(0L)
-                    exo.playWhenReady = true
-                    exo.play()
-                    return
-                }
-                if (playbackState == Player.STATE_ENDED || playbackState == Player.STATE_READY) savePosition(exo)
-            }"""
-          if old in s: s=s.replace(old,new,1)
-          elif "Media3 Repeat One: restarting ended video" not in s: raise SystemExit("Media3 repeat end-handler anchor missing")
+          import re
+          pattern = re.compile(r'(?m)^([ \\t]*)override fun onPlaybackStateChanged\\(playbackState: Int\\)\\s*\\{.*?^\\1\\}')
+          matches = list(pattern.finditer(s))
+          if len(matches) != 1:
+              raise SystemExit(f"Expected one Media3 playback-state listener, found {len(matches)}")
+          if "Media3 Repeat One: restarting ended video" not in s:
+              indent = matches[0].group(1)
+              body = """override fun onPlaybackStateChanged(playbackState: Int) {
+              if (playbackState == Player.STATE_ENDED && prefs.getBoolean("gx1_repeat_enabled", false)) {
+                  savePosition(exo)
+                  android.util.Log.i("GX1Player", "Media3 Repeat One: restarting ended video")
+                  exo.seekTo(0L)
+                  exo.playWhenReady = true
+                  exo.play()
+                  return
+              }
+              if (playbackState == Player.STATE_ENDED || playbackState == Player.STATE_READY) savePosition(exo)
+          }"""
+              replacement = "\\n".join(indent + line if line else "" for line in body.splitlines())
+              s = pattern.sub(lambda _: replacement, s, count=1)
           a="        val renderers = if (passthrough) {"
           b = (
               "        playerView.visibility = View.VISIBLE\n"
