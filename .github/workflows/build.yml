@@ -8283,6 +8283,7 @@ jobs:
           from pathlib import Path
           p=Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s=p.read_text()
+          # Replace the listener body by balanced-brace parsing, independent of formatting.
           needle = "override fun onPlaybackStateChanged(playbackState: Int)"
           start = s.find(needle)
           if start < 0 or s.find(needle, start + 1) >= 0:
