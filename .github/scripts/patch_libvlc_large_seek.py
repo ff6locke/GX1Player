@@ -12,8 +12,8 @@ if native_seek not in s:
 
 # Match the diagnostic block independent of indentation in the generated Kotlin.
 pattern = re.compile(
-    r"(?m)^[ \t]*val voutInfo = runCatching \{\n"
-    r".*?^[ \t]*android\.util\.Log\.i\("GX1-VLC", "MAIN LibVLC event=\$\{event\.type\}, vout=\$voutInfo"\)\n",
+    r'(?m)^[ \t]*val voutInfo = runCatching \{\n'
+    r'.*?^[ \t]*android\.util\.Log\.i\("GX1-VLC", "MAIN LibVLC event=\$\{event\.type\}, vout=\$voutInfo"\)\n',
     re.DOTALL,
 )
 s, removed = pattern.subn("", s, count=1)
