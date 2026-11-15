@@ -1,5 +1,5 @@
 name: Build GX1 Player APK
-# Trigger builds for LibVLC recovery script updates.
+# Trigger builds for LibVLC recovery script updates and constructor patch fixes.
 on:
   push:
     branches: [ main, aspect-ratio-parity, media3-repeat-fix, fix-duplicate-playback-title, fix-libvlc-long-seek-recovery ]
@@ -7885,10 +7885,25 @@ jobs:
           """
               s = s.replace("package com.example.gx1player.playback\n", "package com.example.gx1player.playback\n\n" + runtime, 1)
               import re
-              pattern = r"private val libVlc = LibVLC\(appContext, arrayListOf\([\s\S]*?^\s*\)\)"
-              s, count = re.subn(pattern, "private val libVlc = Gx1LibVlcRuntime.acquire(appContext)", s, count=1, flags=re.MULTILINE)
-              if count != 1:
-                  raise SystemExit("LibVLC constructor pattern not found; refusing startup rewrite")
+              match = re.search(r"(?m)^(\\s*)private val libVlc\\s*=\\s*LibVLC\\(", s)
+              if not match:
+                  raise SystemExit("LibVLC property declaration not found; refusing startup rewrite")
+              start = match.start()
+              opening = s.find("(", match.start())
+              depth = 0
+              end = None
+              for index in range(opening, len(s)):
+                  if s[index] == "(":
+                      depth += 1
+                  elif s[index] == ")":
+                      depth -= 1
+                      if depth == 0:
+                          end = index + 1
+                          break
+              if end is None:
+                  raise SystemExit("LibVLC constructor parentheses are unbalanced")
+              indent = match.group(1)
+              s = s[:start] + indent + "private val libVlc = Gx1LibVlcRuntime.acquire(appContext)" + s[end:]
               if "fun prewarm(context: Context)" not in s:
                   s = s.replace("class Gx1LibVlcEngine(\n", "class Gx1LibVlcEngine(\n", 1)
                   marker = "    data class State("
