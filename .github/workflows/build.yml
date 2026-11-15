@@ -1,7 +1,7 @@
 name: Build GX1 Player APK
 on:
   push:
-    branches: [ main, aspect-ratio-parity, media3-repeat-fix ]
+    branches: [ main, aspect-ratio-parity, media3-repeat-fix, fix-duplicate-playback-title ]
     paths:
       - 'gx1-player.zip'
       - '.github/workflows/build.yml'
@@ -1402,7 +1402,7 @@ jobs:
           p.write_text(s)
           print("Installed touch-friendly VLC-style floating menu panel.")
           PY
-      - name: Make the playback gear menu vertically scrollable
+      - name: Make gear menu scrollable
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -4474,8 +4474,9 @@ jobs:
           listener = """playerView.setControllerVisibilityListener(
                       object : androidx.media3.ui.PlayerView.ControllerVisibilityListener {
                           override fun onVisibilityChanged(visibility: Int) {
-                              playbackTitle.visibility = visibility
-                              // Media3 draws its own title; LibVLC needs the sibling title.
+                              // Show exactly one filename overlay for the active engine.
+                              playbackTitle.visibility =
+                                  if (mainVlcEngine == null) visibility else android.view.View.GONE
                               gx1MainPlaybackTitle?.visibility =
                                   if (mainVlcEngine != null) visibility else android.view.View.GONE
                           }
@@ -5009,7 +5010,7 @@ jobs:
           print("GENERATED VLC SOURCE 485-510:\n" + "\n".join(f"{i+1}: {lines[i]}" for i in range(484,min(510,len(lines)))))
           print("VLC Test custom subtitles now render independently and can be toggled together with checkboxes.")
           PY
-      - name: Add selectable LibVLC playback to the main screen
+      - name: Add LibVLC playback selector
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -5612,7 +5613,7 @@ jobs:
           p.write_text(s)
           print("Main LibVLC now discovers and registers same-stem ASS/SSA/SRT files after opening the video.")
           PY
-      - name: Add VLC Test-style simultaneous subtitle checkboxes to the main player
+      - name: Add simultaneous subtitle checkboxes
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -6061,7 +6062,7 @@ jobs:
           p.write_text(s)
           print("Added a filename overlay as a sibling above PlayerView; it is shown for main LibVLC playback and hidden on release.")
           PY
-      - name: Add previous and next file controls to main LibVLC playback
+      - name: Add previous/next controls
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -7110,7 +7111,7 @@ jobs:
           print("Media3 seek and previous/restart actions now explicitly restart LibVLC and reset the controller clock.")
           print("Fixed restart ordering and removed diagnostic menu references.")
           PY
-      - name: Fix repeat toggle, aspect checkboxes, Open video URI playback, and white icons
+      - name: Fix repeat, aspect, URI playback and icons
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -7702,61 +7703,9 @@ jobs:
               line_start = s.rfind("\n", 0, pos) + 1
               indent = s[line_start:pos]
               s = s[:line_start] + indent + 'files.sortBy { it.label.lowercase() }\n' + s[line_start:]
-          class_anchor = "class MainActivity : AppCompatActivity() {"
-          if class_anchor not in s:
-              raise SystemExit("Could not locate MainActivity class for focus state")
-          if "private var gx1FocusListenerInstalled" not in s:
-              s = s.replace(class_anchor, class_anchor + "\n    private var gx1FocusListenerInstalled = false", 1)
-          helper = '''    private fun focusPlaybackToggle() {
-              if (!::playerView.isInitialized) return
-              val playPause = playerView.findViewById<android.view.View>(
-                  androidx.media3.ui.R.id.exo_play_pause
-              ) ?: return
-              playPause.isFocusable = true
-              playPause.isFocusableInTouchMode = true
-              playPause.requestFocus()
-          }
-          '''
-          if "private fun focusPlaybackToggle()" not in s:
-              anchor = "    private fun startMainLibVlc(uri: Uri) {"
-              if anchor not in s:
-                  raise SystemExit("Could not locate main LibVLC start method for focus helper")
-              s = s.replace(anchor, helper + anchor, 1)
-          old_focus = '''                  playerView.showController()
-                  playerView.post {
-                      val playPause = playerView.findViewById<android.view.View>(
-                          androidx.media3.ui.R.id.exo_play_pause
-                      )
-                      playPause?.isFocusable = true
-                      playPause?.isFocusableInTouchMode = true
-                      playPause?.requestFocus()
-                  }'''
-          new_focus = '''                  playerView.showController()
-                  if (!gx1FocusListenerInstalled) {
-                      playerView.setControllerVisibilityListener(
-                          object : androidx.media3.ui.PlayerView.ControllerVisibilityListener {
-                              override fun onVisibilityChanged(visibility: Int) {
-                                  if (visibility == View.VISIBLE) {
-                                      playerView.post { focusPlaybackToggle() }
-                                  }
-                              }
-                          }
-                      )
-                      gx1FocusListenerInstalled = true
-                  }
-                  playerView.post { focusPlaybackToggle() }'''
-          if old_focus in s:
-              s = s.replace(old_focus, new_focus, 1)
-          elif "playerView.setControllerVisibilityListener(" not in s:
-              raise SystemExit("Could not locate existing Play/Pause focus request to replace")
-          listener_anchor = "playbackTitle.visibility = visibility"
-          focus_line = "if (visibility == View.VISIBLE) playerView.post { focusPlaybackToggle() }"
-          if listener_anchor in s and focus_line not in s:
-              s = s.replace(listener_anchor, listener_anchor + "\n                    " + focus_line, 1)
-          if "private fun focusPlaybackToggle()" not in s or focus_line not in s:
-              raise SystemExit("Playback focus correction verification failed")
           if "contentResolver.query(collection, projection, selection, selectionArgs, null)" not in s:
               raise SystemExit("Library query optimization verification failed")
+          print("Applied MediaStore folder filtering and sorting; playback focus logic unchanged.")
           p.write_text(s)
           print("Library now filters MediaStore by the selected folder and sorts only the visible results. Playback controller refreshes now return D-pad focus to Play/Pause.")
           PY
@@ -7912,7 +7861,7 @@ jobs:
           p.write_text(s)
           print("Hard Left/Right boundary guards installed.")
           PY
-      - name: Persist and restore selected LibVLC tracks across player restarts
+      - name: Persist LibVLC tracks across restarts
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -8136,7 +8085,7 @@ jobs:
           p.write_text(s)
           print("Per-video track persistence patch applied.")
           PY
-      - name: Verify track selections after LibVLC applies them and restore custom subtitles for document URIs
+      - name: Verify LibVLC track selection and document-URI subtitle restore
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -8192,7 +8141,7 @@ jobs:
           p.write_text(s)
           print("Track restore verification patch applied.")
           PY
-      - name: Fix custom Subtitle 1 restart state and remove duplicate subtitle restore
+      - name: Fix Subtitle 1 restart state and duplicate restore
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -8471,7 +8420,7 @@ jobs:
       - name: Route multichannel AAC to Media3 while keeping LibVLC default
         working-directory: ${{ env.PROJECT_DIR }}
         run: python3 "$GITHUB_WORKSPACE/.github/scripts/route_aac_multichannel.py"
-      - name: Export final post-persistence Kotlin source for review
+      - name: Export final Kotlin source
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           mkdir -p "$GITHUB_WORKSPACE/gx1-final-persistence-source"
@@ -8486,6 +8435,57 @@ jobs:
           path: gx1-final-persistence-source.zip
           if-no-files-found: error
           retention-days: 30
+      - name: Restore Play/Pause focus after playback changes
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          helper = """private fun focusGx1PlayPauseAfterPlaybackChange() {
+              if (!::playerView.isInitialized) return
+              playerView.postDelayed({
+                  if (!::playerView.isInitialized || playerView.visibility != android.view.View.VISIBLE) return@postDelayed
+                  playerView.showController()
+                  val playPause = playerView.findViewById<android.view.View>(
+                      androidx.media3.ui.R.id.exo_play_pause
+                  )
+                  if (playPause != null && playPause.isShown && playPause.isEnabled) {
+                      playPause.isFocusable = true
+                      playPause.isFocusableInTouchMode = true
+                      val focused = playPause.requestFocus()
+                      android.util.Log.i("GX1PlayerFocus", "Playback-change Play/Pause focus requested; success=" + focused)
+                  } else {
+                      android.util.Log.w("GX1PlayerFocus", "Play/Pause control not visible after playback change")
+                  }
+              }, 500L)
+          }
+          """
+          helper_anchor = "private fun playAdjacentGx1File(direction: Int) {"
+          if "private fun focusGx1PlayPauseAfterPlaybackChange()" not in s:
+              if s.count(helper_anchor) != 1:
+                  raise SystemExit("Could not find unique playback navigation helper insertion point")
+              s = s.replace(helper_anchor, helper + "\n" + helper_anchor, 1)
+          media_anchor = "        playerView.player = exo\n"
+          if s.count(media_anchor) != 1:
+              raise SystemExit("Could not find unique Media3 player attachment")
+          if "playerView.player = exo\n        focusGx1PlayPauseAfterPlaybackChange()" not in s:
+              s = s.replace(media_anchor, media_anchor + "        focusGx1PlayPauseAfterPlaybackChange()\n", 1)
+          vlc_anchor = "                  ensureMainVlcSubtitleTrackButton()"
+          if s.count(vlc_anchor) != 1:
+              raise SystemExit("Could not find unique LibVLC controller setup completion")
+          if vlc_anchor + "\n        focusGx1PlayPauseAfterPlaybackChange()" not in s:
+              s = s.replace(vlc_anchor, vlc_anchor + "\n        focusGx1PlayPauseAfterPlaybackChange()", 1)
+          for token in [
+              "private fun focusGx1PlayPauseAfterPlaybackChange()",
+              "playerView.player = exo\n        focusGx1PlayPauseAfterPlaybackChange()",
+              "ensureMainVlcSubtitleTrackButton()\n        focusGx1PlayPauseAfterPlaybackChange()"
+          ]:
+              if token not in s:
+                  raise SystemExit("Focus patch verification failed: " + token)
+          p.write_text(s)
+          print("Play/Pause focus is now requested after both Media3 and LibVLC controller attachment.")
+          PY
       - name: Build separate 32-bit and 64-bit ARM APKs
         working-directory: ${{ env.PROJECT_DIR }}
         env:
@@ -8552,7 +8552,7 @@ jobs:
             echo "64-bit APK unexpectedly contains ARMv7 libraries"
             exit 1
           fi
-      - name: Publish APKs to GX1 Player GitHub release
+      - name: Publish APKs to release
         if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
