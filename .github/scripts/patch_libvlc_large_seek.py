@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 p = Path("gx1-player/app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
 s = p.read_text()
@@ -9,18 +10,15 @@ native_seek = "fun seekTo(positionMs: Long) { checkActive(); mediaPlayer.setTime
 if native_seek not in s:
     raise SystemExit("Native LibVLC seek method not found; refusing an unverified seek rewrite.")
 
-# The event listener is invoked for frequent time/position updates. Avoid doing
-# reflection and verbose logging for every event.
-diagnostic = """                  val voutInfo = runCatching {
-                      mediaPlayer.javaClass.methods.firstOrNull {
-                          it.name == "getVoutCount" || it.name == "getVout"
-                      }?.invoke(mediaPlayer)?.toString() ?: "not-exposed"
-                  }.getOrDefault("query-failed")
-                  android.util.Log.i("GX1-VLC", "MAIN LibVLC event=${event.type}, vout=$voutInfo")
-"""
-if s.count(diagnostic) != 1:
-    raise SystemExit(f"Expected one per-event reflection/log block; found {s.count(diagnostic)}.")
-s = s.replace(diagnostic, "", 1)
+# Match the diagnostic block independent of indentation in the generated Kotlin.
+pattern = re.compile(
+    r"(?m)^[ \t]*val voutInfo = runCatching \{\n"
+    r".*?^[ \t]*android\.util\.Log\.i\("GX1-VLC", "MAIN LibVLC event=\$\{event\.type\}, vout=\$voutInfo"\)\n",
+    re.DOTALL,
+)
+s, removed = pattern.subn("", s, count=1)
+if removed != 1:
+    raise SystemExit(f"Expected one per-event reflection/log block; found {removed}.")
 
 # The main playback UI polls current position/duration independently. These
 # event callbacks need not dispatch redundant UI state updates.
