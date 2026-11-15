@@ -7289,21 +7289,15 @@ jobs:
           a = activity.read_text()
           import re
           mode_pattern = r"val aspectModes = intArrayOf\(.*?\)\s+val aspectNames = arrayOf\(.*?\)"
-          new_modes = """val aspectModes = arrayOf(
-                      org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_BEST_FIT,
-                      org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_FILL,
-                      org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_FIT_SCREEN,
-                      org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_16_9,
-                      org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_4_3,
-                      org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_ORIGINAL
-                  )
-                  val aspectNames = arrayOf("Fit", "Fill", "Zoom", "16:9", "4:3", "Original")"""
+          new_modes = """val vlcAspectModes = arrayOf(org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_BEST_FIT,org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_FILL,org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_FIT_SCREEN,org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_16_9,org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_4_3,org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_ORIGINAL)
+                  val media3AspectModes = intArrayOf(0,3,4,1,2)
+                  val aspectNames = if (mainVlcEngine != null) arrayOf("Fit","Fill","Zoom","16:9","4:3","Original") else arrayOf("Fit","Stretch","Zoom","Fixed width","Fixed height")"""
           a, mode_count = re.subn(mode_pattern, lambda m: new_modes, a, count=1, flags=re.S)
           if mode_count != 1:
               raise SystemExit("Could not locate aspect ratio modes block")
           a, selected_count = re.subn(
               r"val selected = playerView[.]resizeMode == aspectModes\[aspectIndex\]",
-              "val selected = (mainVlcEngine?.getVideoScale() ?: org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_BEST_FIT) == aspectModes[aspectIndex]",
+              "val selected = if (mainVlcEngine != null) selectedMainVlcScale == vlcAspectModes[aspectIndex] else playerView.resizeMode == media3AspectModes[aspectIndex]",
               a, count=1
           )
           if selected_count != 1:
@@ -7311,7 +7305,7 @@ jobs:
           old_click = "playerView.resizeMode = aspectModes[aspectIndex]"
           if a.count(old_click) != 1:
               raise SystemExit(f"Could not locate unique aspect ratio click assignment; found {a.count(old_click)}")
-          a = a.replace(old_click, "mainVlcEngine?.setVideoScale(aspectModes[aspectIndex])", 1)
+          a = a.replace(old_click, "if (mainVlcEngine != null) { selectedMainVlcScale = vlcAspectModes[aspectIndex]; mainVlcEngine?.setVideoScale(selectedMainVlcScale) } else playerView.resizeMode = media3AspectModes[aspectIndex]; playerView.requestLayout()", 1)
           activity.write_text(a)
           print("Aspect ratio now controls LibVLC ScaleType on the actual video surface.")
           PY
@@ -7337,14 +7331,14 @@ jobs:
               indent = lines[i][:len(lines[i]) - len(lines[i].lstrip())]
               lines.insert(i + 1, indent + 'engine.setVideoScale(selectedMainVlcScale)')
               s = '\n'.join(lines) + ('\n' if s.endswith('\n') else '')
-          old_selected = '(mainVlcEngine?.getVideoScale() ?: org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_BEST_FIT) == aspectModes[aspectIndex]'
-          new_selected = 'selectedMainVlcScale == aspectModes[aspectIndex]'
+          old_selected = 'if (mainVlcEngine != null) selectedMainVlcScale == vlcAspectModes[aspectIndex] else playerView.resizeMode == media3AspectModes[aspectIndex]'
+          new_selected = old_selected
           if old_selected in s:
               s = s.replace(old_selected, new_selected, 1)
           elif new_selected not in s:
               raise SystemExit('Could not locate aspect ratio checkbox selected-state')
-          old_click = 'mainVlcEngine?.setVideoScale(aspectModes[aspectIndex])'
-          new_click = 'selectedMainVlcScale = aspectModes[aspectIndex]\n                        mainVlcEngine?.setVideoScale(selectedMainVlcScale)'
+          old_click = 'if (mainVlcEngine != null) { selectedMainVlcScale = vlcAspectModes[aspectIndex]; mainVlcEngine?.setVideoScale(selectedMainVlcScale) } else playerView.resizeMode = media3AspectModes[aspectIndex]; playerView.requestLayout()'
+          new_click = old_click
           if old_click in s:
               if s.count(old_click) != 1:
                   raise SystemExit('Aspect ratio click assignment is not unique')
