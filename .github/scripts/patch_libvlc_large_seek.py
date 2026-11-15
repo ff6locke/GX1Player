@@ -5,7 +5,7 @@ p = Path("gx1-player/app/src/main/java/com/example/gx1player/playback/Gx1LibVlcE
 s = p.read_text()
 
 pattern = re.compile(
-    r"(?m)^(?P<indent>[ \t]*)fun seekTo\\(positionMs: Long\\)[ \t]*\\{[^}]*\\}"
+    r"(?m)^(?P<indent>[ \t]*)fun seekTo\(positionMs: Long\)[ \t]*\{[^}]*\}"
 )
 matches = list(pattern.finditer(s))
 if len(matches) != 1:
