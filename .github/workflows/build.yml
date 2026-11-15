@@ -5613,7 +5613,7 @@ jobs:
           p.write_text(s)
           print("Main LibVLC now discovers and registers same-stem ASS/SSA/SRT files after opening the video.")
           PY
-      - name: Add VLC Test-style simultaneous subtitle checkboxes to the main player
+      - name: Add simultaneous subtitle checkboxes
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
