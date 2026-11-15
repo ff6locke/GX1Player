@@ -48,7 +48,11 @@ s = s.replace(
 
 s = s.replace(
     seek_method,
-    """fun seekTo(positionMs: Long) {
+    """private var diagnosticSeekBurstStartMs: Long = -1L
+    private var diagnosticSeekBurstLastAtMs: Long = 0L
+    private var diagnosticSeekHeartbeatStarted: Boolean = false
+
+    fun seekTo(positionMs: Long) {
         checkActive()
         val targetMs = positionMs.coerceAtLeast(0L)
         val beforeMs = mediaPlayer.time
@@ -61,15 +65,25 @@ s = s.replace(
             "GX1-SEEK-DIAG",
             "seekAfter targetMs=$targetMs currentMs=${mediaPlayer.time} lengthMs=${mediaPlayer.length} playing=${mediaPlayer.isPlaying}"
         )
-        if (beforeMs >= 0L && kotlin.math.abs(targetMs - beforeMs) >= 300_000L) {
+        val nowElapsedMs = android.os.SystemClock.elapsedRealtime()
+        if (diagnosticSeekBurstStartMs < 0L || nowElapsedMs - diagnosticSeekBurstLastAtMs > 2_000L) {
+            diagnosticSeekBurstStartMs = beforeMs
+            diagnosticSeekHeartbeatStarted = false
+        }
+        diagnosticSeekBurstLastAtMs = nowElapsedMs
+        if (!diagnosticSeekHeartbeatStarted &&
+            diagnosticSeekBurstStartMs >= 0L &&
+            kotlin.math.abs(targetMs - diagnosticSeekBurstStartMs) >= 300_000L) {
+            diagnosticSeekHeartbeatStarted = true
             val diagnosticHandler = android.os.Handler(android.os.Looper.getMainLooper())
             val diagnosticStartedAt = android.os.SystemClock.elapsedRealtime()
+            val burstStartMs = diagnosticSeekBurstStartMs
             val diagnosticHeartbeat = object : Runnable {
                 override fun run() {
                     val elapsedMs = android.os.SystemClock.elapsedRealtime() - diagnosticStartedAt
                     android.util.Log.i(
                         "GX1-SEEK-DIAG",
-                        "heartbeat elapsedMs=$elapsedMs targetMs=$targetMs currentMs=${mediaPlayer.time} playing=${mediaPlayer.isPlaying}"
+                        "heartbeat elapsedMs=$elapsedMs burstStartMs=$burstStartMs targetMs=$targetMs currentMs=${mediaPlayer.time} playing=${mediaPlayer.isPlaying}"
                     )
                     if (elapsedMs < 45_000L) diagnosticHandler.postDelayed(this, 500L)
                 }
