@@ -7915,7 +7915,7 @@ jobs:
                   raise SystemExit("Engine state insertion point missing")
               s = s.replace(marker, companion + marker, 1)
           import re
-          s, removed = re.subn(r"(?m)^[ \\t]*libVlc\\.release\\(\\)[ \\t]*\\n?", "", s, count=1)
+          s, removed = re.subn(r"(?m)^[ \t]*libVlc\.release\(\)[ \t]*\n?", "", s, count=1)
           if removed != 1:
               raise SystemExit("Could not locate exactly one per-engine LibVLC release call")
           engine.write_text(s)
