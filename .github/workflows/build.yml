@@ -7745,17 +7745,20 @@ jobs:
               s = s.replace(tile_old, tile_new, 1)
           elif tile_new not in s:
               raise SystemExit("Could not locate Resume home tile")
-          menu_old = """                          selectMedia(last)
-                          startPlayer()
-                      } else {"""
-          menu_new = """                          selectMedia(last)
-                          startPlayer()
-                          focusGx1PlayPauseAfterPlaybackChange()
-                      } else {"""
-          if menu_old in s:
-              s = s.replace(menu_old, menu_new, 1)
-          elif menu_new not in s:
+          menu_anchor = 'add("Resume last video") {'
+          menu_pos = s.find(menu_anchor)
+          if menu_pos < 0:
               raise SystemExit("Could not locate Resume menu action")
+          menu_next = s.find('\\n        add(', menu_pos + len(menu_anchor))
+          if menu_next < 0:
+              menu_next = min(len(s), menu_pos + 2000)
+          menu_block = s[menu_pos:menu_next]
+          if "focusGx1PlayPauseAfterPlaybackChange()" not in menu_block:
+              start_pos = menu_block.find("startPlayer()")
+              if start_pos < 0:
+                  raise SystemExit("Could not locate startPlayer in Resume menu action")
+              insert_at = menu_pos + start_pos + len("startPlayer()")
+              s = s[:insert_at] + chr(10) + "                      focusGx1PlayPauseAfterPlaybackChange()" + s[insert_at:]
           if "focusGx1PlayPauseAfterPlaybackChange()" not in s:
               raise SystemExit("Playback focus call verification failed")
           p.write_text(s)
