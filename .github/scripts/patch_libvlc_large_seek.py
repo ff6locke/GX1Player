@@ -24,12 +24,19 @@ if block_start >= 0:
 
 old_event = "mediaPlayer.setEventListener { event ->"
 new_event = """mediaPlayer.setEventListener { event ->
+            if (event.type == MediaPlayer.Event.Vout) {
+                diagnosticVoutCount = event.voutCount
+                android.util.Log.i(
+                    "GX1-SEEK-DIAG",
+                    "voutEvent count=$diagnosticVoutCount timeMs=${mediaPlayer.time} playing=${mediaPlayer.isPlaying}"
+                )
+            }
             if (event.type != MediaPlayer.Event.TimeChanged &&
                 event.type != MediaPlayer.Event.PositionChanged &&
                 event.type != MediaPlayer.Event.LengthChanged) {
                 android.util.Log.i(
                     "GX1-SEEK-DIAG",
-                    "event=${event.type}, timeMs=${mediaPlayer.time}, playing=${mediaPlayer.isPlaying}, voutCount=${runCatching { mediaPlayer.javaClass.methods.firstOrNull { it.name == "getVoutCount" && it.parameterCount == 0 }?.invoke(mediaPlayer) }.getOrNull() ?: "unavailable"}"
+                    "event=${event.type}, timeMs=${mediaPlayer.time}, playing=${mediaPlayer.isPlaying}, voutCount=$diagnosticVoutCount"
                 )
             }"""
 if s.count(old_event) != 1:
@@ -48,7 +55,8 @@ s = s.replace(
 
 s = s.replace(
     seek_method,
-    """private var diagnosticSeekBurstStartMs: Long = -1L
+    """private var diagnosticVoutCount: Int = -1
+    private var diagnosticSeekBurstStartMs: Long = -1L
     private var diagnosticSeekBurstLastAtMs: Long = 0L
     private var diagnosticSeekHeartbeatStarted: Boolean = false
 
@@ -83,7 +91,7 @@ s = s.replace(
                     val elapsedMs = android.os.SystemClock.elapsedRealtime() - diagnosticStartedAt
                     android.util.Log.i(
                         "GX1-SEEK-DIAG",
-                        "heartbeat elapsedMs=$elapsedMs burstStartMs=$burstStartMs targetMs=$targetMs currentMs=${mediaPlayer.time} playing=${mediaPlayer.isPlaying} voutCount=${runCatching { mediaPlayer.javaClass.methods.firstOrNull { it.name == "getVoutCount" && it.parameterCount == 0 }?.invoke(mediaPlayer) }.getOrNull() ?: "unavailable"}"
+                        "heartbeat elapsedMs=$elapsedMs burstStartMs=$burstStartMs targetMs=$targetMs currentMs=${mediaPlayer.time} playing=${mediaPlayer.isPlaying} voutCount=$diagnosticVoutCount"
                     )
                     if (elapsedMs < 45_000L) diagnosticHandler.postDelayed(this, 500L)
                 }
