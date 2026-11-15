@@ -13,9 +13,9 @@ if native_seek not in s:
 # Remove the entire per-event diagnostics block, regardless of which later
 # workflow step rewrote its Log.i call. Stop exactly at the event dispatch.
 pattern = re.compile(
-    r'(?ms)^([ \\t]*)val voutInfo = runCatching \\{.*?^\\1when \\(event\\.type\\)\\n'
+    r'(?ms)^([ \t]*)val voutInfo = runCatching \{.*?^\1when \(event\.type\)\n'
 )
-s, removed = pattern.subn(r"\\1when (event.type)\\n", s, count=1)
+s, removed = pattern.subn(r"\1when (event.type)\n", s, count=1)
 if removed != 1:
     raise SystemExit(f"Expected one per-event diagnostics block before event dispatch; found {removed}.")
 
