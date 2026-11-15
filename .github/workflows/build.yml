@@ -7841,6 +7841,87 @@ jobs:
       - name: Recover LibVLC video after large seeks (regex escaping fix)
         run: |
           python3 .github/scripts/patch_libvlc_large_seek.py
+      - name: Prewarm shared LibVLC before first video
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          engine = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
+          s = engine.read_text()
+          if "private object Gx1LibVlcRuntime" not in s:
+              runtime = """private object Gx1LibVlcRuntime {
+              @Volatile private var shared: org.videolan.libvlc.LibVLC? = null
+              @Volatile private var pending: java.util.concurrent.Future<org.videolan.libvlc.LibVLC>? = null
+              private val executor = java.util.concurrent.Executors.newSingleThreadExecutor { task ->
+                  Thread(task, "gx1-vlc-prewarm").apply { isDaemon = true }
+              }
+              fun prewarm(context: android.content.Context) {
+                  if (shared != null) return
+                  synchronized(this) {
+                      if (shared == null && pending == null) {
+                          val app = context.applicationContext
+                          pending = executor.submit(java.util.concurrent.Callable {
+                              org.videolan.libvlc.LibVLC(app, arrayListOf(
+                                  "-vvv",
+                                  "--no-video-title-show",
+                                  "--aout=android_audiotrack"
+                              )).also {
+                                  shared = it
+                                  android.util.Log.i("GX1-VLC", "Shared LibVLC prewarm completed")
+                              }
+                          })
+                          android.util.Log.i("GX1-VLC", "Shared LibVLC prewarm started")
+                      }
+                  }
+              }
+              fun acquire(context: android.content.Context): org.videolan.libvlc.LibVLC {
+                  prewarm(context)
+                  shared?.let { return it }
+                  return synchronized(this) { pending }?.get()
+                      ?: error("LibVLC prewarm failed to start")
+              }
+          }
+
+          """
+              s = s.replace("package com.example.gx1player.playback\n", "package com.example.gx1player.playback\n\n" + runtime, 1)
+              old = """private val libVlc = LibVLC(appContext, arrayListOf(
+                  "-vvv",
+                  "--no-video-title-show",
+                  // Force Android AudioTrack: unlike legacy OpenSL ES, this backend
+                  // supports HDMI multichannel PCM and Android's encoded passthrough.
+                  "--aout=android_audiotrack"
+              ))"""
+              if old not in s:
+                  raise SystemExit("LibVLC constructor block not found")
+              s = s.replace(old, "private val libVlc = Gx1LibVlcRuntime.acquire(appContext)", 1)
+              if "fun prewarm(context: Context)" not in s:
+                  s = s.replace("class Gx1LibVlcEngine(\n", "class Gx1LibVlcEngine(\n", 1)
+                  marker = "    data class State("
+                  companion = """    companion object {
+                  fun prewarm(context: Context) = Gx1LibVlcRuntime.prewarm(context)
+              }
+              """
+                  if s.count(marker) != 1: raise SystemExit("Engine state insertion point missing")
+                  s = s.replace(marker, companion + marker, 1)
+              s = s.replace("                  libVlc.release()\n", "", 1)
+              engine.write_text(s)
+          main = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          m = main.read_text()
+          call = "        com.example.gx1player.playback.Gx1LibVlcEngine.prewarm(applicationContext)\n"
+          if call.strip() not in m:
+              anchor = "        super.onCreate(savedInstanceState)\n"
+              if m.count(anchor) != 1:
+                  raise SystemExit("MainActivity onCreate anchor missing or ambiguous")
+              m = m.replace(anchor, anchor + call, 1)
+              main.write_text(m)
+          if "Gx1LibVlcRuntime.acquire(appContext)" not in s:
+              raise SystemExit("Shared LibVLC acquisition verification failed")
+          if "libVlc.release()" in s:
+              raise SystemExit("Per-player release still releases the shared LibVLC runtime")
+          if call.strip() not in m:
+              raise SystemExit("Application-start prewarm call missing")
+          print("LibVLC now initializes once in the background at app launch and is reused by playback engines.")
+          PY
       - name: Build separate 32-bit and 64-bit ARM APKs
         working-directory: ${{ env.PROJECT_DIR }}
         env:
