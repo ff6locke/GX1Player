@@ -7914,7 +7914,10 @@ jobs:
               if s.count(marker) != 1:
                   raise SystemExit("Engine state insertion point missing")
               s = s.replace(marker, companion + marker, 1)
-          s = s.replace("                  libVlc.release()\\n", "", 1)
+          import re
+          s, removed = re.subn(r"(?m)^[ \\t]*libVlc\\.release\\(\\)[ \\t]*\\n?", "", s, count=1)
+          if removed != 1:
+              raise SystemExit("Could not locate exactly one per-engine LibVLC release call")
           engine.write_text(s)
           main = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           m = main.read_text()
