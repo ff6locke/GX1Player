@@ -7703,59 +7703,6 @@ jobs:
               line_start = s.rfind("\n", 0, pos) + 1
               indent = s[line_start:pos]
               s = s[:line_start] + indent + 'files.sortBy { it.label.lowercase() }\n' + s[line_start:]
-          class_anchor = "class MainActivity : AppCompatActivity() {"
-          if class_anchor not in s:
-              raise SystemExit("Could not locate MainActivity class for focus state")
-          if "private var gx1FocusListenerInstalled" not in s:
-              s = s.replace(class_anchor, class_anchor + "\n    private var gx1FocusListenerInstalled = false", 1)
-          helper = '''    private fun focusPlaybackToggle() {
-              if (!::playerView.isInitialized) return
-              val playPause = playerView.findViewById<android.view.View>(
-                  androidx.media3.ui.R.id.exo_play_pause
-              ) ?: return
-              playPause.isFocusable = true
-              playPause.isFocusableInTouchMode = true
-              playPause.requestFocus()
-          }
-          '''
-          if "private fun focusPlaybackToggle()" not in s:
-              anchor = "    private fun startMainLibVlc(uri: Uri) {"
-              if anchor not in s:
-                  raise SystemExit("Could not locate main LibVLC start method for focus helper")
-              s = s.replace(anchor, helper + anchor, 1)
-          old_focus = '''                  playerView.showController()
-                  playerView.post {
-                      val playPause = playerView.findViewById<android.view.View>(
-                          androidx.media3.ui.R.id.exo_play_pause
-                      )
-                      playPause?.isFocusable = true
-                      playPause?.isFocusableInTouchMode = true
-                      playPause?.requestFocus()
-                  }'''
-          new_focus = '''                  playerView.showController()
-                  if (!gx1FocusListenerInstalled) {
-                      playerView.setControllerVisibilityListener(
-                          object : androidx.media3.ui.PlayerView.ControllerVisibilityListener {
-                              override fun onVisibilityChanged(visibility: Int) {
-                                  if (visibility == View.VISIBLE) {
-                                      playerView.post { focusPlaybackToggle() }
-                                  }
-                              }
-                          }
-                      )
-                      gx1FocusListenerInstalled = true
-                  }
-                  playerView.post { focusPlaybackToggle() }'''
-          if old_focus in s:
-              s = s.replace(old_focus, new_focus, 1)
-          elif "playerView.setControllerVisibilityListener(" not in s:
-              raise SystemExit("Could not locate existing Play/Pause focus request to replace")
-          listener_anchor = "playbackTitle.visibility = visibility"
-          focus_line = "if (visibility == View.VISIBLE) playerView.post { focusPlaybackToggle() }"
-          if listener_anchor in s and focus_line not in s:
-              s = s.replace(listener_anchor, listener_anchor + "\n                    " + focus_line, 1)
-          if "private fun focusPlaybackToggle()" not in s:
-              raise SystemExit("Playback focus helper verification failed")
           if "contentResolver.query(collection, projection, selection, selectionArgs, null)" not in s:
               raise SystemExit("Library query optimization verification failed")
           p.write_text(s)
