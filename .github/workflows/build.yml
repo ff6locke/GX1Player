@@ -4474,8 +4474,9 @@ jobs:
           listener = """playerView.setControllerVisibilityListener(
                       object : androidx.media3.ui.PlayerView.ControllerVisibilityListener {
                           override fun onVisibilityChanged(visibility: Int) {
-                              playbackTitle.visibility = visibility
-                              // Media3 draws its own title; LibVLC needs the sibling title.
+                              // Show exactly one filename overlay for the active engine.
+                              playbackTitle.visibility =
+                                  if (mainVlcEngine == null) visibility else android.view.View.GONE
                               gx1MainPlaybackTitle?.visibility =
                                   if (mainVlcEngine != null) visibility else android.view.View.GONE
                           }
