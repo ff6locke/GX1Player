@@ -1,7 +1,7 @@
 name: Build GX1 Player APK
 on:
   push:
-    branches: [ main, aspect-ratio-parity ]
+    branches: [ main, aspect-ratio-parity, media3-repeat-fix ]
     paths:
       - 'gx1-player.zip'
       - '.github/workflows/build.yml'
