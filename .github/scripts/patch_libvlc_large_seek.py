@@ -1,5 +1,7 @@
 from pathlib import Path
 
+# Build trigger: apply the workflow's corrected shared LibVLC prewarm patch.
+
 p = Path("gx1-player/app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
 s = p.read_text()
 
