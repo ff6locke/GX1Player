@@ -7830,7 +7830,7 @@ jobs:
           p.write_text(s)
           print("Play/Pause focus is now requested after both Media3 and LibVLC controller attachment.")
           PY
-      - name: Recover LibVLC video after large seeks
+      - name: Recover LibVLC video after large seeks (robust method match)
         run: |
           python3 .github/scripts/patch_libvlc_large_seek.py
       - name: Build separate 32-bit and 64-bit ARM APKs
