@@ -1295,7 +1295,7 @@ jobs:
                                   )
                                   val names = arrayOf("Fit", "Fill", "Zoom")
                                   val next = (modes.indexOf(playerView.resizeMode) + 1).let { if (it < 0) 0 else (it + 1) % modes.size }
-                                  (playerView.getChildAt(0) as? androidx.media3.ui.AspectRatioFrameLayout)?.setResizeMode(modes[next])
+                                  playerView.resizeMode = modes[next]
                                   playerView.requestLayout()
                                   Toast.makeText(this, "Aspect ratio: " + names[next], Toast.LENGTH_SHORT).show()
                               }
@@ -1363,7 +1363,7 @@ jobs:
                                       }
                                   }
                                   setOnClickListener {
-                                      (playerView.getChildAt(0) as? androidx.media3.ui.AspectRatioFrameLayout)?.setResizeMode(aspectModes[aspectIndex])
+                                      playerView.resizeMode = aspectModes[aspectIndex]
                                       playerView.requestLayout()
                                       menuPopupRef?.dismiss()
                                       Toast.makeText(this@MainActivity, "Aspect ratio: " + aspectName, Toast.LENGTH_SHORT).show()
