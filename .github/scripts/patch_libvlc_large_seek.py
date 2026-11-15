@@ -30,3 +30,5 @@ if "mediaPlayer.setTime(targetMs, fastSeek)" in s:
     raise SystemExit("Fast-seek path remains.")
 p.write_text(s)
 print("Applied accurate LibVLC seeking for manual seeks and resume seeks.")
+
+# Trigger a rebuild with the balanced-parentheses LibVLC startup patch.
