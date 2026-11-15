@@ -7885,7 +7885,7 @@ jobs:
           """
               s = s.replace("package com.example.gx1player.playback\n", "package com.example.gx1player.playback\n\n" + runtime, 1)
               import re
-              pattern = r"private val libVlc = LibVLC\\(appContext, arrayListOf\\([\\s\\S]*?^\\s*\\)\\)"
+              pattern = r"private val libVlc = LibVLC\(appContext, arrayListOf\([\s\S]*?^\s*\)\)"
               s, count = re.subn(pattern, "private val libVlc = Gx1LibVlcRuntime.acquire(appContext)", s, count=1, flags=re.MULTILINE)
               if count != 1:
                   raise SystemExit("LibVLC constructor pattern not found; refusing startup rewrite")
