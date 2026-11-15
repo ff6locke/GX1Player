@@ -7884,16 +7884,11 @@ jobs:
 
           """
               s = s.replace("package com.example.gx1player.playback\n", "package com.example.gx1player.playback\n\n" + runtime, 1)
-              old = """private val libVlc = LibVLC(appContext, arrayListOf(
-                  "-vvv",
-                  "--no-video-title-show",
-                  // Force Android AudioTrack: unlike legacy OpenSL ES, this backend
-                  // supports HDMI multichannel PCM and Android's encoded passthrough.
-                  "--aout=android_audiotrack"
-              ))"""
-              if old not in s:
-                  raise SystemExit("LibVLC constructor block not found")
-              s = s.replace(old, "private val libVlc = Gx1LibVlcRuntime.acquire(appContext)", 1)
+              import re
+              pattern = r"private val libVlc = LibVLC\\(appContext, arrayListOf\\([\\s\\S]*?^\\s*\\)\\)"
+              s, count = re.subn(pattern, "private val libVlc = Gx1LibVlcRuntime.acquire(appContext)", s, count=1, flags=re.MULTILINE)
+              if count != 1:
+                  raise SystemExit("LibVLC constructor pattern not found; refusing startup rewrite")
               if "fun prewarm(context: Context)" not in s:
                   s = s.replace("class Gx1LibVlcEngine(\n", "class Gx1LibVlcEngine(\n", 1)
                   marker = "    data class State("
