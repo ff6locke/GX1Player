@@ -7891,31 +7891,31 @@ jobs:
               raise SystemExit("LibVLC property declaration not found; refusing startup rewrite")
           start = sum(len(line) for line in lines[:match_index])
           opening = s.find("(", start)
-              depth = 0
-              end = None
-              for index in range(opening, len(s)):
-                  if s[index] == "(":
-                      depth += 1
-                  elif s[index] == ")":
-                      depth -= 1
-                      if depth == 0:
-                          end = index + 1
-                          break
-              if end is None:
-                  raise SystemExit("LibVLC constructor parentheses are unbalanced")
+          depth = 0
+          end = None
+          for index in range(opening, len(s)):
+              if s[index] == "(":
+                  depth += 1
+              elif s[index] == ")":
+                  depth -= 1
+                  if depth == 0:
+                      end = index + 1
+                      break
+          if end is None:
+              raise SystemExit("LibVLC constructor parentheses are unbalanced")
           indent = lines[match_index][:len(lines[match_index]) - len(lines[match_index].lstrip())]
-              s = s[:start] + indent + "private val libVlc = Gx1LibVlcRuntime.acquire(appContext)" + s[end:]
-              if "fun prewarm(context: Context)" not in s:
-                  s = s.replace("class Gx1LibVlcEngine(\n", "class Gx1LibVlcEngine(\n", 1)
-                  marker = "    data class State("
-                  companion = """    companion object {
+          s = s[:start] + indent + "private val libVlc = Gx1LibVlcRuntime.acquire(appContext)" + s[end:]
+          if "fun prewarm(context: Context)" not in s:
+              marker = "    data class State("
+              companion = """    companion object {
                   fun prewarm(context: Context) = Gx1LibVlcRuntime.prewarm(context)
               }
               """
-                  if s.count(marker) != 1: raise SystemExit("Engine state insertion point missing")
-                  s = s.replace(marker, companion + marker, 1)
-              s = s.replace("                  libVlc.release()\n", "", 1)
-              engine.write_text(s)
+              if s.count(marker) != 1:
+                  raise SystemExit("Engine state insertion point missing")
+              s = s.replace(marker, companion + marker, 1)
+          s = s.replace("                  libVlc.release()\\n", "", 1)
+          engine.write_text(s)
           main = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           m = main.read_text()
           call = "        com.example.gx1player.playback.Gx1LibVlcEngine.prewarm(applicationContext)\n"
