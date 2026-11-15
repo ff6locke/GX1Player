@@ -8438,11 +8438,9 @@ jobs:
               private fun focusPlaybackPlayPause() {
                   if (!::playerView.isInitialized) return
                   playerView.setControllerVisibilityListener(
-                      object : androidx.media3.ui.PlayerView.ControllerVisibilityListener {
-                          override fun onVisibilityChanged(visibility: Int) {
-                              if (visibility == android.view.View.VISIBLE) playerView.post { focusPlaybackPlayPauseNow() }
-                          }
-                      }
+                      ({ visibility: Int ->
+                          if (visibility == android.view.View.VISIBLE) playerView.post { focusPlaybackPlayPauseNow() }
+                      }) as androidx.media3.ui.PlayerView.ControllerVisibilityListener
                   )
                   playerView.showController()
                   playerView.post {
