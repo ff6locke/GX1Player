@@ -1,7 +1,7 @@
 name: Build GX1 Player APK
 on:
   push:
-    branches: [ main, aspect-ratio-parity ]
+    branches: [ main, aspect-ratio-parity, media3-repeat-fix ]
     paths:
       - 'gx1-player.zip'
       - '.github/workflows/build.yml'
@@ -72,21 +72,6 @@ jobs:
               raise SystemExit("No Kotlin 2.0.0 plugin/version declaration found; refusing to build with mismatched Kotlin.")
           print("Updated Kotlin Gradle plugin version to 2.2.10 in: " + ", ".join(changed))
           PY
-      - name: Inspect original menu implementation
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
-          lines = p.read_text().splitlines()
-          print("=== ORIGINAL MainActivity.kt: full source ===")
-          for i, line in enumerate(lines):
-              print(f"{i+1}: {line}")
-          print("=== ORIGINAL declarations ===")
-          for i, line in enumerate(lines):
-              if line.lstrip().startswith(("class ", "private ", "override fun ", "fun ")):
-                  print(f"{i+1}: {line}")
-          PY
       - name: Install GX1 Player TV app icon
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
@@ -146,13 +131,6 @@ jobs:
               raise SystemExit('Media3 1.4.1 dependency declaration not found; refusing an unverified upgrade')
           print('Upgraded Media3 1.4.1 to 1.11.1 in:', ', '.join(changed))
           PY
-      - name: Inspect extracted Media3 player construction
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          echo "=== Player construction and media source lines ==="
-          grep -n -E 'ExoPlayer|MediaSourceFactory|setMediaItem|setMediaSourceFactory|\.prepare\(' app/src/main/java/com/example/gx1player/MainActivity.kt || true
-          echo "=== Media3 dependency versions ==="
-          grep -R -n 'media3-exoplayer\|media3-extractor' --include='*.gradle*' .
       - name: Use Media3 default Matroska extractor and URI data source
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
@@ -303,7 +281,7 @@ jobs:
           print("TrueHD MAT carrier sink is connected only to the passthrough-enabled renderer branch.")
           PY
           echo "TrueHD MAT carrier renderer source installed."
-      - name: Add DTS passthrough capability diagnostics (no playback changes)
+      - name: DTS diagnostics
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -354,7 +332,7 @@ jobs:
           p.write_text(s)
           print("Added startup-only DTS capability logs; no renderer or playback settings changed.")
           PY
-      - name: Inspect passthrough renderer and audio configuration
+      - name: Inspect audio renderer
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           echo "=== PassthroughRenderersFactory.kt ==="
@@ -1950,7 +1928,7 @@ jobs:
           p.write_text(s)
           print("Added Media3 audio track listing and selection.")
           PY
-      - name: Diagnose missing embedded audio tracks and limit native APK ABIs
+      - name: Inspect tracks and ABIs
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -4395,7 +4373,7 @@ jobs:
           a.write_text(t)
           print("Audio menu now uses LibVLC codec, channel-count and language metadata; generic Track N labels are suppressed.")
           PY
-      - name: Export generated project source for LibVLC migration review
+      - name: Export VLC source
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -4418,7 +4396,7 @@ jobs:
                           seen.add(path)
           print("Exported generated Kotlin source files:", len(seen))
           PY
-      - name: Upload generated source for migration review
+      - name: Upload VLC source
         uses: actions/upload-artifact@v4
         with:
           name: gx1-generated-source-review
@@ -6560,7 +6538,7 @@ jobs:
               raise SystemExit("Video output menu row verification failed in MainActivity")
           print("Added selectable LibVLC video output modes.")
           PY
-      - name: Instrument first-play startup timing
+      - name: Startup timing
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -6590,7 +6568,7 @@ jobs:
           p.write_text(s)
           print("Added startup timing logs without changing playback behavior.")
           PY
-      - name: Show LibVLC startup timing inside the app
+      - name: Show startup timing
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -6648,7 +6626,7 @@ jobs:
           activity.write_text(s)
           print("Added first-play timings to the existing in-app Audio diagnostics screen.")
           PY
-      - name: Measure app startup path before LibVLC
+      - name: Measure startup path
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -6723,7 +6701,7 @@ jobs:
           p.write_text(s)
           print("Added app-level timing from media selection through engine.open().")
           PY
-      - name: Diagnostic test with LibVLC file caching disabled
+      - name: Test VLC cache off
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -6739,7 +6717,7 @@ jobs:
           p.write_text(s)
           print("Diagnostic mode enabled: default hardware decoding, LibVLC file caching set to 0 ms.")
           PY
-      - name: Diagnostic test with LibVLC audio disabled
+      - name: Test VLC audio off
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -6755,7 +6733,7 @@ jobs:
           p.write_text(s)
           print("Diagnostic mode enabled: LibVLC audio disabled to isolate first-video startup delay.")
           PY
-      - name: Diagnostic test with LibVLC video disabled
+      - name: Test VLC video off
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -6771,7 +6749,7 @@ jobs:
           p.write_text(s)
           print("Diagnostic mode enabled: LibVLC video disabled to isolate audio-only startup.")
           PY
-      - name: Test normal playback without automatic sidecar subtitle detection
+      - name: Test without sidecar subtitles
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -6795,7 +6773,7 @@ jobs:
           p.write_text(s)
           print("Normal audio/video restored; automatic sidecar subtitle detection disabled.")
           PY
-      - name: Test LibVLC with reduced stream probing
+      - name: Test reduced probing
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -6827,7 +6805,7 @@ jobs:
           p.write_text(s)
           print("Restored the prior LibVLC options and Android video-output selection.")
           PY
-      - name: Report exact LibVLC startup failure stage
+      - name: Report VLC startup stage
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -6864,7 +6842,7 @@ jobs:
           p.write_text(s)
           print("LibVLC and MediaPlayer construction now report distinct failure stages.")
           PY
-      - name: Show complete LibVLC startup exception
+      - name: Show VLC startup error
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -6889,7 +6867,7 @@ jobs:
           p.write_text(s)
           print("Replaced truncated Toast with a dialog showing the full exception cause chain.")
           PY
-      - name: Capture LibVLC native startup log in Audio diagnostics
+      - name: Capture VLC startup log
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -6976,7 +6954,7 @@ jobs:
           p.write_text(source)
           print("Added native LibVLC log capture, Share log, and Save TXT actions.")
           PY
-      - name: Add timestamped LibVLC event and output-stage diagnostics
+      - name: Add VLC event diagnostics
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -7562,7 +7540,7 @@ jobs:
           p.write_text(s)
           print("All in-player LibVLC restart paths now save selections and restore audio, embedded/sidecar subtitles, and both custom subtitle slots.")
           PY
-      - name: Verify and export final post-instrumentation source
+      - name: Export final source
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           set -e
@@ -7578,7 +7556,7 @@ jobs:
           cp "$ACTIVITY" ../gx1-final-source-review/MainActivity.kt
           cd ..
           zip -qr gx1-final-source-review.zip gx1-final-source-review
-      - name: Upload final post-instrumentation source review
+      - name: Upload final source review
         uses: actions/upload-artifact@v4
         with:
           name: gx1-final-source-review
@@ -8305,6 +8283,38 @@ jobs:
           from pathlib import Path
           p=Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s=p.read_text()
+          # Replace the listener body by balanced-brace parsing, independent of formatting.
+          needle = "override fun onPlaybackStateChanged(playbackState: Int)"
+          start = s.find(needle)
+          if start < 0 or s.find(needle, start + 1) >= 0:
+              raise SystemExit("Expected exactly one Media3 playback-state listener")
+          brace = s.find("{", start)
+          depth = 0
+          finish = -1
+          for pos in range(brace, len(s)):
+              if s[pos] == "{": depth += 1
+              elif s[pos] == "}":
+                  depth -= 1
+                  if depth == 0:
+                      finish = pos
+                      break
+          if finish < 0: raise SystemExit("Media3 listener closing brace not found")
+          if "Media3 Repeat One: restarting ended video" not in s:
+              line_start = s.rfind(chr(10), 0, start) + 1
+              indent = s[line_start:start]
+              body = """override fun onPlaybackStateChanged(playbackState: Int) {
+              if (playbackState == Player.STATE_ENDED && prefs.getBoolean("gx1_repeat_enabled", false)) {
+                  savePosition(exo)
+                  android.util.Log.i("GX1Player", "Media3 Repeat One: restarting ended video")
+                  exo.seekTo(0L)
+                  exo.playWhenReady = true
+                  exo.play()
+                  return
+              }
+              if (playbackState == Player.STATE_ENDED || playbackState == Player.STATE_READY) savePosition(exo)
+          }"""
+              replacement = chr(10).join(indent + line if line else "" for line in body.splitlines())
+              s = s[:start] + replacement + s[finish + 1:]
           a="        val renderers = if (passthrough) {"
           b = (
               "        playerView.visibility = View.VISIBLE\n"
@@ -8317,6 +8327,7 @@ jobs:
               if s.count(a)!=1: raise SystemExit("Media3 renderer anchor missing or ambiguous")
               s=s.replace(a,b,1)
               p.write_text(s)
+          p.write_text(s)
           PY
       - name: Restore LibVLC media opening and forward SAF URI permission
         working-directory: ${{ env.PROJECT_DIR }}
