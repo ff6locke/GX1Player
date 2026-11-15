@@ -281,7 +281,7 @@ jobs:
           print("TrueHD MAT carrier sink is connected only to the passthrough-enabled renderer branch.")
           PY
           echo "TrueHD MAT carrier renderer source installed."
-      - name: Add DTS passthrough capability diagnostics (no playback changes)
+      - name: DTS diagnostics
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -332,7 +332,7 @@ jobs:
           p.write_text(s)
           print("Added startup-only DTS capability logs; no renderer or playback settings changed.")
           PY
-      - name: Inspect passthrough renderer and audio configuration
+      - name: Inspect audio renderer
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           echo "=== PassthroughRenderersFactory.kt ==="
@@ -1928,7 +1928,7 @@ jobs:
           p.write_text(s)
           print("Added Media3 audio track listing and selection.")
           PY
-      - name: Diagnose missing embedded audio tracks and limit native APK ABIs
+      - name: Inspect tracks and ABIs
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -4373,7 +4373,7 @@ jobs:
           a.write_text(t)
           print("Audio menu now uses LibVLC codec, channel-count and language metadata; generic Track N labels are suppressed.")
           PY
-      - name: Export generated project source for LibVLC migration review
+      - name: Export VLC source
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -4396,7 +4396,7 @@ jobs:
                           seen.add(path)
           print("Exported generated Kotlin source files:", len(seen))
           PY
-      - name: Upload generated source for migration review
+      - name: Upload VLC source
         uses: actions/upload-artifact@v4
         with:
           name: gx1-generated-source-review
@@ -6538,7 +6538,7 @@ jobs:
               raise SystemExit("Video output menu row verification failed in MainActivity")
           print("Added selectable LibVLC video output modes.")
           PY
-      - name: Instrument first-play startup timing
+      - name: Startup timing
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -6568,7 +6568,7 @@ jobs:
           p.write_text(s)
           print("Added startup timing logs without changing playback behavior.")
           PY
-      - name: Show LibVLC startup timing inside the app
+      - name: Show startup timing
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -6626,7 +6626,7 @@ jobs:
           activity.write_text(s)
           print("Added first-play timings to the existing in-app Audio diagnostics screen.")
           PY
-      - name: Measure app startup path before LibVLC
+      - name: Measure startup path
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -6701,7 +6701,7 @@ jobs:
           p.write_text(s)
           print("Added app-level timing from media selection through engine.open().")
           PY
-      - name: Diagnostic test with LibVLC file caching disabled
+      - name: Test VLC cache off
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -6717,7 +6717,7 @@ jobs:
           p.write_text(s)
           print("Diagnostic mode enabled: default hardware decoding, LibVLC file caching set to 0 ms.")
           PY
-      - name: Diagnostic test with LibVLC audio disabled
+      - name: Test VLC audio off
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -6733,7 +6733,7 @@ jobs:
           p.write_text(s)
           print("Diagnostic mode enabled: LibVLC audio disabled to isolate first-video startup delay.")
           PY
-      - name: Diagnostic test with LibVLC video disabled
+      - name: Test VLC video off
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -6749,7 +6749,7 @@ jobs:
           p.write_text(s)
           print("Diagnostic mode enabled: LibVLC video disabled to isolate audio-only startup.")
           PY
-      - name: Test normal playback without automatic sidecar subtitle detection
+      - name: Test without sidecar subtitles
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -6773,7 +6773,7 @@ jobs:
           p.write_text(s)
           print("Normal audio/video restored; automatic sidecar subtitle detection disabled.")
           PY
-      - name: Test LibVLC with reduced stream probing
+      - name: Test reduced probing
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -6805,7 +6805,7 @@ jobs:
           p.write_text(s)
           print("Restored the prior LibVLC options and Android video-output selection.")
           PY
-      - name: Report exact LibVLC startup failure stage
+      - name: Report VLC startup stage
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -6842,7 +6842,7 @@ jobs:
           p.write_text(s)
           print("LibVLC and MediaPlayer construction now report distinct failure stages.")
           PY
-      - name: Show complete LibVLC startup exception
+      - name: Show VLC startup error
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -6867,7 +6867,7 @@ jobs:
           p.write_text(s)
           print("Replaced truncated Toast with a dialog showing the full exception cause chain.")
           PY
-      - name: Capture LibVLC native startup log in Audio diagnostics
+      - name: Capture VLC startup log
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -6954,7 +6954,7 @@ jobs:
           p.write_text(source)
           print("Added native LibVLC log capture, Share log, and Save TXT actions.")
           PY
-      - name: Add timestamped LibVLC event and output-stage diagnostics
+      - name: Add VLC event diagnostics
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
@@ -7540,7 +7540,7 @@ jobs:
           p.write_text(s)
           print("All in-player LibVLC restart paths now save selections and restore audio, embedded/sidecar subtitles, and both custom subtitle slots.")
           PY
-      - name: Verify and export final post-instrumentation source
+      - name: Export final source
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           set -e
@@ -7556,7 +7556,7 @@ jobs:
           cp "$ACTIVITY" ../gx1-final-source-review/MainActivity.kt
           cd ..
           zip -qr gx1-final-source-review.zip gx1-final-source-review
-      - name: Upload final post-instrumentation source review
+      - name: Upload final source review
         uses: actions/upload-artifact@v4
         with:
           name: gx1-final-source-review
