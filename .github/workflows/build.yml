@@ -1,7 +1,7 @@
 name: Build GX1 Player APK
 on:
   push:
-    branches: [ main ]
+    branches: [ main, aspect-ratio-parity ]
     paths:
       - 'gx1-player.zip'
       - '.github/workflows/build.yml'
@@ -619,6 +619,7 @@ jobs:
                       ) {
                           savePosition(exo)
                       }
+                      override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) = applyMedia3AspectMode()
                   })
           """
               if marker not in s:
@@ -7251,8 +7252,6 @@ jobs:
           '''                imageTintList = android.content.res.ColorStateList.valueOf(Color.WHITE)''',
           "Previous/Next icon tint")
           main.write_text(src)
-          # The engine already handles content:// URIs directly with an
-          # AssetFileDescriptor fallback. Do not re-patch this existing logic.
           print("Repeat now loops the LibVLC video; aspect options use menu-style checkboxes; content URIs use a retained provider descriptor; shortcut icons stay white.")
           PY
       - name: Connect aspect ratio menu to the LibVLC video output
@@ -7317,11 +7316,8 @@ jobs:
           p = Path('app/src/main/java/com/example/gx1player/MainActivity.kt')
           s = p.read_text()
           field_anchor = '    private var mainVlcEngine: Gx1LibVlcEngine? = null'
-          field = field_anchor + '\n    private var selectedMainVlcScale = org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_BEST_FIT'
-          if 'private var selectedMainVlcScale =' not in s:
-              if s.count(field_anchor) != 1:
-                  raise SystemExit('Could not locate unique main LibVLC engine field')
-              s = s.replace(field_anchor, field, 1)
+          field = field_anchor + '\n    private var selectedMainVlcScale = org.videolan.libvlc.MediaPlayer.ScaleType.SURFACE_BEST_FIT\n    private var selectedMedia3AspectIndex = 0'
+          s=s.replace(field_anchor,field,1)
           if 'engine.setVideoScale(selectedMainVlcScale)' not in s:
               lines = s.splitlines()
               matches = [i for i, line in enumerate(lines) if line.strip() == 'mainVlcEngine = engine']
@@ -7331,22 +7327,17 @@ jobs:
               indent = lines[i][:len(lines[i]) - len(lines[i].lstrip())]
               lines.insert(i + 1, indent + 'engine.setVideoScale(selectedMainVlcScale)')
               s = '\n'.join(lines) + ('\n' if s.endswith('\n') else '')
-          old_selected = 'if (mainVlcEngine != null) selectedMainVlcScale == vlcAspectModes[aspectIndex] else playerView.resizeMode == media3AspectModes[aspectIndex]'
-          new_selected = old_selected
-          if old_selected in s:
-              s = s.replace(old_selected, new_selected, 1)
-          elif new_selected not in s:
-              raise SystemExit('Could not locate aspect ratio checkbox selected-state')
+          helper = """    private fun applyMedia3AspectMode() { val frame = playerView.findViewById<androidx.media3.ui.AspectRatioFrameLayout>(androidx.media3.ui.R.id.exo_content_frame) ?: return; playerView.resizeMode = intArrayOf(0,1,4,0,0,0)[selectedMedia3AspectIndex]; frame.setAspectRatio(if (selectedMedia3AspectIndex == 3) 16f/9f else if (selectedMedia3AspectIndex == 4) 4f/3f else 0f); playerView.requestLayout() }
+          """
+          if 'private fun applyMedia3AspectMode()' not in s: s=s.replace('    private fun startPlayer() {',helper+'    private fun startPlayer() {',1)
+          s=s.replace('val aspectNames = if (mainVlcEngine != null) arrayOf("Fit","Fill","Zoom","16:9","4:3","Original") else arrayOf("Fit","Stretch","Zoom","Fixed width","Fixed height")','val aspectNames = arrayOf("Fit","Fill","Zoom","16:9","4:3","Original")',1)
+          s=s.replace('val selected = if (mainVlcEngine != null) selectedMainVlcScale == vlcAspectModes[aspectIndex] else playerView.resizeMode == media3AspectModes[aspectIndex]','val selected = if (mainVlcEngine != null) selectedMainVlcScale == vlcAspectModes[aspectIndex] else selectedMedia3AspectIndex == aspectIndex',1)
           old_click = 'if (mainVlcEngine != null) { selectedMainVlcScale = vlcAspectModes[aspectIndex]; mainVlcEngine?.setVideoScale(selectedMainVlcScale) } else playerView.resizeMode = media3AspectModes[aspectIndex]; playerView.requestLayout()'
-          new_click = old_click
-          if old_click in s:
-              if s.count(old_click) != 1:
-                  raise SystemExit('Aspect ratio click assignment is not unique')
-              s = s.replace(old_click, new_click, 1)
-          elif new_click not in s:
-              raise SystemExit('Could not locate aspect ratio click assignment')
+          new_click = 'if (mainVlcEngine != null) { selectedMainVlcScale = vlcAspectModes[aspectIndex]; mainVlcEngine?.setVideoScale(selectedMainVlcScale) } else { selectedMedia3AspectIndex = aspectIndex; applyMedia3AspectMode() }'
+          if old_click not in s: raise SystemExit('Could not locate aspect click assignment')
+          s=s.replace(old_click,new_click,1)
           p.write_text(s)
-          print('Selected LibVLC aspect ratio now survives next-video engine recreation.')
+          print('Aspect parity set.')
           PY
       - name: Reapply selected aspect ratio when LibVLC creates video output
         working-directory: ${{ env.PROJECT_DIR }}
@@ -7367,7 +7358,7 @@ jobs:
                   raise SystemExit(f'Could not locate unique event-listener insertion point; found {s.count(anchor)}')
               s = s.replace(anchor, replacement, 1)
           p.write_text(s)
-          print('Selected aspect ratio is reapplied when LibVLC creates each video output.')
+          print('VLC scale reapplied.')
           PY
       - name: Automatically play the next file when LibVLC reaches the end
         working-directory: ${{ env.PROJECT_DIR }}
@@ -7548,7 +7539,6 @@ jobs:
           p=Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s=p.read_text()
           if "private fun restartMainVlcWithTrackRestore()" not in s:
-              # All existing in-player restart paths reopen the LibVLC media object.
               old_main="mainVlcEngine?.restartFromBeginning()"
               old_engine="engine.restartFromBeginning()"
               if s.count(old_main)!=1 or s.count(old_engine)!=5:
@@ -7563,7 +7553,6 @@ jobs:
                   subtitleUiHandler.postDelayed({ autoLoadMainVlcSubtitles(engine) }, 1200L)
                   loadSecondSubtitleOverlay()
               }
-
               """
               anchor="    private fun startMainLibVlc(uri: Uri) {"
               if s.count(anchor)!=1: raise SystemExit("Main LibVLC startup insertion point missing")
@@ -8337,12 +8326,9 @@ jobs:
           import re
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
           s = p.read_text()
-          # The Build 926 path did not use this experimental native output toggle.
           s, removed = re.subn(r"^\\s*mediaPlayer\\.setAudioDigitalOutputEnabled\\(digitalOutput\\)\\s*\\n", "", s, flags=re.M)
           if "setAudioDigitalOutputEnabled(digitalOutput)" in s:
               raise SystemExit("Digital-output toggle remains; refusing build")
-          # Always open SAF content URIs through a retained file descriptor. Some
-          # providers expose a content:// URI that LibVLC cannot open as an MRL.
           old = """        val media = if (uri.scheme == "content") {
                       try {
                           Media(libVlc, uri).also {
@@ -8374,7 +8360,6 @@ jobs:
           if old in s:
               s = s.replace(old, new)
           else:
-              # Avoid making assumptions about indentation: replace the content branch by boundaries.
               start = s.find('        val media = if (uri.scheme == "content") {')
               finish = s.find('        try {\n            mediaPlayer.media = media', start)
               if start < 0 or finish < 0:
