@@ -68,7 +68,8 @@ s = s.replace(
             "GX1-SEEK-DIAG",
             "seekBefore targetMs=$targetMs currentMs=$beforeMs lengthMs=${mediaPlayer.length} playing=${mediaPlayer.isPlaying}"
         )
-        mediaPlayer.setTime(targetMs, false)
+        val fastSeek = kotlin.math.abs(targetMs - beforeMs) >= 300_000L
+        mediaPlayer.setTime(targetMs, fastSeek)
         android.util.Log.i(
             "GX1-SEEK-DIAG",
             "seekAfter targetMs=$targetMs currentMs=${mediaPlayer.time} lengthMs=${mediaPlayer.length} playing=${mediaPlayer.isPlaying}"
@@ -102,8 +103,8 @@ s = s.replace(
     1
 )
 
-if "mediaPlayer.setTime(targetMs, false)" not in s:
-    raise SystemExit("Precise native seek call verification failed.")
+if "mediaPlayer.setTime(targetMs, fastSeek)" not in s:
+    raise SystemExit("Fast/accurate native seek selection verification failed.")
 if "GX1-SEEK-DIAG" not in s or "seekBefore targetMs=" not in s or "seekAfter targetMs=" not in s:
     raise SystemExit("Seek diagnostic verification failed.")
 if 'media.addOption(":start-time=$startSeconds")' in s or "Large seek: reopening media" in s:
