@@ -10,14 +10,20 @@ native_seek = "fun seekTo(positionMs: Long) { checkActive(); mediaPlayer.setTime
 if native_seek not in s:
     raise SystemExit("Native LibVLC seek method not found; refusing an unverified seek rewrite.")
 
-# Remove the entire per-event diagnostics block, regardless of which later
-# workflow step rewrote its Log.i call. Stop exactly at the event dispatch.
-pattern = re.compile(
-    r'(?ms)^([ \t]*)val voutInfo = runCatching \{.*?^\1when \(event\.type\)\n'
-)
-s, removed = pattern.subn(r"\1when (event.type)\n", s, count=1)
-if removed != 1:
-    raise SystemExit(f"Expected one per-event diagnostics block before event dispatch; found {removed}.")
+# Remove the per-event reflection/logging block using stable Kotlin markers.
+# Avoid indentation-sensitive regex matching across workflow-injected diagnostics.
+block_start = s.find("val voutInfo = runCatching {")
+if block_start < 0:
+    raise SystemExit("Could not find the per-event vout reflection block.")
+when_marker = "when (event.type) {"
+block_end = s.find(when_marker, block_start)
+if block_end < 0:
+    raise SystemExit("Could not find event dispatch after the vout reflection block.")
+line_start = s.rfind("\\n", 0, block_start) + 1
+when_line_start = s.rfind("\\n", 0, block_end) + 1
+if when_line_start <= line_start:
+    raise SystemExit("Invalid event-dispatch block boundaries.")
+s = s[:line_start] + s[when_line_start:]
 
 # The main playback UI polls current position/duration independently. These
 # event callbacks need not dispatch redundant UI state updates.
