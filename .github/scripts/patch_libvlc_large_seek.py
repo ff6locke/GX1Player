@@ -10,15 +10,14 @@ native_seek = "fun seekTo(positionMs: Long) { checkActive(); mediaPlayer.setTime
 if native_seek not in s:
     raise SystemExit("Native LibVLC seek method not found; refusing an unverified seek rewrite.")
 
-# Match the diagnostic block independent of indentation in the generated Kotlin.
+# Remove the entire per-event diagnostics block, regardless of which later
+# workflow step rewrote its Log.i call. Stop exactly at the event dispatch.
 pattern = re.compile(
-    r'(?m)^[ \t]*val voutInfo = runCatching \{\n'
-    r'.*?^[ \t]*android\.util\.Log\.i\("GX1-VLC", "MAIN LibVLC event=\$\{event\.type\}, vout=\$voutInfo"\)\n',
-    re.DOTALL,
+    r'(?ms)^([ \\t]*)val voutInfo = runCatching \\{.*?^\\1when \\(event\\.type\\)\\n'
 )
-s, removed = pattern.subn("", s, count=1)
+s, removed = pattern.subn(r"\\1when (event.type)\\n", s, count=1)
 if removed != 1:
-    raise SystemExit(f"Expected one per-event reflection/log block; found {removed}.")
+    raise SystemExit(f"Expected one per-event diagnostics block before event dispatch; found {removed}.")
 
 # The main playback UI polls current position/duration independently. These
 # event callbacks need not dispatch redundant UI state updates.
