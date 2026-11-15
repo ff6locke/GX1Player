@@ -5010,7 +5010,7 @@ jobs:
           print("GENERATED VLC SOURCE 485-510:\n" + "\n".join(f"{i+1}: {lines[i]}" for i in range(484,min(510,len(lines)))))
           print("VLC Test custom subtitles now render independently and can be toggled together with checkboxes.")
           PY
-      - name: Add selectable LibVLC playback to the main screen
+      - name: Add LibVLC playback selector
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
