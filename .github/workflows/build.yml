@@ -7705,17 +7705,7 @@ jobs:
               s = s[:line_start] + indent + 'files.sortBy { it.label.lowercase() }\n' + s[line_start:]
           if "contentResolver.query(collection, projection, selection, selectionArgs, null)" not in s:
               raise SystemExit("Library query optimization verification failed")
-          p.write_text(s)
-          print("Library now filters MediaStore by the selected folder and sorts only the visible results. Playback controller refreshes now return D-pad focus to Play/Pause.")
-          PY
-      - name: Restore Play/Pause focus after next, previous, and resume
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
-          s = p.read_text()
-          helper = """    private fun focusGx1PlayPauseAfterPlaybackChange() {
+          focus_helper = """    private fun focusGx1PlayPauseAfterPlaybackChange() {
                   if (!::playerView.isInitialized) return
                   playerView.post {
                       playerView.showController()
@@ -7736,7 +7726,7 @@ jobs:
           if "private fun focusGx1PlayPauseAfterPlaybackChange()" not in s:
               if s.count(nav_anchor) != 1:
                   raise SystemExit("Could not find unique playback navigation method")
-              s = s.replace(nav_anchor, helper + nav_anchor, 1)
+              s = s.replace(nav_anchor, focus_helper + nav_anchor, 1)
           nav_old = """              startPlayer()
               playerView.showController()
           }
@@ -7749,15 +7739,13 @@ jobs:
           if nav_old in s:
               s = s.replace(nav_old, nav_new, 1)
           elif "focusGx1PlayPauseAfterPlaybackChange()" not in s[s.find(nav_anchor):s.find("private fun installGx1FileNavigationButtons")]:
-              raise SystemExit("Could not wire focus after next/previous playback start")
-          # Resume tile: focus only after startPlayer has rebuilt the controller.
+              raise SystemExit("Could not wire next/previous focus")
           tile_old = 'if (last != null) { selectMedia(last); startPlayer() }'
           tile_new = 'if (last != null) { selectMedia(last); startPlayer(); focusGx1PlayPauseAfterPlaybackChange() }'
           if tile_old in s:
               s = s.replace(tile_old, tile_new, 1)
           elif tile_new not in s:
               raise SystemExit("Could not locate Resume home tile")
-          # Menu resume action.
           menu_old = """                          selectMedia(last)
                           startPlayer()
                       } else {"""
@@ -7769,15 +7757,10 @@ jobs:
               s = s.replace(menu_old, menu_new, 1)
           elif menu_new not in s:
               raise SystemExit("Could not locate Resume menu action")
-          checks = [
-              "private fun focusGx1PlayPauseAfterPlaybackChange()",
-              "focusGx1PlayPauseAfterPlaybackChange()",
-              "val playPause = playerView.findViewById<android.view.View>(",
-          ]
-          if any(x not in s for x in checks):
-              raise SystemExit("Play/Pause focus patch verification failed")
+          if "focusGx1PlayPauseAfterPlaybackChange()" not in s:
+              raise SystemExit("Playback focus call verification failed")
           p.write_text(s)
-          print("Next/previous and both resume entry points now request Play/Pause focus after the controller is recreated.")
+          print("Library now filters MediaStore by the selected folder and sorts only the visible results. Playback controller refreshes now return D-pad focus to Play/Pause.")
           PY
       - name: Route Android TV Left and Right keys to adaptive video seeking
         working-directory: ${{ env.PROJECT_DIR }}
