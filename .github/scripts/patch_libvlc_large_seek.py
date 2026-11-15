@@ -19,8 +19,8 @@ when_marker = "when (event.type) {"
 block_end = s.find(when_marker, block_start)
 if block_end < 0:
     raise SystemExit("Could not find event dispatch after the vout reflection block.")
-line_start = s.rfind("\\n", 0, block_start) + 1
-when_line_start = s.rfind("\\n", 0, block_end) + 1
+line_start = s.rfind("\n", 0, block_start) + 1
+when_line_start = s.rfind("\n", 0, block_end) + 1
 if when_line_start <= line_start:
     raise SystemExit("Invalid event-dispatch block boundaries.")
 s = s[:line_start] + s[when_line_start:]
