@@ -7884,12 +7884,13 @@ jobs:
 
           """
               s = s.replace("package com.example.gx1player.playback\n", "package com.example.gx1player.playback\n\n" + runtime, 1)
-              import re
-              match = re.search(r"(?m)^(\\s*)private val libVlc\\s*=\\s*LibVLC\\(", s)
-              if not match:
-                  raise SystemExit("LibVLC property declaration not found; refusing startup rewrite")
-              start = match.start()
-              opening = s.find("(", match.start())
+          lines = s.splitlines(keepends=True)
+          match_index = next((i for i, line in enumerate(lines)
+                              if "private val libVlc" in line and "LibVLC(" in line), None)
+          if match_index is None:
+              raise SystemExit("LibVLC property declaration not found; refusing startup rewrite")
+          start = sum(len(line) for line in lines[:match_index])
+          opening = s.find("(", start)
               depth = 0
               end = None
               for index in range(opening, len(s)):
@@ -7902,7 +7903,7 @@ jobs:
                           break
               if end is None:
                   raise SystemExit("LibVLC constructor parentheses are unbalanced")
-              indent = match.group(1)
+          indent = lines[match_index][:len(lines[match_index]) - len(lines[match_index].lstrip())]
               s = s[:start] + indent + "private val libVlc = Gx1LibVlcRuntime.acquire(appContext)" + s[end:]
               if "fun prewarm(context: Context)" not in s:
                   s = s.replace("class Gx1LibVlcEngine(\n", "class Gx1LibVlcEngine(\n", 1)
