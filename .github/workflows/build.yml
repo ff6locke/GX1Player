@@ -7883,7 +7883,12 @@ jobs:
           }
 
           """
-              s = s.replace("package com.example.gx1player.playback\n", "package com.example.gx1player.playback\n\n" + runtime, 1)
+              source_lines = s.splitlines(keepends=True)
+          import_indexes = [i for i, line in enumerate(source_lines) if line.startswith("import ")]
+          if not import_indexes:
+              raise SystemExit("Could not locate Kotlin imports for shared LibVLC runtime")
+          source_lines.insert(max(import_indexes) + 1, "\n" + runtime)
+          s = "".join(source_lines)
           lines = s.splitlines(keepends=True)
           match_index = next((i for i, line in enumerate(lines)
                               if "private val libVlc" in line and "LibVLC(" in line), None)
