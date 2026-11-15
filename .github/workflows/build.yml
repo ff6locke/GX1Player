@@ -6243,6 +6243,12 @@ jobs:
                   .toList().takeLast(2500).joinToString("\\n")
           }.getOrElse { "Could not read app logcat: " + (it.message ?: it.javaClass.simpleName) }
           lines.add(if (nativeLog.isBlank()) "  No matching native log lines captured" else nativeLog)
+          lines.add("")
+          lines.add("LibVLC Seek Diagnostics (GX1-SEEK-DIAG)")
+          val seekLog = nativeLog.lineSequence()
+              .filter { it.contains("GX1-SEEK-DIAG") }
+              .toList().takeLast(1000).joinToString("\\n")
+          lines.add(if (seekLog.isBlank()) "  No GX1-SEEK-DIAG entries captured; reproduce the seek before exporting." else seekLog)
           """
               patch = "".join(indent + line if line.strip() else line
                               for line in patch.splitlines(keepends=True))
