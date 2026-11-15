@@ -3,112 +3,28 @@ from pathlib import Path
 p = Path("gx1-player/app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
 s = p.read_text()
 
-# Keep the native LibVLC seek path; this patch only adds targeted diagnostics.
-seek_method = "fun seekTo(positionMs: Long) { checkActive(); mediaPlayer.setTime(positionMs.coerceAtLeast(0L)) }"
-if seek_method not in s:
-    raise SystemExit("Expected original native LibVLC seek method; refusing an unverified rewrite.")
-
-# Remove the previous per-event reflection query. It is not a reliable vout
-# diagnostic and adds unnecessary work to every LibVLC callback.
-block_start = s.find("val voutInfo = runCatching {")
-if block_start >= 0:
-    when_marker = "when (event.type) {"
-    block_end = s.find(when_marker, block_start)
-    if block_end < 0:
-        raise SystemExit("Could not locate event dispatch after old vout reflection block.")
-    line_start = s.rfind("\n", 0, block_start) + 1
-    when_line_start = s.rfind("\n", 0, block_end) + 1
-    if when_line_start <= line_start:
-        raise SystemExit("Invalid old diagnostic block boundaries.")
-    s = s[:line_start] + s[when_line_start:]
-
-old_event = "mediaPlayer.setEventListener { event ->"
-new_event = """mediaPlayer.setEventListener { event ->
-            if (event.type == MediaPlayer.Event.Vout) {
-                diagnosticVoutCount = event.voutCount
-                android.util.Log.i(
-                    "GX1-SEEK-DIAG",
-                    "voutEvent count=$diagnosticVoutCount timeMs=${mediaPlayer.time} playing=${mediaPlayer.isPlaying}"
-                )
-            }
-            if (event.type != MediaPlayer.Event.TimeChanged &&
-                event.type != MediaPlayer.Event.PositionChanged &&
-                event.type != MediaPlayer.Event.LengthChanged) {
-                android.util.Log.i(
-                    "GX1-SEEK-DIAG",
-                    "event=${event.type}, timeMs=${mediaPlayer.time}, playing=${mediaPlayer.isPlaying}, voutCount=$diagnosticVoutCount"
-                )
-            }"""
-if s.count(old_event) != 1:
-    raise SystemExit("Expected exactly one LibVLC event listener.")
-s = s.replace(old_event, new_event, 1)
-
-s = s.replace(
-    "if (seek > 0L) mediaPlayer.setTime(seek)",
-    """if (seek > 0L) {
-                        android.util.Log.i("GX1-SEEK-DIAG", "resumeSeek requestMs=$seek")
-                        mediaPlayer.setTime(seek, false)
-                        android.util.Log.i("GX1-SEEK-DIAG", "resumeSeek returned timeMs=${mediaPlayer.time}, playing=${mediaPlayer.isPlaying}")
-                    }""",
-    1
-)
-
-s = s.replace(
-    seek_method,
-    """private var diagnosticVoutCount: Int = -1
-    private var diagnosticSeekBurstStartMs: Long = -1L
-    private var diagnosticSeekBurstLastAtMs: Long = 0L
-    private var diagnosticSeekHeartbeatStarted: Boolean = false
-
-    fun seekTo(positionMs: Long) {
+old = "fun seekTo(positionMs: Long) { checkActive(); mediaPlayer.setTime(positionMs.coerceAtLeast(0L)) }"
+new = """fun seekTo(positionMs: Long) {
         checkActive()
         val targetMs = positionMs.coerceAtLeast(0L)
-        val beforeMs = mediaPlayer.time
-        android.util.Log.i(
-            "GX1-SEEK-DIAG",
-            "seekBefore targetMs=$targetMs currentMs=$beforeMs lengthMs=${mediaPlayer.length} playing=${mediaPlayer.isPlaying}"
-        )
-        val fastSeek = kotlin.math.abs(targetMs - beforeMs) >= 300_000L
-        mediaPlayer.setTime(targetMs, fastSeek)
-        android.util.Log.i(
-            "GX1-SEEK-DIAG",
-            "seekAfter targetMs=$targetMs currentMs=${mediaPlayer.time} lengthMs=${mediaPlayer.length} playing=${mediaPlayer.isPlaying}"
-        )
-        val nowElapsedMs = android.os.SystemClock.elapsedRealtime()
-        if (diagnosticSeekBurstStartMs < 0L || nowElapsedMs - diagnosticSeekBurstLastAtMs > 2_000L) {
-            diagnosticSeekBurstStartMs = beforeMs
-            diagnosticSeekHeartbeatStarted = false
-        }
-        diagnosticSeekBurstLastAtMs = nowElapsedMs
-        if (!diagnosticSeekHeartbeatStarted &&
-            diagnosticSeekBurstStartMs >= 0L &&
-            kotlin.math.abs(targetMs - diagnosticSeekBurstStartMs) >= 300_000L) {
-            diagnosticSeekHeartbeatStarted = true
-            val diagnosticHandler = android.os.Handler(android.os.Looper.getMainLooper())
-            val diagnosticStartedAt = android.os.SystemClock.elapsedRealtime()
-            val burstStartMs = diagnosticSeekBurstStartMs
-            val diagnosticHeartbeat = object : Runnable {
-                override fun run() {
-                    val elapsedMs = android.os.SystemClock.elapsedRealtime() - diagnosticStartedAt
-                    android.util.Log.i(
-                        "GX1-SEEK-DIAG",
-                        "heartbeat elapsedMs=$elapsedMs burstStartMs=$burstStartMs targetMs=$targetMs currentMs=${mediaPlayer.time} playing=${mediaPlayer.isPlaying} voutCount=$diagnosticVoutCount"
-                    )
-                    if (elapsedMs < 45_000L) diagnosticHandler.postDelayed(this, 500L)
-                }
-            }
-            diagnosticHandler.postDelayed(diagnosticHeartbeat, 500L)
-        }
-    }""",
-    1
-)
+        // Accurate seeking avoids the fast-seek Matroska cluster shortcut that
+        // previously left some high-bitrate files stalled after large jumps.
+        mediaPlayer.setTime(targetMs, false)
+    }"""
 
-if "mediaPlayer.setTime(targetMs, fastSeek)" not in s:
-    raise SystemExit("Fast/accurate native seek selection verification failed.")
-if "GX1-SEEK-DIAG" not in s or "seekBefore targetMs=" not in s or "seekAfter targetMs=" not in s:
-    raise SystemExit("Seek diagnostic verification failed.")
-if 'media.addOption(":start-time=$startSeconds")' in s or "Large seek: reopening media" in s:
-    raise SystemExit("Unexpected media-reopen workaround detected.")
+if old in s:
+    s = s.replace(old, new, 1)
+elif new not in s:
+    raise SystemExit("Expected LibVLC seek method was not found; refusing an unverified patch.")
 
+old_resume = "if (seek > 0L) mediaPlayer.setTime(seek)"
+new_resume = "if (seek > 0L) mediaPlayer.setTime(seek, false)"
+if old_resume in s:
+    s = s.replace(old_resume, new_resume, 1)
+
+if "mediaPlayer.setTime(targetMs, false)" not in s:
+    raise SystemExit("Accurate seek verification failed.")
+if "mediaPlayer.setTime(targetMs, fastSeek)" in s:
+    raise SystemExit("Fast-seek path remains.")
 p.write_text(s)
-print("Added targeted LibVLC seek/event diagnostics; kept native precise seeking and playback/audio configuration unchanged.")
+print("Applied accurate LibVLC seeking for manual seeks and resume seeks.")
