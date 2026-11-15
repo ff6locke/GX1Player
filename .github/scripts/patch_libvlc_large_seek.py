@@ -1,53 +1,75 @@
 from pathlib import Path
-import re
 
 p = Path("gx1-player/app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
 s = p.read_text()
 
-# Keep every seek on LibVLC's native setTime() path. Do not reopen media,
-# add :start-time, or detach/re-attach the video surface for large seeks.
-native_seek = "fun seekTo(positionMs: Long) { checkActive(); mediaPlayer.setTime(positionMs.coerceAtLeast(0L)) }"
-if native_seek not in s:
-    raise SystemExit("Native LibVLC seek method not found; refusing an unverified seek rewrite.")
+# Keep the native LibVLC seek path; this patch only adds targeted diagnostics.
+seek_method = "fun seekTo(positionMs: Long) { checkActive(); mediaPlayer.setTime(positionMs.coerceAtLeast(0L)) }"
+if seek_method not in s:
+    raise SystemExit("Expected original native LibVLC seek method; refusing an unverified rewrite.")
 
-# Remove the per-event reflection/logging block using stable Kotlin markers.
-# Avoid indentation-sensitive regex matching across workflow-injected diagnostics.
+# Remove the previous per-event reflection query. It is not a reliable vout
+# diagnostic and adds unnecessary work to every LibVLC callback.
 block_start = s.find("val voutInfo = runCatching {")
-if block_start < 0:
-    raise SystemExit("Could not find the per-event vout reflection block.")
-when_marker = "when (event.type) {"
-block_end = s.find(when_marker, block_start)
-if block_end < 0:
-    raise SystemExit("Could not find event dispatch after the vout reflection block.")
-line_start = s.rfind("\n", 0, block_start) + 1
-when_line_start = s.rfind("\n", 0, block_end) + 1
-if when_line_start <= line_start:
-    raise SystemExit("Invalid event-dispatch block boundaries.")
-s = s[:line_start] + s[when_line_start:]
+if block_start >= 0:
+    when_marker = "when (event.type) {"
+    block_end = s.find(when_marker, block_start)
+    if block_end < 0:
+        raise SystemExit("Could not locate event dispatch after old vout reflection block.")
+    line_start = s.rfind("\\n", 0, block_start) + 1
+    when_line_start = s.rfind("\\n", 0, block_end) + 1
+    if when_line_start <= line_start:
+        raise SystemExit("Invalid old diagnostic block boundaries.")
+    s = s[:line_start] + s[when_line_start:]
 
-# Use LibVLC's precise-seek mode for both direct user seeks and restored resume
-# positions. The default setTime overload can prefer fast/keyframe seeking, which
-# is the path implicated by the GX1 large-seek freeze.
-if s.count("mediaPlayer.setTime(positionMs.coerceAtLeast(0L))") != 1:
-    raise SystemExit("Expected one direct seek call; refusing an ambiguous rewrite.")
-if s.count("mediaPlayer.setTime(seek)") != 1:
-    raise SystemExit("Expected one pending resume seek call; refusing an ambiguous rewrite.")
+old_event = "mediaPlayer.setEventListener { event ->"
+new_event = """mediaPlayer.setEventListener { event ->
+            if (event.type != MediaPlayer.Event.TimeChanged &&
+                event.type != MediaPlayer.Event.PositionChanged &&
+                event.type != MediaPlayer.Event.LengthChanged) {
+                android.util.Log.i(
+                    "GX1-SEEK-DIAG",
+                    "event=${event.type}, timeMs=${mediaPlayer.time}, playing=${mediaPlayer.isPlaying}"
+                )
+            }"""
+if s.count(old_event) != 1:
+    raise SystemExit("Expected exactly one LibVLC event listener.")
+s = s.replace(old_event, new_event, 1)
+
 s = s.replace(
-    "mediaPlayer.setTime(positionMs.coerceAtLeast(0L))",
-    "mediaPlayer.setTime(positionMs.coerceAtLeast(0L), false)",
+    "if (seek > 0L) mediaPlayer.setTime(seek)",
+    """if (seek > 0L) {
+                        android.util.Log.i("GX1-SEEK-DIAG", "resumeSeek requestMs=$seek")
+                        mediaPlayer.setTime(seek, false)
+                        android.util.Log.i("GX1-SEEK-DIAG", "resumeSeek returned timeMs=${mediaPlayer.time}, playing=${mediaPlayer.isPlaying}")
+                    }""",
     1
 )
-s = s.replace("mediaPlayer.setTime(seek)", "mediaPlayer.setTime(seek, false)", 1)
-if "mediaPlayer.setTime(positionMs.coerceAtLeast(0L), false)" not in s:
-    raise SystemExit("Precise direct-seek verification failed.")
-if "mediaPlayer.setTime(seek, false)" not in s:
-    raise SystemExit("Precise resume-seek verification failed.")
 
-# Verify the failed Build 1060 pre-play workaround is absent from this patch.
-if 'media.addOption(":start-time=$startSeconds")' in s:
-    raise SystemExit("Unexpected pre-play start-time option remains.")
-if "Large seek: reopening media" in s:
-    raise SystemExit("Unexpected media-reopen workaround remains.")
+s = s.replace(
+    seek_method,
+    """fun seekTo(positionMs: Long) {
+        checkActive()
+        val targetMs = positionMs.coerceAtLeast(0L)
+        android.util.Log.i(
+            "GX1-SEEK-DIAG",
+            "seekBefore targetMs=$targetMs currentMs=${mediaPlayer.time} lengthMs=${mediaPlayer.length} playing=${mediaPlayer.isPlaying}"
+        )
+        mediaPlayer.setTime(targetMs, false)
+        android.util.Log.i(
+            "GX1-SEEK-DIAG",
+            "seekAfter targetMs=$targetMs currentMs=${mediaPlayer.time} lengthMs=${mediaPlayer.length} playing=${mediaPlayer.isPlaying}"
+        )
+    }""",
+    1
+)
+
+if "mediaPlayer.setTime(targetMs, false)" not in s:
+    raise SystemExit("Precise native seek call verification failed.")
+if "GX1-SEEK-DIAG" not in s or "seekBefore targetMs=" not in s or "seekAfter targetMs=" not in s:
+    raise SystemExit("Seek diagnostic verification failed.")
+if 'media.addOption(":start-time=$startSeconds")' in s or "Large seek: reopening media" in s:
+    raise SystemExit("Unexpected media-reopen workaround detected.")
 
 p.write_text(s)
-print("Enabled precise LibVLC seeking for direct seeks and resume positions; removed per-event reflection/logging.")
+print("Added targeted LibVLC seek/event diagnostics; kept native precise seeking and playback/audio configuration unchanged.")
