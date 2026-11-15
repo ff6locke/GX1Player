@@ -29,7 +29,7 @@ new_event = """mediaPlayer.setEventListener { event ->
                 event.type != MediaPlayer.Event.LengthChanged) {
                 android.util.Log.i(
                     "GX1-SEEK-DIAG",
-                    "event=${event.type}, timeMs=${mediaPlayer.time}, playing=${mediaPlayer.isPlaying}"
+                    "event=${event.type}, timeMs=${mediaPlayer.time}, playing=${mediaPlayer.isPlaying}, voutCount=${mediaPlayer.getVoutCount()}"
                 )
             }"""
 if s.count(old_event) != 1:
@@ -83,7 +83,7 @@ s = s.replace(
                     val elapsedMs = android.os.SystemClock.elapsedRealtime() - diagnosticStartedAt
                     android.util.Log.i(
                         "GX1-SEEK-DIAG",
-                        "heartbeat elapsedMs=$elapsedMs burstStartMs=$burstStartMs targetMs=$targetMs currentMs=${mediaPlayer.time} playing=${mediaPlayer.isPlaying}"
+                        "heartbeat elapsedMs=$elapsedMs burstStartMs=$burstStartMs targetMs=$targetMs currentMs=${mediaPlayer.time} playing=${mediaPlayer.isPlaying} voutCount=${mediaPlayer.getVoutCount()}"
                     )
                     if (elapsedMs < 45_000L) diagnosticHandler.postDelayed(this, 500L)
                 }
