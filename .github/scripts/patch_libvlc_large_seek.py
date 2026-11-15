@@ -44,8 +44,14 @@ if open_start < 0 or open_end < 0:
     raise SystemExit("Could not locate LibVLC open() method boundaries.")
 open_body = s[open_start:open_end]
 media_release = "media.release()"
-if open_body.count(media_release) != 1:
-    raise SystemExit(f"Expected one media.release() in open(); found {open_body.count(media_release)}.")
+# open() releases Media once in the exception handler and once on success.
+# Insert the rebind after the successful assignment/release, never in the catch path.
+if open_body.count(media_release) != 2:
+    raise SystemExit(f"Expected two media.release() calls in open() (catch + success); found {open_body.count(media_release)}.")
+success_release = open_body.rfind(media_release)
+assignment = open_body.find("mediaPlayer.media = media")
+if assignment < 0 or success_release < assignment:
+    raise SystemExit("Could not verify successful media assignment before release.")
 rebind = """media.release()
                   if (rebuildVideoOutputOnNextOpen) {
                       rebuildVideoOutputOnNextOpen = false
