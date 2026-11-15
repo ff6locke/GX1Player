@@ -8428,21 +8428,17 @@ jobs:
           s = p.read_text()
           helper = """    private fun focusPlaybackPlayPauseNow() {
                   if (!::playerView.isInitialized) return
-                  val playPause = playerView.findViewById<android.view.View>(
-                      androidx.media3.ui.R.id.exo_play_pause
-                  ) ?: return
-                  playPause.isFocusable = true
-                  playPause.isFocusableInTouchMode = true
-                  playPause.requestFocus()
-                  android.util.Log.d("GX1Player", "Play/Pause focus requested; focused=" + playPause.isFocused)
+                  val v = playerView.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_play_pause) ?: return
+                  v.isFocusable = true
+                  v.isFocusableInTouchMode = true
+                  v.requestFocus()
+                  android.util.Log.d("GX1Player", "Play/Pause focused=" + v.isFocused)
               }
 
               private fun focusPlaybackPlayPause() {
                   if (!::playerView.isInitialized) return
                   playerView.setControllerVisibilityListener { visibility ->
-                      if (visibility == android.view.View.VISIBLE) {
-                          playerView.post { focusPlaybackPlayPauseNow() }
-                      }
+                      if (visibility == android.view.View.VISIBLE) playerView.post { focusPlaybackPlayPauseNow() }
                   }
                   playerView.showController()
                   playerView.post {
@@ -8457,26 +8453,20 @@ jobs:
               anchor = "    private fun startPlayer()"
               if anchor not in s: raise SystemExit("startPlayer insertion point missing")
               s = s.replace(anchor, helper + anchor, 1)
-
-          # Put the Media3 call inside the actual startPlayer() method,
-          # not at an unrelated playWhenReady assignment elsewhere.
           start = s.find("    private fun startPlayer()")
           end = s.find("\n    private fun ", start + 1)
-          if start < 0 or end < 0: raise SystemExit("startPlayer method bounds missing")
+          if start < 0 or end < 0: raise SystemExit("startPlayer bounds missing")
           block = s[start:end]
           marker = "exo.playWhenReady = true"
           pos = block.rfind(marker)
-          if pos < 0: raise SystemExit("Media3 startPlayer playWhenReady line missing")
+          if pos < 0: raise SystemExit("Media3 playWhenReady missing")
           after = pos + len(marker)
           if "focusPlaybackPlayPause()" not in block[after:after+160]:
               block = block[:after] + "\n        focusPlaybackPlayPause()" + block[after:]
               s = s[:start] + block + s[end:]
-
-          # LibVLC uses the same Media3 controller surface; focus only after
-          # its forwarding Player has been attached and the controller shown.
           start = s.find("    private fun startMainLibVlc(uri: Uri) {")
           end = s.find("\n    private fun ", start + 1)
-          if start < 0 or end < 0: raise SystemExit("Final LibVLC method bounds missing")
+          if start < 0 or end < 0: raise SystemExit("LibVLC bounds missing")
           block = s[start:end]
           marker = "playerView.showController()"
           pos = block.rfind(marker)
@@ -8486,7 +8476,7 @@ jobs:
               block = block[:after] + "\n                  focusPlaybackPlayPause()" + block[after:]
               s = s[:start] + block + s[end:]
           p.write_text(s)
-          print("Play/Pause focus is now tied to the actual Media3 and LibVLC startup methods and controller visibility.")
+          print("Play/Pause focus added to actual Media3 and LibVLC startup.")
           PY
       - name: Export final Kotlin source
         working-directory: ${{ env.PROJECT_DIR }}
