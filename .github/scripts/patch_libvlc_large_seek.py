@@ -51,15 +51,31 @@ s = s.replace(
     """fun seekTo(positionMs: Long) {
         checkActive()
         val targetMs = positionMs.coerceAtLeast(0L)
+        val beforeMs = mediaPlayer.time
         android.util.Log.i(
             "GX1-SEEK-DIAG",
-            "seekBefore targetMs=$targetMs currentMs=${mediaPlayer.time} lengthMs=${mediaPlayer.length} playing=${mediaPlayer.isPlaying}"
+            "seekBefore targetMs=$targetMs currentMs=$beforeMs lengthMs=${mediaPlayer.length} playing=${mediaPlayer.isPlaying}"
         )
         mediaPlayer.setTime(targetMs, false)
         android.util.Log.i(
             "GX1-SEEK-DIAG",
             "seekAfter targetMs=$targetMs currentMs=${mediaPlayer.time} lengthMs=${mediaPlayer.length} playing=${mediaPlayer.isPlaying}"
         )
+        if (beforeMs >= 0L && kotlin.math.abs(targetMs - beforeMs) >= 300_000L) {
+            val diagnosticHandler = android.os.Handler(android.os.Looper.getMainLooper())
+            val diagnosticStartedAt = android.os.SystemClock.elapsedRealtime()
+            val diagnosticHeartbeat = object : Runnable {
+                override fun run() {
+                    val elapsedMs = android.os.SystemClock.elapsedRealtime() - diagnosticStartedAt
+                    android.util.Log.i(
+                        "GX1-SEEK-DIAG",
+                        "heartbeat elapsedMs=$elapsedMs targetMs=$targetMs currentMs=${mediaPlayer.time} playing=${mediaPlayer.isPlaying}"
+                    )
+                    if (elapsedMs < 45_000L) diagnosticHandler.postDelayed(this, 500L)
+                }
+            }
+            diagnosticHandler.postDelayed(diagnosticHeartbeat, 500L)
+        }
     }""",
     1
 )
