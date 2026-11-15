@@ -1,4 +1,5 @@
 name: Build GX1 Player APK
+# Trigger builds for LibVLC recovery script updates.
 on:
   push:
     branches: [ main, aspect-ratio-parity, media3-repeat-fix, fix-duplicate-playback-title, fix-libvlc-long-seek-recovery ]
