@@ -7337,7 +7337,7 @@ jobs:
           if old_click not in s: raise SystemExit('Could not locate aspect click assignment')
           s=s.replace(old_click,new_click,1)
           p.write_text(s)
-          print('Media3 and LibVLC share six aspect options.')
+          print('Aspect parity set.')
           PY
       - name: Reapply selected aspect ratio when LibVLC creates video output
         working-directory: ${{ env.PROJECT_DIR }}
@@ -7358,7 +7358,7 @@ jobs:
                   raise SystemExit(f'Could not locate unique event-listener insertion point; found {s.count(anchor)}')
               s = s.replace(anchor, replacement, 1)
           p.write_text(s)
-          print('Selected aspect ratio is reapplied when LibVLC creates each video output.')
+          print('VLC scale reapplied.')
           PY
       - name: Automatically play the next file when LibVLC reaches the end
         working-directory: ${{ env.PROJECT_DIR }}
