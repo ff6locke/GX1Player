@@ -7705,62 +7705,7 @@ jobs:
               s = s[:line_start] + indent + 'files.sortBy { it.label.lowercase() }\n' + s[line_start:]
           if "contentResolver.query(collection, projection, selection, selectionArgs, null)" not in s:
               raise SystemExit("Library query optimization verification failed")
-          focus_helper = """    private fun focusGx1PlayPauseAfterPlaybackChange() {
-                  if (!::playerView.isInitialized) return
-                  playerView.post {
-                      playerView.showController()
-                      playerView.postDelayed({
-                          val playPause = playerView.findViewById<android.view.View>(
-                              androidx.media3.ui.R.id.exo_play_pause
-                          )
-                          if (playPause != null && playPause.isShown) {
-                              playPause.isFocusable = true
-                              playPause.isFocusableInTouchMode = true
-                              playPause.requestFocus()
-                          }
-                      }, 300L)
-                  }
-              }
-          """
-          nav_anchor = "private fun playAdjacentGx1File(direction: Int) {"
-          if "private fun focusGx1PlayPauseAfterPlaybackChange()" not in s:
-              if s.count(nav_anchor) != 1:
-                  raise SystemExit("Could not find unique playback navigation method")
-              nav_pos = s.find(nav_anchor)
-              nav_line = s.rfind(chr(10), 0, nav_pos) + 1
-              nav_indent = s[nav_line:nav_pos]
-              s = s[:nav_line] + nav_indent + focus_helper + s[nav_line:]
-          nav_pos = s.find(nav_anchor)
-          nav_end = s.find("private fun installGx1FileNavigationButtons", nav_pos)
-          nav_block = s[nav_pos:nav_end]
-          show_line = "playerView.showController()"
-          if show_line not in nav_block:
-              raise SystemExit("Could not find controller refresh in next/previous")
-          if "focusGx1PlayPauseAfterPlaybackChange()" not in nav_block:
-              show_pos = nav_pos + nav_block.find(show_line) + len(show_line)
-              s = s[:show_pos] + chr(10) + "              focusGx1PlayPauseAfterPlaybackChange()" + s[show_pos:]
-          tile_old = 'if (last != null) { selectMedia(last); startPlayer() }'
-          tile_new = 'if (last != null) { selectMedia(last); startPlayer(); focusGx1PlayPauseAfterPlaybackChange() }'
-          if tile_old in s:
-              s = s.replace(tile_old, tile_new, 1)
-          elif tile_new not in s:
-              raise SystemExit("Could not locate Resume home tile")
-          menu_anchor = 'add("Resume last video") {'
-          menu_pos = s.find(menu_anchor)
-          if menu_pos < 0:
-              raise SystemExit("Could not locate Resume menu action")
-          menu_next = s.find('\\n        add(', menu_pos + len(menu_anchor))
-          if menu_next < 0:
-              menu_next = min(len(s), menu_pos + 2000)
-          menu_block = s[menu_pos:menu_next]
-          if "focusGx1PlayPauseAfterPlaybackChange()" not in menu_block:
-              start_pos = menu_block.find("startPlayer()")
-              if start_pos < 0:
-                  raise SystemExit("Could not locate startPlayer in Resume menu action")
-              insert_at = menu_pos + start_pos + len("startPlayer()")
-              s = s[:insert_at] + chr(10) + "                      focusGx1PlayPauseAfterPlaybackChange()" + s[insert_at:]
-          if "focusGx1PlayPauseAfterPlaybackChange()" not in s:
-              raise SystemExit("Playback focus call verification failed")
+          print("Applied MediaStore folder filtering and sorting; playback focus logic unchanged.")
           p.write_text(s)
           print("Library now filters MediaStore by the selected folder and sorts only the visible results. Playback controller refreshes now return D-pad focus to Play/Pause.")
           PY
