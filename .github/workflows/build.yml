@@ -1295,12 +1295,8 @@ jobs:
                                   )
                                   val names = arrayOf("Fit", "Fill", "Zoom")
                                   val next = (modes.indexOf(playerView.resizeMode) + 1).let { if (it < 0) 0 else (it + 1) % modes.size }
-                                  playerView.post {
-                                      playerView.resizeMode = modes[next]
-                                      (playerView.getChildAt(0) as? androidx.media3.ui.AspectRatioFrameLayout)?.setResizeMode(modes[next])
-                                      playerView.requestLayout()
-                                      playerView.invalidate()
-                                  }
+                                  (playerView.getChildAt(0) as? androidx.media3.ui.AspectRatioFrameLayout)?.setResizeMode(modes[next])
+                                  playerView.requestLayout()
                                   Toast.makeText(this, "Aspect ratio: " + names[next], Toast.LENGTH_SHORT).show()
                               }
                               "sleep" -> {
@@ -1367,12 +1363,8 @@ jobs:
                                       }
                                   }
                                   setOnClickListener {
-                                      playerView.post {
-                                          playerView.resizeMode = aspectModes[aspectIndex]
-                                          (playerView.getChildAt(0) as? androidx.media3.ui.AspectRatioFrameLayout)?.setResizeMode(aspectModes[aspectIndex])
-                                          playerView.requestLayout()
-                                          playerView.invalidate()
-                                      }
+                                      (playerView.getChildAt(0) as? androidx.media3.ui.AspectRatioFrameLayout)?.setResizeMode(aspectModes[aspectIndex])
+                                      playerView.requestLayout()
                                       menuPopupRef?.dismiss()
                                       Toast.makeText(this@MainActivity, "Aspect ratio: " + aspectName, Toast.LENGTH_SHORT).show()
                                   }
