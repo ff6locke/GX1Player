@@ -8299,7 +8299,7 @@ jobs:
                       break
           if finish < 0: raise SystemExit("Media3 listener closing brace not found")
           if "Media3 Repeat One: restarting ended video" not in s:
-              line_start = s.rfind("\\n", 0, start) + 1
+              line_start = s.rfind(chr(10), 0, start) + 1
               indent = s[line_start:start]
               body = """override fun onPlaybackStateChanged(playbackState: Int) {
               if (playbackState == Player.STATE_ENDED && prefs.getBoolean("gx1_repeat_enabled", false)) {
@@ -8312,7 +8312,7 @@ jobs:
               }
               if (playbackState == Player.STATE_ENDED || playbackState == Player.STATE_READY) savePosition(exo)
           }"""
-              replacement = "\\n".join(indent + line if line else "" for line in body.splitlines())
+              replacement = chr(10).join(indent + line if line else "" for line in body.splitlines())
               s = s[:start] + replacement + s[finish + 1:]
           a="        val renderers = if (passthrough) {"
           b = (
