@@ -8283,13 +8283,24 @@ jobs:
           from pathlib import Path
           p=Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s=p.read_text()
-          import re
-          pattern = re.compile(r'(?m)^([ \\t]*)override fun onPlaybackStateChanged\\(playbackState: Int\\)\\s*\\{.*?^\\1\\}')
-          matches = list(pattern.finditer(s))
-          if len(matches) != 1:
-              raise SystemExit(f"Expected one Media3 playback-state listener, found {len(matches)}")
+          needle = "override fun onPlaybackStateChanged(playbackState: Int)"
+          start = s.find(needle)
+          if start < 0 or s.find(needle, start + 1) >= 0:
+              raise SystemExit("Expected exactly one Media3 playback-state listener")
+          brace = s.find("{", start)
+          depth = 0
+          finish = -1
+          for pos in range(brace, len(s)):
+              if s[pos] == "{": depth += 1
+              elif s[pos] == "}":
+                  depth -= 1
+                  if depth == 0:
+                      finish = pos
+                      break
+          if finish < 0: raise SystemExit("Media3 listener closing brace not found")
           if "Media3 Repeat One: restarting ended video" not in s:
-              indent = matches[0].group(1)
+              line_start = s.rfind("\\n", 0, start) + 1
+              indent = s[line_start:start]
               body = """override fun onPlaybackStateChanged(playbackState: Int) {
               if (playbackState == Player.STATE_ENDED && prefs.getBoolean("gx1_repeat_enabled", false)) {
                   savePosition(exo)
@@ -8302,7 +8313,7 @@ jobs:
               if (playbackState == Player.STATE_ENDED || playbackState == Player.STATE_READY) savePosition(exo)
           }"""
               replacement = "\\n".join(indent + line if line else "" for line in body.splitlines())
-              s = pattern.sub(lambda _: replacement, s, count=1)
+              s = s[:start] + replacement + s[finish + 1:]
           a="        val renderers = if (passthrough) {"
           b = (
               "        playerView.visibility = View.VISIBLE\n"
