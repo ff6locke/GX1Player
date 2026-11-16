@@ -342,9 +342,6 @@ jobs:
       - name: Add requested menu and reliable resume behavior
         working-directory: ${{ env.PROJECT_DIR }}
         run: python3 "$GITHUB_WORKSPACE/.github/scripts/add_requested_menu_resume.py"
-      - name: Show only supported media folders and include audio files
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: python3 "$GITHUB_WORKSPACE/.github/scripts/filter_media_folders.py"
       - name: Add full-screen VLC-style TV library
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
@@ -7817,6 +7814,9 @@ jobs:
       - name: Route multichannel AAC to Media3 while keeping LibVLC default
         working-directory: ${{ env.PROJECT_DIR }}
         run: python3 "$GITHUB_WORKSPACE/.github/scripts/route_aac_multichannel.py"
+      - name: Show only supported media folders and include audio files
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: python3 "$GITHUB_WORKSPACE/.github/scripts/filter_media_folders.py"
       - name: Export final post-persistence Kotlin source for review
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
