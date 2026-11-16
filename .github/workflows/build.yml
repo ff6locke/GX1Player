@@ -6451,7 +6451,7 @@ jobs:
           e = engine.read_text()
           if "fun restartFromBeginning()" not in e:
               import re
-              match = re.search(r"(?m)^    fun seekTo\\(", e)
+              match = re.search(r"(?m)^    fun seekTo\(", e)
               pos = match.start() if match else -1
               if pos < 0:
                   raise SystemExit("Could not locate LibVLC seek method for replay helper")
