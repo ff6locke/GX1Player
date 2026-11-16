@@ -6946,10 +6946,26 @@ jobs:
           s = p.read_text()
           s = s.replace('addTile("Library", "Browse saved folders") { showGX1Library() }',
                         'addTile("Library", "Browse folders and media") { chooseLibraryLocation() }')
-          s = re.sub(r'addTile\("Open video",\s*"[^"]*"\)\s*\{\s*openVideoWithGX1Browser\(\)\s*\}',
-                     'addTile("Open video", "Choose a video") { otgDocumentPicker.launch(arrayOf("*/*")) }', s, count=1)
-          s = s.replace('add("Open video file") { openVideoWithGX1Browser() }',
-                        'add("Open video file") { otgDocumentPicker.launch(arrayOf("*/*")) }')
+          s = re.sub(r'addTile\("Open video",\s*"[^"]*"\)\s*\{\s*(?:openVideoWithGX1Browser\(\)|otgDocumentPicker\.launch\(arrayOf\("\*/\*"\)\))\s*\}',
+                     'addTile("Open video", "Browse internal or external storage") { openVideoWithGX1Browser() }', s, count=1)
+          s = re.sub(r'add\("Open video file"\)\s*\{\s*(?:openVideoWithGX1Browser\(\)|otgDocumentPicker\.launch\(arrayOf\("\*/\*"\)\))\s*\}',
+                     'add("Open video file") { openVideoWithGX1Browser() }', s, count=1)
+          s = re.sub(r'          private fun openVideoWithGX1Browser\(\) \{.*?\n          \}\n          private fun showGX1Library\(\)',
+                     '''          private fun openVideoWithGX1Browser() {
+              // Use GX1 Player's own storage browser on phones and Android TV.
+              ensureGX1FileAccess {
+                  val roots = gx1StorageRoots()
+                  if (roots.isEmpty()) {
+                      Toast.makeText(this, "No accessible storage found.", Toast.LENGTH_LONG).show()
+                  } else {
+                      val labels = roots.mapIndexed { i, _ -> if (i == 0) "Internal storage" else "External SD / USB storage" }
+                      AlertDialog.Builder(this).setTitle("Open video from")
+                          .setItems(labels.toTypedArray()) { _, which -> browseGX1Folder(roots[which], false, false) }
+                          .setNegativeButton("Cancel", null).show()
+                  }
+              }
+          }
+          private fun showGX1Library()''', s, count=1, flags=re.S)
           s = s.replace('private fun chooseLibraryLocation() {',
                         'private fun chooseLibraryLocation(videoOnly: Boolean = false) {', 1)
           s = s.replace('if (missing.isEmpty()) showLibrary("") else libraryPermissionRequest.launch(missing.toTypedArray())',
