@@ -37,8 +37,8 @@ jobs:
           test -f "$ZIP_FILE"
           unzip -oq "$ZIP_FILE" -d .
           test -f "$PROJECT_DIR/settings.gradle.kts"
-      - name: Fix M2TS playback position clock
-        run: python3 .github/scripts/fix_m2ts_playback_clock.py "$PROJECT_DIR"
+      - name: Locate M2TS playback engine source
+        run: python3 .github/scripts/locate_m2ts_engine.py "$PROJECT_DIR"
       - name: Add TrueHD MAT packetizer source
         run: |
           TARGET="$PROJECT_DIR/app/src/main/java/com/example/gx1player/audio"
