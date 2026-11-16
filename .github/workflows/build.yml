@@ -6681,8 +6681,8 @@ jobs:
               fun getVideoScale(): MediaPlayer.ScaleType = mediaPlayer.videoScale
           """
           if "fun setVideoScale(scaleType: MediaPlayer.ScaleType)" not in e:
-              marker = "    fun seekTo(positionMs: Long)"
-              pos = e.find(marker)
+              match = re.search(r"(?m)^\s*fun seekTo\(positionMs: Long\)", e)
+              pos = match.start() if match else -1
               if pos < 0:
                   raise SystemExit("Could not locate LibVLC engine seekTo() declaration")
               methods = """    private var currentVideoScale: MediaPlayer.ScaleType = MediaPlayer.ScaleType.SURFACE_BEST_FIT
