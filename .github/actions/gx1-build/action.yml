@@ -7983,6 +7983,38 @@ runs:
           p.write_text(s)
           print("Android TV Left/Right use 10-second steps for the first 5 minutes of each seek session, then 1-minute steps; key-up resets the session.")
           PY
+      - name: Use fast keyframe seeking for large jumps
+        working-directory: gx1-player
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
+          s = p.read_text()
+          old_seek = "fun seekTo(positionMs: Long) { checkActive(); mediaPlayer.setTime(positionMs.coerceAtLeast(0L)) }"
+          new_seek = """fun seekTo(positionMs: Long) {
+                  checkActive()
+                  val target = positionMs.coerceAtLeast(0L)
+                  val current = mediaPlayer.time.coerceAtLeast(0L)
+                  val fast = (target - current >= 60_000L) || (current - target >= 60_000L)
+                  mediaPlayer.setTime(target, fast)
+                  android.util.Log.i("GX1-VLC", "Seek target=$target current=$current fast=$fast")
+              }"""
+          if old_seek in s:
+              s = s.replace(old_seek, new_seek, 1)
+          elif "mediaPlayer.setTime(target, fast)" not in s:
+              raise SystemExit("Could not locate LibVLC seek method; refusing unsafe patch")
+          old_resume = "if (seek > 0L) mediaPlayer.setTime(seek)"
+          new_resume = "if (seek > 0L) mediaPlayer.setTime(seek, true)"
+          if old_resume in s:
+              s = s.replace(old_resume, new_resume, 1)
+          elif new_resume not in s:
+              raise SystemExit("Could not locate initial/resume seek; refusing unsafe patch")
+          if "mediaPlayer.setTime(target, fast)" not in s or "mediaPlayer.setTime(seek, true)" not in s:
+              raise SystemExit("Fast-seek verification failed")
+          p.write_text(s)
+          print("Large LibVLC jumps (60 seconds or more) and resume seeks now prefer fast keyframe seeking; short jumps remain precise.")
+          PY
       - name: Enforce hard D-pad key boundaries after installing seek handler
         working-directory: gx1-player
         shell: bash
