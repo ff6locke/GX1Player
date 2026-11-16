@@ -7183,7 +7183,7 @@ jobs:
           # Restore D-pad focus after switching to the adjacent media item.
           # The controller may already be visible, so its visibility callback alone is not enough.
           import re
-          nav_pattern = re.compile(r"(?s)(private fun playAdjacentGx1File\\(direction: Int\\) \\{.*?selectMedia\\(target\\)\\s*startPlayer\\(\\)\\s*playerView\\.showController\\(\\))")
+          nav_pattern = re.compile(r"(?s)(private fun playAdjacentGx1File\(direction: Int\) \{.*?selectMedia\(target\)\s*startPlayer\(\)\s*playerView\.showController\(\))")
           nav_matches = list(nav_pattern.finditer(s))
           if len(nav_matches) != 1:
               raise SystemExit("Could not uniquely locate adjacent-file playback sequence; matches=" + str(len(nav_matches)))
