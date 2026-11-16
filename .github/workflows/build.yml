@@ -7187,7 +7187,7 @@ jobs:
           nav_matches = list(nav_pattern.finditer(s))
           if len(nav_matches) != 1:
               raise SystemExit("Could not uniquely locate adjacent-file playback sequence; matches=" + str(len(nav_matches)))
-          nav_focus = "\\n        playerView.post { focusPlaybackToggle() }\\n        playerView.postDelayed({ focusPlaybackToggle() }, 300L)"
+          nav_focus = "\n        playerView.post { focusPlaybackToggle() }\n        playerView.postDelayed({ focusPlaybackToggle() }, 300L)"
           if "postDelayed({ focusPlaybackToggle() }, 300L)" not in s:
               m = nav_matches[0]
               s = s[:m.end()] + nav_focus + s[m.end():]
