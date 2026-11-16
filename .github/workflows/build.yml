@@ -5,6 +5,7 @@ on:
     paths:
       - 'gx1-player.zip'
       - '.github/workflows/build.yml'
+      - '.github/scripts/**'
   pull_request:
     branches: [ main ]
   workflow_dispatch:
