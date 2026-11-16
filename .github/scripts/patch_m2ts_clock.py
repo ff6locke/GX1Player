@@ -73,6 +73,10 @@ seek_body = """    fun seekTo(positionMs: Long) {
         } else {
             mediaPlayer.setTime(target)
         }
+    }
+    fun setRate(rate: Float) {
+        checkActive()
+        mediaPlayer.setRate(rate.coerceIn(0.25f, 4.0f))
     }"""
 time_body = """    fun currentTimeMs(): Long {
         if (released) return 0L
