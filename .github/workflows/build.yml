@@ -3235,7 +3235,7 @@ jobs:
           PY
       - name: Add advancing M2TS clock fallback and state polling
         working-directory: ${{ env.PROJECT_DIR }}
-        run: python3 "$GITHUB_WORKSPACE/.github/scripts/patch_m2ts_clock.py" "$PROJECT_DIR"
+        run: python3 "$GITHUB_WORKSPACE/.github/scripts/patch_m2ts_clock.py" "."
       - name: Upgrade LibVLC test player with transport and resume controls
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
