@@ -1952,6 +1952,13 @@ jobs:
               }
           }
           private fun openVideoWithGX1Browser() {
+              // Phones use Android's Storage Access Framework so USB OTG volumes
+              // (including Samsung USB storage) are visible under scoped storage.
+              // Keep the native GX1 browser on Android TV devices.
+              if (!packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)) {
+                  pickVideo.launch(arrayOf("video/*", "application/octet-stream", "application/x-matroska"))
+                  return
+              }
               ensureGX1FileAccess {
                   val roots = gx1StorageRoots()
                   if (roots.isEmpty()) {
