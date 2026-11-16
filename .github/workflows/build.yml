@@ -6763,16 +6763,16 @@ jobs:
           print(f"Located LibVLC engine for video-scale patch: {p}")
           import re
           if 'MediaPlayer.Event.Vout -> {' not in s:
-              match = re.search(r'(?m)^(\\s*)MediaPlayer\\.Event\\.[A-Za-z0-9_]+\\s*->', s)
+              match = re.search(r'(?m)^(\s*)MediaPlayer\.Event\.[A-Za-z0-9_]+\s*->', s)
               if not match:
                   raise SystemExit('Could not locate a LibVLC event-listener case for video-scale restoration')
               indent = match.group(1)
               insertion = (
-                  indent + '// Reapply the selected scale whenever LibVLC creates video output.\\n' +
-                  indent + 'MediaPlayer.Event.Vout -> {\\n' +
-                  indent + '    runCatching { mediaPlayer.setVideoScale(currentVideoScale) }\\n' +
-                  indent + '        .onFailure { android.util.Log.w("GX1-VLC", "Could not reapply selected video scale", it) }\\n' +
-                  indent + '}\\n'
+                  indent + '// Reapply the selected scale whenever LibVLC creates video output.\n' +
+                  indent + 'MediaPlayer.Event.Vout -> {\n' +
+                  indent + '    runCatching { mediaPlayer.setVideoScale(currentVideoScale) }\n' +
+                  indent + '        .onFailure { android.util.Log.w("GX1-VLC", "Could not reapply selected video scale", it) }\n' +
+                  indent + '}\n'
               )
               s = s[:match.start()] + insertion + s[match.start():]
           p.write_text(s)
