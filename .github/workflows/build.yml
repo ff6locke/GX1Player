@@ -7180,21 +7180,8 @@ jobs:
           focus_line = "if (visibility == View.VISIBLE) playerView.post { focusPlaybackToggle() }"
           if listener_anchor in s and focus_line not in s:
               s = s.replace(listener_anchor, listener_anchor + "\n                    " + focus_line, 1)
-          # Adjacent-file playback rebuilds PlayerView and drops the old DPAD focus.
-          # Explicitly restore focus after the replacement controller has been attached.
-          nav_anchor = """              selectMedia(target)
-              startPlayer()
-              playerView.showController()"""
-          nav_replacement = """              selectMedia(target)
-              startPlayer()
-              playerView.showController()
-              playerView.postDelayed({ focusPlaybackToggle() }, 300L)"""
-          if nav_replacement not in s:
-              if s.count(nav_anchor) != 1:
-                  raise SystemExit("Could not find unique adjacent-file playback focus anchor")
-              s = s.replace(nav_anchor, nav_replacement, 1)
-          if "playerView.postDelayed({ focusPlaybackToggle() }, 300L)" not in s:
-              raise SystemExit("Adjacent-file Play/Pause focus restoration verification failed")
+          # Controller visibility changes restore focus through the listener above.
+          # Do not rewrite adjacent-file navigation using a formatting-sensitive anchor.
           if "private fun focusPlaybackToggle()" not in s:
               raise SystemExit("Playback focus correction verification failed")
           if "contentResolver.query(collection, projection, selection, selectionArgs, null)" not in s:
