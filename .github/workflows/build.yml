@@ -1998,9 +1998,8 @@ jobs:
                   "ts", "m2ts", "mts", "vob", "ogv", "flv", "wmv", "asf",
                   "3gp", "3g2", "m2v"
               )
-              // The GX1 browser is for video selection only, including when opened from Library.
-              // Keep folders visible for navigation, but never show audio or other non-video files.
-              val mediaExt = videoExt
+              // Show every media extension supported by the GX1 browser: video and audio.
+              val mediaExt = videoExt + setOf("mp3", "flac", "m4a", "aac", "wav", "ogg", "opus")
               val loading = AlertDialog.Builder(this)
                   .setTitle(if (selectingLibrary) "Loading Library…" else "Loading videos…")
                   .setMessage(current.absolutePath)
