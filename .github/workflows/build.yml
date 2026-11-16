@@ -6950,6 +6950,12 @@ jobs:
                      'addTile("Open video", "Browse internal or external storage") { openVideoWithGX1Browser() }', s, count=1)
           s = re.sub(r'add\("Open video file"\)\s*\{\s*(?:openVideoWithGX1Browser\(\)|otgDocumentPicker\.launch\(arrayOf\("\*/\*"\)\))\s*\}',
                      'add("Open video file") { openVideoWithGX1Browser() }', s, count=1)
+          # Remove the phone-only Android SAF redirect: all devices must use GX1's browser.
+          s, picker_redirects = re.subn(
+              r'(?m)^\s*// Phones use Android\'s Storage Access Framework so USB OTG volumes\n\s*// \(including Samsung USB storage\) are visible under scoped storage\.\n\s*// Keep the native GX1 browser on Android TV devices\.\n\s*if \(!packageManager\.hasSystemFeature\(PackageManager\.FEATURE_LEANBACK\)\) \{\n\s*otgDocumentPicker\.launch\(arrayOf\("\*/\*"\)\)\n\s*return\n\s*\}\n',
+              '', s, count=1)
+          if picker_redirects != 1:
+              raise SystemExit("Could not remove phone Android-picker redirect from GX1 browser")
           s = re.sub(r'          private fun openVideoWithGX1Browser\(\) \{.*?\n          \}\n          private fun showGX1Library\(\)',
                      '''          private fun openVideoWithGX1Browser() {
               // Use GX1 Player's own storage browser on phones and Android TV.
