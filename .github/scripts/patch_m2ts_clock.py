@@ -35,14 +35,49 @@ def replace_method(name, body):
         raise SystemExit(f"Could not replace unique {name} method (matches={count})")
     s = s2
 
-if "usesNormalizedPositionClock()" not in s:
-    anchor = "    fun seekTo(positionMs: Long) {"
+# Resolve extensions from the content-provider display name. MediaStore URIs often
+# end in a numeric row ID, so lastPathSegment is not a reliable filename.
+if "activeFileExtension" not in s:
+    anchor = "    private var activeUri: Uri? = null"
     if s.count(anchor) != 1:
-        raise SystemExit("Could not find unique seekTo method")
-    s = s.replace(anchor, """    private fun usesNormalizedPositionClock(): Boolean =
-        activeUri?.lastPathSegment?.substringAfterLast('.', "")?.lowercase() in setOf("m2ts", "mts")
+        raise SystemExit("Could not find activeUri field")
+    s = s.replace(anchor, anchor + '\n    @Volatile private var activeFileExtension = ""', 1)
 
-    fun seekTo(positionMs: Long) {""", 1)
+if "private fun resolveFileExtension(uri: Uri): String" not in s:
+    anchor = "    fun open(uri: Uri, startPositionMs: Long = 0L, digitalOutput: Boolean = true) {"
+    helper = """    private fun resolveFileExtension(uri: Uri): String {
+        val displayName = runCatching {
+            appContext.contentResolver.query(
+                uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) cursor.getString(0) else null
+            }
+        }.getOrNull()
+        val name = displayName ?: uri.lastPathSegment.orEmpty()
+        return name.substringAfterLast('/', name).substringAfterLast('.', "").lowercase()
+    }
+
+"""
+    if s.count(anchor) != 1:
+        raise SystemExit("Could not find unique open method")
+    s = s.replace(anchor, helper + anchor, 1)
+
+s = re.sub(
+    r'uri\.lastPathSegment\?\.substringAfterLast\(\'\.\', ""\)\?\.lowercase\(\) in setOf\("ts", "m2ts", "mts"\)',
+    'activeFileExtension in setOf("ts", "m2ts", "mts")',
+    s
+)
+s = re.sub(
+    r'activeUri\?\.lastPathSegment\?\.substringAfterLast\(\'\.\', ""\)\?\.lowercase\(\) in setOf\("m2ts", "mts"\)',
+    'activeFileExtension in setOf("m2ts", "mts")',
+    s
+)
+open_anchor = "        activeUri = uri"
+if "activeFileExtension = resolveFileExtension(uri)" not in s:
+    if s.count(open_anchor) != 1:
+        raise SystemExit("Could not find activeUri assignment in open")
+    s = s.replace(open_anchor, open_anchor + "\n        activeFileExtension = resolveFileExtension(uri)", 1)
+
 
 if "m2tsClockBaseMs" not in s:
     anchor = "    private var activeDigitalOutput = true"
@@ -138,10 +173,12 @@ required = [
     "timeMs = currentTimeMs()",
     "gx1-m2ts-clock-poll",
     "pos > 0f",
+    "resolveFileExtension(uri)",
+    "activeFileExtension in setOf(\"m2ts\", \"mts\")",
 ]
 missing = [marker for marker in required if marker not in s]
 if missing:
     raise SystemExit("M2TS clock patch verification failed: " + ", ".join(missing))
 
 source.write_text(s)
-print("Applied and verified M2TS/MTS monotonic clock fallback, normalized seeking, pause handling and 500 ms polling.")
+print("Applied and verified provider-filename extension detection, M2TS/MTS monotonic clock fallback, normalized seeking and 500 ms polling.")
