@@ -6745,8 +6745,12 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          p = Path('app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt')
+          candidates = [p for p in Path(".").rglob("Gx1LibVlcEngine.kt") if "class Gx1LibVlcEngine" in p.read_text(errors="replace")]
+          if len(candidates) != 1:
+              raise SystemExit(f"Expected one Gx1LibVlcEngine.kt, found: {[str(p) for p in candidates]}")
+          p = candidates[0]
           s = p.read_text()
+          print(f"Located LibVLC engine for video-scale patch: {p}")
           anchor = '                MediaPlayer.Event.Paused -> publish(playing = false)'
           replacement = """                // LibVLC can recreate its native video output for each media item.
                 MediaPlayer.Event.Vout -> {
