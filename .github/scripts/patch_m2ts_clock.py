@@ -14,7 +14,7 @@ for path in root.rglob("*.kt"):
         data = path.read_text(errors="replace")
     except OSError:
         continue
-    if re.search(r"\\bclass\\s+Gx1LibVlcEngine\\b", data):
+    if re.search(r"\bclass\s+Gx1LibVlcEngine\b", data):
         candidates.append((path, data))
 
 if len(candidates) != 1:
