@@ -7015,14 +7015,14 @@ jobs:
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
           old = '(f.isDirectory && (selectingLibrary || foldersOnly || containsPlayableVideo(f)))'
-          new = '(f.isDirectory && !f.name.startsWith(".") && !f.name.equals("Android", true))'
+          new = '(f.isDirectory && !f.name.startsWith(".") && !f.name.equals("Android", true) && f.listFiles()?.any { child -> child.isFile && child.extension.lowercase() in mediaExt } == true)'
           if old not in s:
               raise SystemExit("Expected recursive folder-filter expression was not found")
           s = s.replace(old, new, 1)
           if 'containsPlayableVideo(f)' in s:
               raise SystemExit("Recursive folder scan is still used")
           p.write_text(s)
-          print("GX1 browser now lists visible folders directly; no recursive scan before folder list.")
+          print("GX1 browser shows only folders with supported media files directly inside; no recursive scan.")
           PY
       - name: Add cancellable sleep timer Off and adaptive seek jumps
         working-directory: ${{ env.PROJECT_DIR }}
