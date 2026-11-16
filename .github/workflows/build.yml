@@ -3157,6 +3157,24 @@ jobs:
           p.write_text(s)
           print("Added LibVLC embedded audio/SPU track listing and selection methods.")
           PY
+      - name: Enable duration probing for M2TS and MTS files
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
+          s = p.read_text()
+          old = 'uri.lastPathSegment?.substringAfterLast(\'.\', "")?.lowercase() == "ts"'
+          new = 'uri.lastPathSegment?.substringAfterLast(\'.\', "")?.lowercase() in setOf("ts", "m2ts", "mts")'
+          if new not in s:
+              if old not in s:
+                  raise SystemExit("Could not find the existing TS duration-probe extension check")
+              s = s.replace(old, new, 1)
+          if 'in setOf("ts", "m2ts", "mts")' not in s:
+              raise SystemExit("M2TS duration-probe verification failed")
+          p.write_text(s)
+          print("LibVLC duration probe now covers .ts, .m2ts and .mts transport streams.")
+          PY
       - name: Upgrade LibVLC test player with transport and resume controls
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
