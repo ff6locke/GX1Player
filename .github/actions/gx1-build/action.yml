@@ -27,14 +27,14 @@ runs:
         with:
           ref: ${{ inputs.source_branch }}
       - name: Extract project
-        run: |
         shell: bash
+        run: |
           test -f "$ZIP_FILE"
           unzip -oq "$ZIP_FILE" -d .
           test -f "$PROJECT_DIR/settings.gradle.kts"
       - name: Add TrueHD MAT packetizer source
-        run: |
         shell: bash
+        run: |
           TARGET="$PROJECT_DIR/app/src/main/java/com/example/gx1player/audio"
           mkdir -p "$TARGET"
           cp app/src/main/java/com/example/gx1player/audio/TrueHdMatPacker.kt "$TARGET/TrueHdMatPacker.kt"
@@ -43,8 +43,8 @@ runs:
           echo "Added TrueHD MAT/IEC 61937 packetizer source."
       - name: Align Kotlin Gradle plugin with resolved Kotlin libraries
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
@@ -72,8 +72,8 @@ runs:
           PY
       - name: Install GX1 Player TV app icon
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           mkdir -p app/src/main/res/drawable app/src/main/res/mipmap-anydpi-v26
           cat > app/src/main/res/drawable/ic_gx1_launcher_foreground.xml <<'XML'
           <vector xmlns:android="http://schemas.android.com/apk/res/android"
@@ -114,8 +114,8 @@ runs:
           PY
       - name: Upgrade Media3 audio engine
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
@@ -133,8 +133,8 @@ runs:
           PY
       - name: Use Media3 default Matroska extractor and URI data source
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -154,8 +154,8 @@ runs:
           PY
       - name: Increase buffering headroom for high-bitrate 4K files
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
@@ -186,8 +186,8 @@ runs:
           print("Configured larger time- and memory-bounded buffers for high-bitrate 4K playback.")
           PY
       - name: Patch Media3 1.4.1 audio sink API
-        run: |
         shell: bash
+        run: |
           TARGET="$PROJECT_DIR/app/src/main/java/com/example/gx1player/PassthroughRenderersFactory.kt"
           test -f "$TARGET"
           grep -n 'setEnableFloatOutput' "$TARGET" || true
@@ -198,8 +198,8 @@ runs:
           fi
       - name: Use updated Media3 native HDMI audio sink
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path('app/src/main/java/com/example/gx1player/PassthroughRenderersFactory.kt')
@@ -212,8 +212,8 @@ runs:
           PY
       - name: Make Audio pass-through Off force PCM decoding
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
@@ -262,8 +262,8 @@ runs:
           PY
       - name: Wire TrueHD MAT carrier into passthrough playback
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           set -euo pipefail
           TARGET="app/src/main/java/com/example/gx1player/audio"
           mkdir -p "$TARGET"
@@ -289,8 +289,8 @@ runs:
           echo "TrueHD MAT carrier renderer source installed."
       - name: DTS diagnostics
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -341,16 +341,16 @@ runs:
           PY
       - name: Inspect audio renderer
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           echo "=== PassthroughRenderersFactory.kt ==="
           nl -ba app/src/main/java/com/example/gx1player/PassthroughRenderersFactory.kt | sed -n '1,260p'
           echo "=== Audio-related MainActivity configuration ==="
           grep -n -i -E 'audio|passthrough|tunnel|offload|buffer|renderer' app/src/main/java/com/example/gx1player/MainActivity.kt | head -160
       - name: Add requested menu and reliable resume behavior
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
@@ -1010,8 +1010,8 @@ runs:
           PY
       - name: Add full-screen VLC-style TV library
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -1176,8 +1176,8 @@ runs:
           PY
       - name: Replace menu with VLC-style floating panel
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
@@ -1415,8 +1415,8 @@ runs:
           PY
       - name: Make the playback gear menu vertically scrollable
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -1443,8 +1443,8 @@ runs:
           PY
       - name: Keep the VLC gear button clean and white
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -1468,8 +1468,8 @@ runs:
           PY
       - name: Render second subtitle as synchronized overlay
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -1657,8 +1657,8 @@ runs:
           PY
       - name: Restore Media3 Subtitle 1 and custom Subtitle 2
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
@@ -1732,13 +1732,13 @@ runs:
           PY
       - name: Remove obsolete dual-overlay repair
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           echo "Subtitle 1 is native Media3; Subtitle 2 is the sole custom overlay."
       - name: Make Back return home and add an Open video controller shortcut
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -1784,8 +1784,8 @@ runs:
           PY
       - name: Hide phone status bar during video playback
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -1827,8 +1827,8 @@ runs:
           PY
       - name: Add real audio track selection
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -1949,8 +1949,8 @@ runs:
           PY
       - name: Inspect tracks and ABIs
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -2004,8 +2004,8 @@ runs:
           PY
       - name: Add VLC-style built-in subtitle track list
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -2130,8 +2130,8 @@ runs:
           PY
       - name: Route every Open video entry to GX1 browser
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -2170,8 +2170,8 @@ runs:
           PY
       - name: Import Android Environment for library browser
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -2187,8 +2187,8 @@ runs:
           PY
       - name: Fix repeat modes and aspect ratio controls
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
@@ -2251,8 +2251,8 @@ runs:
           PY
       - name: Ensure playback history is recorded on every selection
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -2283,8 +2283,8 @@ runs:
           PY
       - name: Add GX1 in-app subtitle file browser
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -2420,8 +2420,8 @@ runs:
           ANDROID_KEYSTORE_PASSWORD: ${{ inputs.android_keystore_password }}
           ANDROID_KEY_ALIAS: ${{ inputs.android_key_alias }}
           ANDROID_KEY_PASSWORD: ${{ inputs.android_key_password }}
-        run: |
         shell: bash
+        run: |
           cat > app/build.gradle.kts <<'GRADLE'
           plugins {
               id("com.android.application")
@@ -2485,8 +2485,8 @@ runs:
             echo "BUILD_KIND=debug" >> "$GITHUB_ENV"
           fi
       - name: Add Maven Central mirror for dependency resolution
-        run: |
         shell: bash
+        run: |
           mkdir -p "$HOME/.gradle/init.d"
           cat > "$HOME/.gradle/init.d/maven-central-mirror.gradle" <<'GRADLE'
           def mirrorUrl = "https://maven-central.storage-download.googleapis.com/maven2/"
@@ -2506,8 +2506,8 @@ runs:
           GRADLE
       - name: Compress packaged native libraries to reduce APK upload size
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/build.gradle.kts")
@@ -2528,17 +2528,17 @@ runs:
           PY
       - name: Generate Gradle wrapper
         working-directory: gx1-player
-        run: gradle wrapper --gradle-version "$GRADLE_VERSION" --no-daemon
         shell: bash
+        run: gradle wrapper --gradle-version "$GRADLE_VERSION" --no-daemon
       - name: Inspect generated Kotlin subtitle declarations
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           nl -ba app/src/main/java/com/example/gx1player/MainActivity.kt | sed -n '45,150p'
       - name: Inspect MainActivity structure around failing declarations
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           p=app/src/main/java/com/example/gx1player/MainActivity.kt
           test -f "$p"
           echo "=== lines 1-180 ==="
@@ -2551,8 +2551,8 @@ runs:
           grep -n -E '^(class |[[:space:]]+(private )?(data class|fun|var|val|override fun)|[[:space:]]*private (data class|fun|var|val))' "$p" | head -260
       - name: Remove duplicate subtitle state declarations
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -2576,8 +2576,8 @@ runs:
           PY
       - name: Implement GX1 native Library and Open Video browser
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
@@ -2809,8 +2809,8 @@ runs:
           PY
       - name: Add HDMI audio capability diagnostics
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -2927,8 +2927,8 @@ runs:
           PY
       - name: Capture actual HDMI audio output events
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -3053,13 +3053,13 @@ runs:
           PY
       - name: Preserve existing TV home screen and MainActivity methods
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           echo "Skipping destructive whole-section replacement; preserve existing MainActivity methods."
       - name: Restore complete TV home screen method boundary
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
@@ -3181,8 +3181,8 @@ runs:
           PY
       - name: Normalize generated Kotlin strings before compilation
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
@@ -3305,8 +3305,8 @@ runs:
           PY
       - name: Add isolated LibVLC TrueHD passthrough test
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
@@ -3470,8 +3470,8 @@ runs:
           PY
       - name: Diagnose normalized Kotlin around compiler failure
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -3503,8 +3503,8 @@ runs:
           PY
       - name: Finalize GX1 Open Video routes after home UI generation
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
@@ -3522,8 +3522,8 @@ runs:
           PY
       - name: Separate Library media browsing from Open Video
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -3569,8 +3569,8 @@ runs:
           PY
       - name: Add single white menu gear to GX1 home screen
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -3608,8 +3608,8 @@ runs:
           PY
       - name: Add reusable LibVLC playback engine foundation
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           mkdir -p app/src/main/java/com/example/gx1player/playback
           cat > app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt <<'EOF'
           package com.example.gx1player.playback
@@ -3813,8 +3813,8 @@ runs:
           echo "Added reusable LibVLC engine core; existing Media3 UI remains unchanged pending integration."
       - name: Add LibVLC embedded track inventory and selection API
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
@@ -3861,8 +3861,8 @@ runs:
           PY
       - name: Upgrade LibVLC test player with transport and resume controls
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           cat > app/src/main/java/com/example/gx1player/VlcTestActivity.kt <<'EOF'
           package com.example.gx1player
           import android.net.Uri
@@ -4054,8 +4054,8 @@ runs:
           EOF
       - name: Repair playback history persistence and home history list
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
@@ -4098,8 +4098,8 @@ runs:
           PY
       - name: Upgrade LibVLC player controls and embedded track selection
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           cat > app/src/main/java/com/example/gx1player/VlcTestActivity.kt <<'KOTLIN'
           package com.example.gx1player
           import android.net.Uri
@@ -4329,8 +4329,8 @@ runs:
           PY
       - name: Show real audio codec and channel metadata in LibVLC track menu
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
@@ -4425,8 +4425,8 @@ runs:
           PY
       - name: Export VLC source
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           import zipfile
@@ -4456,8 +4456,8 @@ runs:
           retention-days: 7
       - name: Reduce APK size for GX1 and modern Android phones
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           nl = chr(10)
@@ -4491,8 +4491,8 @@ runs:
           PY
       - name: Refresh filename overlay when playback starts
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -4516,8 +4516,8 @@ runs:
           PY
       - name: Match filename visibility to Media3 controls
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -4543,8 +4543,8 @@ runs:
           PY
       - name: Add in-app dual subtitle picker to LibVLC playback
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
@@ -4693,8 +4693,8 @@ runs:
           PY
       - name: Add hideable auto-dismissing VLC playback controls
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
@@ -4751,8 +4751,8 @@ runs:
           PY
       - name: Add dual custom subtitle checkboxes to VLC Test
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
@@ -5068,8 +5068,8 @@ runs:
           PY
       - name: Add selectable LibVLC playback to the main screen
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path('app/src/main/java/com/example/gx1player/MainActivity.kt')
@@ -5219,8 +5219,8 @@ runs:
           PY
       - name: Preserve Media3 controller UI with LibVLC playback
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path('app/src/main/java/com/example/gx1player/MainActivity.kt')
@@ -5502,8 +5502,8 @@ runs:
           PY
       - name: Restore isolated VLC test entry for DTS passthrough comparison
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -5528,8 +5528,8 @@ runs:
           PY
       - name: Add external subtitle loading to the main LibVLC subtitle menu
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path('app/src/main/java/com/example/gx1player/MainActivity.kt')
@@ -5583,8 +5583,8 @@ runs:
           PY
       - name: Auto-discover same-name subtitles in the main LibVLC player
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
@@ -5676,8 +5676,8 @@ runs:
           PY
       - name: Add VLC Test-style simultaneous subtitle checkboxes to the main player
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -5929,8 +5929,8 @@ runs:
           PY
       - name: Add subtitle track shortcut beside elapsed time
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -6008,8 +6008,8 @@ runs:
           PY
       - name: Highlight selected Media3 shortcut icons
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
@@ -6049,8 +6049,8 @@ runs:
           PY
       - name: Show current filename above the main LibVLC video
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -6129,8 +6129,8 @@ runs:
           PY
       - name: Add previous and next file controls to main LibVLC playback
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -6365,8 +6365,8 @@ runs:
           PY
       - name: Test software decoding for the reported 4K AVC sample
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
@@ -6387,8 +6387,8 @@ runs:
           PY
       - name: Re-hide Media3 video content after attaching its controller
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -6449,8 +6449,8 @@ runs:
           PY
       - name: Use Android default display colour mode for LibVLC playback
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -6470,8 +6470,8 @@ runs:
           PY
       - name: Match LibVLC decoder selection to the standalone VLC test
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
@@ -6485,8 +6485,8 @@ runs:
           PY
       - name: Configure LibVLC digital output after media assignment
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
@@ -6524,8 +6524,8 @@ runs:
           PY
       - name: Package 32-bit and 64-bit ARM variants for Android TV boxes
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/build.gradle.kts")
@@ -6544,8 +6544,8 @@ runs:
           PY
       - name: Add selectable LibVLC video output modes for HDR testing
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
@@ -6614,8 +6614,8 @@ runs:
           PY
       - name: Startup timing
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
@@ -6645,8 +6645,8 @@ runs:
           PY
       - name: Show startup timing
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           engine = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
@@ -6704,8 +6704,8 @@ runs:
           PY
       - name: Measure startup path
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -6780,8 +6780,8 @@ runs:
           PY
       - name: Test VLC cache off
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
@@ -6797,8 +6797,8 @@ runs:
           PY
       - name: Test VLC audio off
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
@@ -6814,8 +6814,8 @@ runs:
           PY
       - name: Test VLC video off
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
@@ -6831,8 +6831,8 @@ runs:
           PY
       - name: Test without sidecar subtitles
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
@@ -6856,8 +6856,8 @@ runs:
           PY
       - name: Test reduced probing
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
@@ -6873,8 +6873,8 @@ runs:
           PY
       - name: Restore the last known LibVLC instance configuration
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
@@ -6890,8 +6890,8 @@ runs:
           PY
       - name: Report VLC startup stage
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
@@ -6928,8 +6928,8 @@ runs:
           PY
       - name: Show VLC startup error
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -6954,8 +6954,8 @@ runs:
           PY
       - name: Capture VLC startup log
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
@@ -7042,8 +7042,8 @@ runs:
           PY
       - name: Add VLC event diagnostics
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
@@ -7072,8 +7072,8 @@ runs:
           PY
       - name: Fix restart-from-beginning and hide diagnostic menu entries
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
@@ -7200,8 +7200,8 @@ runs:
           PY
       - name: Fix repeat toggle, aspect checkboxes, Open video URI playback, and white icons
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           main = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -7323,8 +7323,8 @@ runs:
           PY
       - name: Connect aspect ratio menu to the LibVLC video output
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
@@ -7378,8 +7378,8 @@ runs:
           PY
       - name: Preserve aspect ratio when switching videos
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path('app/src/main/java/com/example/gx1player/MainActivity.kt')
@@ -7410,8 +7410,8 @@ runs:
           PY
       - name: Reapply selected aspect ratio when LibVLC creates video output
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path('app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt')
@@ -7432,8 +7432,8 @@ runs:
           PY
       - name: Automatically play the next file when LibVLC reaches the end
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
@@ -7473,8 +7473,8 @@ runs:
           PY
       - name: Register GX1 Player as Android video file handler
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
@@ -7535,8 +7535,8 @@ runs:
           PY
       - name: Persist per-video audio and subtitle choices
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p=Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -7606,8 +7606,8 @@ runs:
           PY
       - name: Restore selected LibVLC tracks after in-player restart
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p=Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -7638,8 +7638,8 @@ runs:
           PY
       - name: Export final source
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           set -e
           ENGINE=app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt
           ACTIVITY=app/src/main/java/com/example/gx1player/MainActivity.kt
@@ -7662,8 +7662,8 @@ runs:
           retention-days: 30
       - name: Restore fast MediaStore browsing for home Library and Open Video
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
@@ -7706,8 +7706,8 @@ runs:
           PY
       - name: Add cancellable sleep timer Off and adaptive seek jumps
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
@@ -7777,8 +7777,8 @@ runs:
           PY
       - name: Speed up Library queries and restore playback focus to Play/Pause
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -7862,8 +7862,8 @@ runs:
           PY
       - name: Route Android TV Left and Right keys to adaptive video seeking
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -7985,8 +7985,8 @@ runs:
           PY
       - name: Enforce hard D-pad key boundaries after installing seek handler
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -8016,8 +8016,8 @@ runs:
           PY
       - name: Persist and restore selected LibVLC tracks across player restarts
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -8241,8 +8241,8 @@ runs:
           PY
       - name: Verify track selections after LibVLC applies them and restore custom subtitles for document URIs
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -8298,8 +8298,8 @@ runs:
           PY
       - name: Fix custom Subtitle 1 restart state and remove duplicate subtitle restore
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
@@ -8343,8 +8343,8 @@ runs:
           PY
       - name: Add persistent Media3 / LibVLC engine selector
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -8384,8 +8384,8 @@ runs:
           PY
       - name: Restore Media3 video surface
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p=Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
@@ -8438,8 +8438,8 @@ runs:
           PY
       - name: Restore LibVLC media opening and forward SAF URI permission
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
@@ -8498,8 +8498,8 @@ runs:
           PY
       - name: Log LibVLC audio-track inventory after playback opens
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
@@ -8579,12 +8579,12 @@ runs:
           PY
       - name: Route multichannel AAC to Media3 while keeping LibVLC default
         working-directory: gx1-player
-        run: python3 "$GITHUB_WORKSPACE/.github/scripts/route_aac_multichannel.py"
         shell: bash
+        run: python3 "$GITHUB_WORKSPACE/.github/scripts/route_aac_multichannel.py"
       - name: Export final post-persistence Kotlin source for review
         working-directory: gx1-player
-        run: |
         shell: bash
+        run: |
           mkdir -p "$GITHUB_WORKSPACE/gx1-final-persistence-source"
           cp app/src/main/java/com/example/gx1player/MainActivity.kt "$GITHUB_WORKSPACE/gx1-final-persistence-source/MainActivity.kt"
           cp -R app/src/main/java/com/example/gx1player/audio "$GITHUB_WORKSPACE/gx1-final-persistence-source/audio"
@@ -8603,8 +8603,8 @@ runs:
           ANDROID_KEYSTORE_PASSWORD: ${{ inputs.android_keystore_password }}
           ANDROID_KEY_ALIAS: ${{ inputs.android_key_alias }}
           ANDROID_KEY_PASSWORD: ${{ inputs.android_key_password }}
-        run: |
         shell: bash
+        run: |
           set -euo pipefail
           chmod +x ./gradlew
           if [ "$BUILD_KIND" = "release" ]; then
@@ -8647,8 +8647,8 @@ runs:
           done
           ls -lh "$GITHUB_WORKSPACE"/GX1Player-VLC-*.apk
       - name: Verify APK architectures
-        run: |
         shell: bash
+        run: |
           set -e
           for APK in GX1Player-VLC-32bit.apk GX1Player-VLC-64bit.apk; do
             test -s "$APK"
@@ -8669,8 +8669,8 @@ runs:
         if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
         shell: bash
+        run: |
           set -euo pipefail
           gh release upload GX1 GX1Player-VLC-32bit.apk GX1Player-VLC-64bit.apk --clobber
           gh release view GX1 --json url,assets
