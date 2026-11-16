@@ -3191,41 +3191,41 @@ jobs:
               if count != 1:
                   raise SystemExit("Could not locate unique LibVLC " + label + "; matches=" + str(count))
           replace_once(
-              r"^(\\s*)fun seekTo\\(positionMs: Long\\) \\{[^\\n]*\\}$",
-              r"""\\1private fun usesNormalizedPositionClock(): Boolean =
-          \\1    activeUri?.lastPathSegment?.substringAfterLast('.', "")?.lowercase() in setOf("m2ts", "mts")
-          \\1fun seekTo(positionMs: Long) {
-          \\1    checkActive()
-          \\1    val target = positionMs.coerceAtLeast(0L)
-          \\1    val duration = durationMs()
-          \\1    if (usesNormalizedPositionClock() && duration > 0L) {
-          \\1        mediaPlayer.setPosition((target.toDouble() / duration.toDouble()).toFloat().coerceIn(0f, 1f))
-          \\1    } else {
-          \\1        mediaPlayer.setTime(target)
-          \\1    }
-          \\1}""",
+              r"^(\s*)fun seekTo\(positionMs: Long\) \{[^\n]*\}$",
+              r"""\1private fun usesNormalizedPositionClock(): Boolean =
+          \1    activeUri?.lastPathSegment?.substringAfterLast('.', "")?.lowercase() in setOf("m2ts", "mts")
+          \1fun seekTo(positionMs: Long) {
+          \1    checkActive()
+          \1    val target = positionMs.coerceAtLeast(0L)
+          \1    val duration = durationMs()
+          \1    if (usesNormalizedPositionClock() && duration > 0L) {
+          \1        mediaPlayer.setPosition((target.toDouble() / duration.toDouble()).toFloat().coerceIn(0f, 1f))
+          \1    } else {
+          \1        mediaPlayer.setTime(target)
+          \1    }
+          \1}""",
               "seek method"
           )
           replace_once(
-              r"^(\\s*)fun currentTimeMs\\(\\): Long = if \\(released\\) 0L else mediaPlayer\\.time\\.coerceAtLeast\\(0L\\)$",
-              r"""\\1fun currentTimeMs(): Long {
-          \\1    if (released) return 0L
-          \\1    if (usesNormalizedPositionClock()) {
-          \\1        val duration = durationMs()
-          \\1        if (duration > 0L) {
-          \\1            val position = runCatching { mediaPlayer.position }.getOrDefault(-1f)
-          \\1            if (position.isFinite() && position >= 0f) {
-          \\1                return (position.coerceIn(0f, 1f).toDouble() * duration.toDouble()).toLong()
-          \\1            }
-          \\1        }
-          \\1    }
-          \\1    return mediaPlayer.time.coerceAtLeast(0L)
-          \\1}""",
+              r"^(\s*)fun currentTimeMs\(\): Long = if \(released\) 0L else mediaPlayer\.time\.coerceAtLeast\(0L\)$",
+              r"""\1fun currentTimeMs(): Long {
+          \1    if (released) return 0L
+          \1    if (usesNormalizedPositionClock()) {
+          \1        val duration = durationMs()
+          \1        if (duration > 0L) {
+          \1            val position = runCatching { mediaPlayer.position }.getOrDefault(-1f)
+          \1            if (position.isFinite() && position >= 0f) {
+          \1                return (position.coerceIn(0f, 1f).toDouble() * duration.toDouble()).toLong()
+          \1            }
+          \1        }
+          \1    }
+          \1    return mediaPlayer.time.coerceAtLeast(0L)
+          \1}""",
               "current-time method"
           )
           replace_once(
-              r"^(\\s*)timeMs = mediaPlayer\\.time\\.coerceAtLeast\\(0L\\),$",
-              r"\\1timeMs = currentTimeMs(),",
+              r"^(\s*)timeMs = mediaPlayer\.time\.coerceAtLeast\(0L\),$",
+              r"\1timeMs = currentTimeMs(),",
               "state clock"
           )
           if "mediaPlayer.setPosition(" not in s or "timeMs = currentTimeMs()" not in s:
