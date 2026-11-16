@@ -3177,6 +3177,52 @@ jobs:
           p.write_text(s)
           print("LibVLC duration probe now covers .ts, .m2ts and .mts transport streams.")
           PY
+      - name: Use LibVLC normalized position clock for M2TS and MTS
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
+          s = p.read_text()
+          old_seek = '              fun seekTo(positionMs: Long) { checkActive(); mediaPlayer.setTime(positionMs.coerceAtLeast(0L)) }'
+          new_seek = '''              private fun usesNormalizedPositionClock(): Boolean =
+                  activeUri?.lastPathSegment?.substringAfterLast('.', "")?.lowercase() in setOf("m2ts", "mts")
+              fun seekTo(positionMs: Long) {
+                  checkActive()
+                  val target = positionMs.coerceAtLeast(0L)
+                  val duration = durationMs()
+                  if (usesNormalizedPositionClock() && duration > 0L) {
+                      mediaPlayer.setPosition((target.toDouble() / duration.toDouble()).toFloat().coerceIn(0f, 1f))
+                  } else {
+                      mediaPlayer.setTime(target)
+                  }
+              }'''
+          old_clock = '              fun currentTimeMs(): Long = if (released) 0L else mediaPlayer.time.coerceAtLeast(0L)'
+          new_clock = '''              fun currentTimeMs(): Long {
+                  if (released) return 0L
+                  if (usesNormalizedPositionClock()) {
+                      val duration = durationMs()
+                      if (duration > 0L) {
+                          val position = runCatching { mediaPlayer.position }.getOrDefault(-1f)
+                          if (position.isFinite() && position >= 0f) {
+                              return (position.coerceIn(0f, 1f).toDouble() * duration.toDouble()).toLong()
+                          }
+                      }
+                  }
+                  return mediaPlayer.time.coerceAtLeast(0L)
+              }'''
+          old_publish = '                      timeMs = mediaPlayer.time.coerceAtLeast(0L),'
+          new_publish = '                      timeMs = currentTimeMs(),'
+          for old, new, label in ((old_seek, new_seek, "seek"), (old_clock, new_clock, "clock"), (old_publish, new_publish, "state publish")):
+              if old in s:
+                  s = s.replace(old, new, 1)
+              elif new not in s:
+                  raise SystemExit("Could not locate LibVLC " + label + " code")
+          if "usesNormalizedPositionClock()" not in s or "mediaPlayer.setPosition(" not in s or "timeMs = currentTimeMs()" not in s:
+              raise SystemExit("M2TS normalized position-clock verification failed")
+          p.write_text(s)
+          print("M2TS/MTS elapsed time, state updates and seeking now use LibVLC's normalized position.")
+          PY
       - name: Upgrade LibVLC test player with transport and resume controls
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
