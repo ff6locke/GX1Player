@@ -4699,14 +4699,14 @@ jobs:
                       }
                       override fun seekBack() {
                           val e = mainVlcEngine ?: return
-                          e.seekTo((e.currentTimeMs() - 10_000L).coerceAtLeast(0L))
+                          e.seekTo((e.currentTimeMs() - 10_000L).coerceAtLeast(0L), super.getDuration())
                           super.seekBack()
                       }
                       override fun seekForward() {
                           val e = mainVlcEngine ?: return
                           val next = e.currentTimeMs() + 10_000L
                           val duration = e.durationMs()
-                          e.seekTo(if (duration > 0L) next.coerceAtMost(duration) else next)
+                          e.seekTo(if (duration > 0L) next.coerceAtMost(duration) else next, super.getDuration())
                           super.seekForward()
                       }
                       override fun getCurrentPosition(): Long =
@@ -4729,11 +4729,11 @@ jobs:
                           }
                       }
                       override fun isCurrentMediaItemSeekable(): Boolean =
-                          (mainVlcEngine?.durationMs() ?: 0L) > 0L
+                          (mainVlcEngine?.durationMs() ?: 0L) > 0L || super.isCurrentMediaItemSeekable()
                       override fun getAvailableCommands(): Player.Commands {
                           val commands = Player.Commands.Builder()
                               .addAll(super.getAvailableCommands())
-                          if ((mainVlcEngine?.durationMs() ?: 0L) > 0L) {
+                          if ((mainVlcEngine?.durationMs() ?: 0L) > 0L || super.isCurrentMediaItemSeekable()) {
                               commands.add(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM)
                                   .add(Player.COMMAND_SEEK_BACK)
                                   .add(Player.COMMAND_SEEK_FORWARD)
@@ -4744,7 +4744,7 @@ jobs:
                           if (command == Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM ||
                               command == Player.COMMAND_SEEK_BACK ||
                               command == Player.COMMAND_SEEK_FORWARD) {
-                              (mainVlcEngine?.durationMs() ?: 0L) > 0L
+                              (mainVlcEngine?.durationMs() ?: 0L) > 0L || super.isCurrentMediaItemSeekable()
                           } else super.isCommandAvailable(command)
                       override fun isPlaying(): Boolean =
                           mainVlcEngine?.isPlaying() ?: super.isPlaying()
@@ -6475,7 +6475,7 @@ jobs:
                               engine.restartFromBeginning()
                               mainVlcControllerClock?.playWhenReady = true
                           } else {
-                              engine?.seekTo(positionMs)
+                              engine?.seekTo(positionMs, super.getDuration())
                           }
                           super.seekTo(positionMs)
                       }"""
