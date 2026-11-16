@@ -2,7 +2,7 @@ from pathlib import Path
 
 p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
 s = p.read_text()
-old_media = 'val libraryMediaExt = videoExt + setOf("mp3", "flac", "m4a", "aac", "wav", "ogg", "opus")\\n              val mediaExt = if (selectingLibrary) libraryMediaExt else videoExt'
+old_media = 'val libraryMediaExt = videoExt + setOf("mp3", "flac", "m4a", "aac", "wav", "ogg", "opus")\n              val mediaExt = if (selectingLibrary) libraryMediaExt else videoExt'
 new_media = 'val mediaExt = videoExt + setOf("mp3", "flac", "m4a", "aac", "wav", "ogg", "opus")'
 if old_media in s:
     s = s.replace(old_media, new_media, 1)
