@@ -29,6 +29,7 @@ jobs:
       PROJECT_DIR: gx1-player
       GRADLE_VERSION: '8.7'
     steps:
+      - uses: actions/checkout@v4
       - name: Build GX1 Player
         uses: ./.github/actions/gx1-build
         with:
