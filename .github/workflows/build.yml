@@ -6998,6 +6998,12 @@ jobs:
                         'showLibrary(path + item.folder + "/", videoOnly)', 1)
           s = s.replace('showLibrary(path) }.show()',
                         'showLibrary(path, videoOnly) }.show()', 1)
+          # The small Open Video icon beside the Media3 gear has its own click handler.
+          s, icon_n = re.subn(
+              r'(tag = "gx1_open_video".*?contentDescription = "Open video".*?setOnClickListener\s*\{\s*)chooseLibraryLocation\(\)',
+              r'\1openVideoWithGX1Browser()', s, count=1, flags=re.S)
+          if icon_n != 1:
+              raise SystemExit("Playback-bar Open Video icon is not routed to GX1 browser")
           p.write_text(s)
           print("Home Library and Open Video now use indexed MediaStore browsing; Open Video filters video MIME types.")
           PY
