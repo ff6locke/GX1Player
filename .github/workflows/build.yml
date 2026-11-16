@@ -7007,6 +7007,23 @@ jobs:
           p.write_text(s)
           print("Home Library and Open Video now use indexed MediaStore browsing; Open Video filters video MIME types.")
           PY
+      - name: Make GX1 folder browsing instant without recursive scans
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          old = '(f.isDirectory && (selectingLibrary || foldersOnly || containsPlayableVideo(f)))'
+          new = '(f.isDirectory && !f.name.startsWith(".") && !f.name.equals("Android", true))'
+          if old not in s:
+              raise SystemExit("Expected recursive folder-filter expression was not found")
+          s = s.replace(old, new, 1)
+          if 'containsPlayableVideo(f)' in s:
+              raise SystemExit("Recursive folder scan is still used")
+          p.write_text(s)
+          print("GX1 browser now lists visible folders directly; no recursive scan before folder list.")
+          PY
       - name: Add cancellable sleep timer Off and adaptive seek jumps
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
