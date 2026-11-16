@@ -6761,18 +6761,22 @@ jobs:
           p = candidates[0]
           s = p.read_text()
           print(f"Located LibVLC engine for video-scale patch: {p}")
-          anchor = '                MediaPlayer.Event.Paused -> publish(playing = false)'
-          replacement = """                // LibVLC can recreate its native video output for each media item.
-                MediaPlayer.Event.Vout -> {
-                    runCatching { mediaPlayer.setVideoScale(currentVideoScale) }
-                        .onFailure { android.util.Log.w("GX1-VLC", "Could not reapply selected video scale", it) }
-                }
-          """ + anchor
+          import re
           if 'MediaPlayer.Event.Vout -> {' not in s:
-              if s.count(anchor) != 1:
-                  raise SystemExit(f'Could not locate unique event-listener insertion point; found {s.count(anchor)}')
-              s = s.replace(anchor, replacement, 1)
+              match = re.search(r'(?m)^(\\s*)MediaPlayer\\.Event\\.[A-Za-z0-9_]+\\s*->', s)
+              if not match:
+                  raise SystemExit('Could not locate a LibVLC event-listener case for video-scale restoration')
+              indent = match.group(1)
+              insertion = (
+                  indent + '// Reapply the selected scale whenever LibVLC creates video output.\\n' +
+                  indent + 'MediaPlayer.Event.Vout -> {\\n' +
+                  indent + '    runCatching { mediaPlayer.setVideoScale(currentVideoScale) }\\n' +
+                  indent + '        .onFailure { android.util.Log.w("GX1-VLC", "Could not reapply selected video scale", it) }\\n' +
+                  indent + '}\\n'
+              )
+              s = s[:match.start()] + insertion + s[match.start():]
           p.write_text(s)
+          print('VLC scale restoration inserted before the first event case.')
           print('VLC scale reapplied.')
           PY
       - name: Automatically play the next file when LibVLC reaches the end
