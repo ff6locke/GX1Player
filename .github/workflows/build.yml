@@ -1,5 +1,5 @@
 name: Build GX1 Player APK
-on:
+'on':
   push:
     branches: [ main, aspect-ratio-parity, media3-repeat-fix, fix/m2ts-duration-seek ]
     paths:
