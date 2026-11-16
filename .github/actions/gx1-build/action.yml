@@ -2548,7 +2548,7 @@ runs:
           echo "=== lines 340-520 ==="
           nl -ba "$p" | sed -n '340,520p'
           echo "=== class and function declarations ==="
-          grep -n -E '^(class |[[:space:]]+(private )?(data class|fun|var|val|override fun)|[[:space:]]*private (data class|fun|var|val))' "$p" | head -260
+          grep -n -E '^(class |[[:space:]]+(private )?(data class|fun|var|val|override fun)|[[:space:]]*private (data class|fun|var|val))' "$p" | sed -n '1,260p'
       - name: Remove duplicate subtitle state declarations
         working-directory: gx1-player
         shell: bash
