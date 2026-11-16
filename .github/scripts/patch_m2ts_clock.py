@@ -110,15 +110,7 @@ if "m2tsClockRunning = true" not in s:
                         m2tsClockRunning = true
                     }""", 1)
 
-pause_anchor = "                MediaPlayer.Event.Paused -> publish(playing = false)"
-if pause_anchor in s:
-    s = s.replace(pause_anchor, """                MediaPlayer.Event.Paused -> {
-                    if (usesNormalizedPositionClock()) {
-                        m2tsClockBaseMs = currentTimeMs()
-                        m2tsClockRunning = false
-                    }
-                    publish(playing = false)
-                }""", 1)
+# Preserve the existing Paused event line so later video-output patches can anchor on it.
 
 if "gx1-m2ts-clock-poll" not in s:
     init_end = "    }\n    fun attach(layout: VLCVideoLayout)"
