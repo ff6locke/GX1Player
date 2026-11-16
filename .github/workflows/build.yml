@@ -7827,6 +7827,9 @@ jobs:
               raise SystemExit("Could not locate VLC activity launch for URI grant")
           p.write_text(s)
           PY
+      - name: Enable faster seeking on Rocktek GX1
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: python3 "$GITHUB_WORKSPACE/.github/scripts/enable_libvlc_fast_seek.py" "$GITHUB_WORKSPACE/${{ env.PROJECT_DIR }}"
       - name: Log LibVLC audio-track inventory after playback opens
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
