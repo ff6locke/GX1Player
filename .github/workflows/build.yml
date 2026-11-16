@@ -3897,16 +3897,25 @@ jobs:
           listener = """playerView.setControllerVisibilityListener(
                       object : androidx.media3.ui.PlayerView.ControllerVisibilityListener {
                           override fun onVisibilityChanged(visibility: Int) {
-                              playbackTitle.visibility = visibility
-                              // Media3 draws its own title; LibVLC needs the sibling title.
+                              val usingLibVlc = mainVlcEngine != null
+                              // Never show the stale Media3 title behind the active LibVLC filename.
+                              playbackTitle.visibility =
+                                  if (usingLibVlc) android.view.View.GONE else visibility
                               gx1MainPlaybackTitle?.visibility =
-                                  if (mainVlcEngine != null) visibility else android.view.View.GONE
+                                  if (usingLibVlc) visibility else android.view.View.GONE
                           }
                       }
                   )
                   """
-          if "setControllerVisibilityListener" not in s:
+          import re
+          pattern = r'playerView\.setControllerVisibilityListener\(\s*object : androidx\.media3\.ui\.PlayerView\.ControllerVisibilityListener \{\s*override fun onVisibilityChanged\(visibility: Int\) \{.*?\n\s*\}\s*\}\s*\)'
+          s2, count = re.subn(pattern, listener.rstrip(), s, count=1, flags=re.S)
+          if count == 1:
+              s = s2
+          elif count == 0 and "setControllerVisibilityListener" not in s:
               s = s.replace(anchor, listener + anchor, 1)
+          else:
+              raise SystemExit(f"Could not safely replace unique filename visibility listener (matches={count})")
           p.write_text(s)
           print("Playback filename now follows Media3 controller visibility.")
           PY
