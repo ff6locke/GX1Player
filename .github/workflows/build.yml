@@ -3182,43 +3182,53 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
           p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
           s = p.read_text()
-          old_seek = '              fun seekTo(positionMs: Long) { checkActive(); mediaPlayer.setTime(positionMs.coerceAtLeast(0L)) }'
-          new_seek = '''              private fun usesNormalizedPositionClock(): Boolean =
-                  activeUri?.lastPathSegment?.substringAfterLast('.', "")?.lowercase() in setOf("m2ts", "mts")
-              fun seekTo(positionMs: Long) {
-                  checkActive()
-                  val target = positionMs.coerceAtLeast(0L)
-                  val duration = durationMs()
-                  if (usesNormalizedPositionClock() && duration > 0L) {
-                      mediaPlayer.setPosition((target.toDouble() / duration.toDouble()).toFloat().coerceIn(0f, 1f))
-                  } else {
-                      mediaPlayer.setTime(target)
-                  }
-              }'''
-          old_clock = '              fun currentTimeMs(): Long = if (released) 0L else mediaPlayer.time.coerceAtLeast(0L)'
-          new_clock = '''              fun currentTimeMs(): Long {
-                  if (released) return 0L
-                  if (usesNormalizedPositionClock()) {
-                      val duration = durationMs()
-                      if (duration > 0L) {
-                          val position = runCatching { mediaPlayer.position }.getOrDefault(-1f)
-                          if (position.isFinite() && position >= 0f) {
-                              return (position.coerceIn(0f, 1f).toDouble() * duration.toDouble()).toLong()
-                          }
-                      }
-                  }
-                  return mediaPlayer.time.coerceAtLeast(0L)
-              }'''
-          old_publish = '                      timeMs = mediaPlayer.time.coerceAtLeast(0L),'
-          new_publish = '                      timeMs = currentTimeMs(),'
-          for old, new, label in ((old_seek, new_seek, "seek"), (old_clock, new_clock, "clock"), (old_publish, new_publish, "state publish")):
-              if old in s:
-                  s = s.replace(old, new, 1)
-              elif new not in s:
-                  raise SystemExit("Could not locate LibVLC " + label + " code")
-          if "usesNormalizedPositionClock()" not in s or "mediaPlayer.setPosition(" not in s or "timeMs = currentTimeMs()" not in s:
+          def replace_once(pattern, replacement, label):
+              global s
+              s, count = re.subn(pattern, replacement, s, count=1, flags=re.M)
+              if count != 1:
+                  raise SystemExit("Could not locate unique LibVLC " + label + "; matches=" + str(count))
+          replace_once(
+              r"^(\\s*)fun seekTo\\(positionMs: Long\\) \\{[^\\n]*\\}$",
+              r"""\\1private fun usesNormalizedPositionClock(): Boolean =
+          \\1    activeUri?.lastPathSegment?.substringAfterLast('.', "")?.lowercase() in setOf("m2ts", "mts")
+          \\1fun seekTo(positionMs: Long) {
+          \\1    checkActive()
+          \\1    val target = positionMs.coerceAtLeast(0L)
+          \\1    val duration = durationMs()
+          \\1    if (usesNormalizedPositionClock() && duration > 0L) {
+          \\1        mediaPlayer.setPosition((target.toDouble() / duration.toDouble()).toFloat().coerceIn(0f, 1f))
+          \\1    } else {
+          \\1        mediaPlayer.setTime(target)
+          \\1    }
+          \\1}""",
+              "seek method"
+          )
+          replace_once(
+              r"^(\\s*)fun currentTimeMs\\(\\): Long = if \\(released\\) 0L else mediaPlayer\\.time\\.coerceAtLeast\\(0L\\)$",
+              r"""\\1fun currentTimeMs(): Long {
+          \\1    if (released) return 0L
+          \\1    if (usesNormalizedPositionClock()) {
+          \\1        val duration = durationMs()
+          \\1        if (duration > 0L) {
+          \\1            val position = runCatching { mediaPlayer.position }.getOrDefault(-1f)
+          \\1            if (position.isFinite() && position >= 0f) {
+          \\1                return (position.coerceIn(0f, 1f).toDouble() * duration.toDouble()).toLong()
+          \\1            }
+          \\1        }
+          \\1    }
+          \\1    return mediaPlayer.time.coerceAtLeast(0L)
+          \\1}""",
+              "current-time method"
+          )
+          replace_once(
+              r"^(\\s*)timeMs = mediaPlayer\\.time\\.coerceAtLeast\\(0L\\),$",
+              r"\\1timeMs = currentTimeMs(),",
+              "state clock"
+          )
+          if "mediaPlayer.setPosition(" not in s or "timeMs = currentTimeMs()" not in s:
               raise SystemExit("M2TS normalized position-clock verification failed")
           p.write_text(s)
           print("M2TS/MTS elapsed time, state updates and seeking now use LibVLC's normalized position.")
