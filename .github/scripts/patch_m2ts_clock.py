@@ -260,6 +260,9 @@ required = [
     "pos > 0f",
     "resolveFileExtension(uri)",
     "activeFileExtension in setOf(\"m2ts\", \"mts\")",
+    "gx1-m2ts-extractor-duration-probe",
+    "m2tsClockBaseMs = startPositionMs.coerceAtLeast(0L)",
+    "durationOverrideMs: Long = durationMs()",
 ]
 missing = [marker for marker in required if marker not in s]
 if missing:
