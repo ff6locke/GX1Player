@@ -3,10 +3,29 @@ import re
 import sys
 
 root = Path(sys.argv[1] if len(sys.argv) > 1 else "gx1-player")
-source = root / "app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt"
-if not source.is_file():
-    raise SystemExit(f"LibVLC engine source not found: {source}")
-s = source.read_text()
+if not root.exists():
+    raise SystemExit(f"Extracted project directory does not exist: {root}")
+
+# The source ZIP has changed its package/layout over time. Locate the engine
+# by its class declaration rather than assuming a package path.
+candidates = []
+for path in root.rglob("*.kt"):
+    try:
+        data = path.read_text(errors="replace")
+    except OSError:
+        continue
+    if re.search(r"\\bclass\\s+Gx1LibVlcEngine\\b", data):
+        candidates.append((path, data))
+
+if len(candidates) != 1:
+    found = ", ".join(str(path) for path, _ in candidates) or "none"
+    raise SystemExit(
+        f"Expected exactly one Gx1LibVlcEngine Kotlin source under {root}; "
+        f"found {len(candidates)}: {found}"
+    )
+
+source, s = candidates[0]
+print(f"Located LibVLC engine source: {source}")
 
 def replace_method(name, body):
     global s
