@@ -167,6 +167,91 @@ if "gx1-m2ts-clock-poll" not in s:
     fun attach(layout: VLCVideoLayout)"""
     s = s.replace(init_end, poller, 1)
 
+# Reset the fallback clock for every newly opened source. Without this,
+# a previous M2TS file's elapsed position can leak into the next file.
+open_reset_anchor = "        activeFileExtension = resolveFileExtension(uri)"
+if "m2tsClockBaseMs = startPositionMs.coerceAtLeast(0L)" not in s:
+    if s.count(open_reset_anchor) != 1:
+        raise SystemExit("Could not find unique active file extension assignment")
+    s = s.replace(open_reset_anchor, open_reset_anchor + """
+        m2tsClockBaseMs = startPositionMs.coerceAtLeast(0L)
+        m2tsClockStartedAtMs = android.os.SystemClock.elapsedRealtime()
+        m2tsClockRunning = false""", 1)
+
+# Keep the fallback clock's state in sync with LibVLC pause/stop/end events.
+s = s.replace(
+    "MediaPlayer.Event.Paused -> publish(playing = false)",
+    "MediaPlayer.Event.Paused -> { m2tsClockRunning = false; publish(playing = false) }"
+)
+s = s.replace(
+    "MediaPlayer.Event.Stopped -> publish(playing = false, opening = false)",
+    "MediaPlayer.Event.Stopped -> { m2tsClockRunning = false; publish(playing = false, opening = false) }"
+)
+s = s.replace(
+    "reachedEnd = true\n                    publish(playing = false, opening = false, ended = true)",
+    "reachedEnd = true\n                    m2tsClockRunning = false\n                    publish(playing = false, opening = false, ended = true)"
+)
+s = s.replace(
+    "m2tsClockBaseMs = maxOf(m2tsClockBaseMs, seek)",
+    "m2tsClockBaseMs = seek.coerceAtLeast(0L)"
+)
+
+# Some Android builds cannot extract M2TS duration through MetadataRetriever.
+# Ask MediaExtractor as a second independent duration source.
+if "gx1-m2ts-extractor-duration-probe" not in s:
+    probe_anchor = '''        if (activeFileExtension in setOf("ts", "m2ts", "mts")) {
+            Thread({'''
+    probe_end = '''            }, "gx1-duration-probe").apply {
+                isDaemon = true
+                start()
+            }
+        }
+'''
+    if s.count(probe_end) != 1:
+        raise SystemExit("Could not find unique metadata duration-probe end")
+    extractor_probe = '''
+        if (activeFileExtension in setOf("ts", "m2ts", "mts")) {
+            Thread({
+                val extractor = android.media.MediaExtractor()
+                val extracted = try {
+                    extractor.setDataSource(appContext, uri, null)
+                    (0 until extractor.trackCount).mapNotNull { index ->
+                        val format = extractor.getTrackFormat(index)
+                        if (format.containsKey(android.media.MediaFormat.KEY_DURATION))
+                            format.getLong(android.media.MediaFormat.KEY_DURATION) / 1000L
+                        else null
+                    }.maxOrNull() ?: 0L
+                } catch (_: Exception) {
+                    0L
+                } finally {
+                    runCatching { extractor.release() }
+                }
+                if (durationGeneration == sourceGeneration && extracted > 0L &&
+                    (durationHintMs <= 0L || extracted > durationHintMs)) {
+                    durationHintMs = extracted
+                    publish()
+                }
+            }, "gx1-m2ts-extractor-duration-probe").apply {
+                isDaemon = true
+                start()
+            }
+        }
+'''
+    s = s.replace(probe_end, probe_end + extractor_probe, 1)
+
+# Allow the UI's Media3 timeline duration to drive normalized M2TS seeking
+# when LibVLC itself reports an unknown duration.
+s = s.replace(
+    "fun seekTo(positionMs: Long) {",
+    "fun seekTo(positionMs: Long, durationOverrideMs: Long = durationMs()) {",
+    1
+)
+s = s.replace(
+    "val duration = durationMs()\n        if (usesNormalizedPositionClock() && duration > 0L) {",
+    "val duration = durationOverrideMs.takeIf { it > 0L } ?: durationMs()\n        if (usesNormalizedPositionClock() && duration > 0L) {",
+    1
+)
+
 required = [
     "m2tsClockBaseMs = target",
     "val estimate = m2tsClockBaseMs",
