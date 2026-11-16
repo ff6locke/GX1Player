@@ -7180,7 +7180,17 @@ jobs:
           focus_line = "if (visibility == View.VISIBLE) playerView.post { focusPlaybackToggle() }"
           if listener_anchor in s and focus_line not in s:
               s = s.replace(listener_anchor, listener_anchor + "\n                    " + focus_line, 1)
-          # Controller visibility changes restore focus through the listener above.
+          # Restore D-pad focus after switching to the adjacent media item.
+          # The controller may already be visible, so its visibility callback alone is not enough.
+          import re
+          nav_pattern = re.compile(r"(?s)(private fun playAdjacentGx1File\\(direction: Int\\) \\{.*?selectMedia\\(target\\)\\s*startPlayer\\(\\)\\s*playerView\\.showController\\(\\))")
+          nav_matches = list(nav_pattern.finditer(s))
+          if len(nav_matches) != 1:
+              raise SystemExit("Could not uniquely locate adjacent-file playback sequence; matches=" + str(len(nav_matches)))
+          nav_focus = "\\n        playerView.post { focusPlaybackToggle() }\\n        playerView.postDelayed({ focusPlaybackToggle() }, 300L)"
+          if "postDelayed({ focusPlaybackToggle() }, 300L)" not in s:
+              m = nav_matches[0]
+              s = s[:m.end()] + nav_focus + s[m.end():]
           # Do not rewrite adjacent-file navigation using a formatting-sensitive anchor.
           if "private fun focusPlaybackToggle()" not in s:
               raise SystemExit("Playback focus correction verification failed")
