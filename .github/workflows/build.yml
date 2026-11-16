@@ -3919,40 +3919,6 @@ jobs:
           p.write_text(s)
           print("Playback filename now follows Media3 controller visibility.")
           PY
-      - name: Drive M2TS seek bar from the LibVLC playback clock
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
-          s = p.read_text()
-          anchor = "        val controller = object : ForwardingPlayer(clock) {"
-          if s.count(anchor) != 1:
-              raise SystemExit(f"Expected one LibVLC forwarding controller, found {s.count(anchor)}")
-          overrides = """        val controller = object : ForwardingPlayer(clock) {
-              override fun getCurrentPosition(): Long {
-                  val engine = mainVlcEngine
-                  if (engine != null) {
-                      val current = runCatching { engine.currentTimeMs() }.getOrNull()
-                      if (current != null) return current
-                  }
-                  return super.getCurrentPosition()
-              }
-              override fun getDuration(): Long {
-                  val engine = mainVlcEngine
-                  if (engine != null) {
-                      val duration = runCatching { engine.durationMs() }.getOrNull()
-                      if (duration != null && duration > 0L) return duration
-                  }
-                  return super.getDuration()
-              }"""
-          if "override fun getCurrentPosition(): Long" not in s:
-              s = s.replace(anchor, overrides, 1)
-          if "override fun getDuration(): Long" not in s:
-              raise SystemExit("LibVLC controller duration override was not applied")
-          p.write_text(s)
-          print("Bound the Media3 seek bar position and duration directly to the active LibVLC engine.")
-          PY
       - name: Add in-app dual subtitle picker to LibVLC playback
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
