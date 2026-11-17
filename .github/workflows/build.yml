@@ -7989,10 +7989,10 @@ jobs:
                   // Keep LibVLC in precise timestamp mode. Ignore spurious EndReached
                   // events emitted while it recovers from a long seek.
                   android.util.Log.i("GX1-VLC-SEEK",
-                      "SEEK_REQUEST targetMs=$target durationMs=$duration beforeTimeMs=\${runCatching { mediaPlayer.time }.getOrDefault(-1L)} beforePosition=\${runCatching { mediaPlayer.position }.getOrDefault(-1f)} playing=\${runCatching { mediaPlayer.isPlaying }.getOrDefault(false)} state=\${runCatching { mediaPlayer.state }.getOrNull()}")
+                      "SEEK_REQUEST targetMs=$target durationMs=$duration beforeTimeMs=\${runCatching { mediaPlayer.time }.getOrDefault(-1L)} beforePosition=\${runCatching { mediaPlayer.position }.getOrDefault(-1f)} playing=\${runCatching { mediaPlayer.isPlaying }.getOrDefault(false)}}")
                   mediaPlayer.setTime(target, false)
                   android.util.Log.i("GX1-VLC-SEEK",
-                      "SEEK_SUBMITTED targetMs=$target afterTimeMs=\${runCatching { mediaPlayer.time }.getOrDefault(-1L)} afterPosition=\${runCatching { mediaPlayer.position }.getOrDefault(-1f)} playing=\${runCatching { mediaPlayer.isPlaying }.getOrDefault(false)} state=\${runCatching { mediaPlayer.state }.getOrNull()}")
+                      "SEEK_SUBMITTED targetMs=$target afterTimeMs=\${runCatching { mediaPlayer.time }.getOrDefault(-1L)} afterPosition=\${runCatching { mediaPlayer.position }.getOrDefault(-1f)} playing=\${runCatching { mediaPlayer.isPlaying }.getOrDefault(false)}}")
                   // Diagnostic-only watchdog: observe LibVLC after seeking without changing player state.
                   Thread({
                       val delays = longArrayOf(0L, 1000L, 3000L, 5000L, 10000L)
@@ -8003,11 +8003,10 @@ jobs:
                           val timeNow = runCatching { mediaPlayer.time }.getOrDefault(-1L)
                           val positionNow = runCatching { mediaPlayer.position }.getOrDefault(-1f)
                           val playingNow = runCatching { mediaPlayer.isPlaying }.getOrDefault(false)
-                          val stateNow = runCatching { mediaPlayer.state }.getOrNull()
                           android.util.Log.i("GX1-VLC-SEEK",
                               "SEEK_WATCHDOG delayMs=" + delay + " targetMs=" + target +
                                   " timeMs=" + timeNow + " position=" + positionNow +
-                                  " playing=" + playingNow + " state=" + stateNow)
+                                  " playing=" + playingNow)
                       }
                   }, "gx1-vlc-seek-watchdog").apply {
                       isDaemon = true
