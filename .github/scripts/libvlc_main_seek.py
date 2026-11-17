@@ -107,3 +107,18 @@ if "gx1QueueSeek(target)" not in text or "clock.prepare()" in text:
 
 source.write_text(text)
 print("LibVLC main seek fix applied: shadow clock no longer loads media; D-pad seeks are queued.")
+
+
+# Ask LibVLC for a fast keyframe seek. Accurate seeks on long-GOP 4K HEVC
+# streams can leave the GX1 decoding for tens of seconds after a large jump.
+engine = project / "app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt"
+if not engine.is_file():
+    raise SystemExit(f"Missing generated LibVLC engine: {engine}")
+engine_text = engine.read_text()
+old_seek = "              fun seekTo(positionMs: Long) { checkActive(); mediaPlayer.setTime(positionMs.coerceAtLeast(0L)) }"
+new_seek = "              fun seekTo(positionMs: Long) { checkActive(); mediaPlayer.setTime(positionMs.coerceAtLeast(0L), true) }"
+if engine_text.count(old_seek) != 1:
+    raise SystemExit(f"LibVLC seek method: expected one match, found {engine_text.count(old_seek)}")
+engine_text = engine_text.replace(old_seek, new_seek, 1)
+engine.write_text(engine_text)
+print("LibVLC D-pad seeking now requests fast keyframe positioning.")
