@@ -7993,6 +7993,26 @@ jobs:
                   mediaPlayer.setTime(target, false)
                   android.util.Log.i("GX1-VLC-SEEK",
                       "SEEK_SUBMITTED targetMs=$target afterTimeMs=\${runCatching { mediaPlayer.time }.getOrDefault(-1L)} afterPosition=\${runCatching { mediaPlayer.position }.getOrDefault(-1f)} playing=\${runCatching { mediaPlayer.isPlaying }.getOrDefault(false)} state=\${runCatching { mediaPlayer.state }.getOrNull()}")
+                  // Diagnostic-only watchdog: observe LibVLC after seeking without changing player state.
+                  Thread({
+                      val delays = longArrayOf(0L, 1000L, 3000L, 5000L, 10000L)
+                      for (delay in delays) {
+                          if (delay > 0L) {
+                              try { Thread.sleep(delay) } catch (_: InterruptedException) { return@Thread }
+                          }
+                          val timeNow = runCatching { mediaPlayer.time }.getOrDefault(-1L)
+                          val positionNow = runCatching { mediaPlayer.position }.getOrDefault(-1f)
+                          val playingNow = runCatching { mediaPlayer.isPlaying }.getOrDefault(false)
+                          val stateNow = runCatching { mediaPlayer.state }.getOrNull()
+                          android.util.Log.i("GX1-VLC-SEEK",
+                              "SEEK_WATCHDOG delayMs=" + delay + " targetMs=" + target +
+                                  " timeMs=" + timeNow + " position=" + positionNow +
+                                  " playing=" + playingNow + " state=" + stateNow)
+                      }
+                  }, "gx1-vlc-seek-watchdog").apply {
+                      isDaemon = true
+                      start()
+                  }
               }
           }"""
           e, n = re.subn(r"(?s)fun seekTo\([^)]*\).*?(?=\n\s*fun setRate\()", lambda _: method, e, count=1)
