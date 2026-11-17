@@ -155,7 +155,9 @@ replace_once(
     "                        if (mainVlcEngine != null) visibility else android.view.View.GONE\n",
     "                    gx1MainPlaybackTitle?.visibility =\n"
     "                        if (mainVlcEngine != null) visibility else android.view.View.GONE\n"
-    "                    rootLayout.findViewWithTag<android.view.View>(\"gx1_vlc_progress_row\")?.visibility = visibility\n",
+    "                    rootLayout.findViewWithTag<android.view.View>(\"gx1_vlc_progress_row\")?.visibility = visibility\n"
+    "                    // Re-hide the Media3 TimeBar after PlayerControlView restores its controls.\n"
+    "                    playerView.post { playerView.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_progress)?.visibility = android.view.View.GONE }\n",
     "progress visibility binding"
 )
 # Tag the dedicated row using a stable marker.
