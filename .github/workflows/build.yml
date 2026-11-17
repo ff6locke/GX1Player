@@ -1,5 +1,5 @@
 name: Build GX1 Player APK
-# Seek-fix validation rerun after correcting the generated-source patch.
+# Build 1192 baseline with the validated Build 1233 LibVLC seek changes.
 'on':
   push:
     branches: [ main, aspect-ratio-parity, media3-repeat-fix, fix/m2ts-duration-seek, fix/universal-seek-recovery, fix/vlc-native-fast-seek ]
