@@ -1,7 +1,7 @@
 name: Build GX1 Player APK
 on:
   push:
-    branches: [ main, aspect-ratio-parity, media3-repeat-fix ]
+    branches: [ main, aspect-ratio-parity, media3-repeat-fix, gx1seek-byClaude ]
     paths:
       - 'gx1-player.zip'
       - '.github/workflows/build.yml'
@@ -7256,6 +7256,9 @@ jobs:
           p.write_text(s)
           print("Hard Left/Right boundary guards installed.")
           PY
+      - name: Serialize LibVLC seeks and avoid a second video demuxer
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: python3 "$GITHUB_WORKSPACE/.github/scripts/libvlc_main_seek.py" "$GITHUB_WORKSPACE/${{ env.PROJECT_DIR }}"
       - name: Persist and restore selected LibVLC tracks across player restarts
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
