@@ -130,63 +130,6 @@ if seek_count != 1:
 engine.write_text(engine_text)
 print("LibVLC D-pad seeking now requests fast keyframe positioning.")
 
-# The Media3 controller's time bar is backed by a shadow player. Poll LibVLC
-# directly and push its live position into the actual controller widgets.
-activity = project / "app/src/main/java/com/example/gx1player/MainActivity.kt"
-activity_text = activity.read_text()
-anchor = "    private var mainVlcEngine: Gx1LibVlcEngine? = null\n"
-progress_fields = """    private val gx1VlcProgressHandler = android.os.Handler(android.os.Looper.getMainLooper())
-    private val gx1VlcProgressTicker = object : Runnable {
-        override fun run() {
-            val engine = mainVlcEngine ?: return
-            if (::playerView.isInitialized) {
-                val positionMs = engine.currentTimeMs().coerceAtLeast(0L)
-                val durationMs = engine.durationMs().coerceAtLeast(0L)
-                val timeBar = playerView.findViewById<android.view.View>(
-                    androidx.media3.ui.R.id.exo_progress
-                ) as? androidx.media3.ui.TimeBar
-                timeBar?.apply {
-                    setDuration(durationMs)
-                    setPosition(positionMs)
-                    setBufferedPosition(positionMs)
-                }
-                playerView.findViewById<android.widget.TextView>(
-                    androidx.media3.ui.R.id.exo_position
-                )?.text = android.text.format.DateUtils.formatElapsedTime(positionMs / 1000L)
-                playerView.findViewById<android.widget.TextView>(
-                    androidx.media3.ui.R.id.exo_duration
-                )?.text = android.text.format.DateUtils.formatElapsedTime(durationMs / 1000L)
-            }
-            gx1VlcProgressHandler.postDelayed(this, 250L)
-        }
-    }
-"""
-if "private val gx1VlcProgressTicker" not in activity_text:
-    if activity_text.count(anchor) != 1:
-        raise SystemExit("Could not find unique main LibVLC engine field for progress ticker")
-    activity_text = activity_text.replace(anchor, anchor + progress_fields, 1)
-
-open_anchor = "        engine.open(uri, resumeAt, digitalOutput = passthrough)\n"
-if "gx1VlcProgressHandler.post(gx1VlcProgressTicker)" not in activity_text:
-    if activity_text.count(open_anchor) != 1:
-        raise SystemExit("Could not find unique main LibVLC open call for progress ticker")
-    activity_text = activity_text.replace(
-        open_anchor,
-        open_anchor + "        gx1VlcProgressHandler.removeCallbacks(gx1VlcProgressTicker)\n"
-        "        gx1VlcProgressHandler.post(gx1VlcProgressTicker)\n",
-        1,
-    )
-
-release_anchor = "    private fun releasePlayer() {\n"
-release_start = activity_text.find(release_anchor)
-if release_start < 0 or activity_text.find(release_anchor, release_start + 1) >= 0:
-    raise SystemExit("Could not find unique releasePlayer method for progress ticker cleanup")
-release_block_head = activity_text[release_start:release_start + 300]
-if "gx1VlcProgressHandler.removeCallbacks(gx1VlcProgressTicker)" not in release_block_head:
-    activity_text = activity_text.replace(
-        release_anchor,
-        release_anchor + "        gx1VlcProgressHandler.removeCallbacks(gx1VlcProgressTicker)\n",
-        1,
-    )
-activity.write_text(activity_text)
-print("LibVLC progress bar now polls the active engine every 250 ms.")
+# Do not write directly to Media3's TimeBar from a second timer.
+# PlayerControlView owns its own progress refresh; competing updates made the
+# bar jump back to zero and then forward to LibVLC's current position.
