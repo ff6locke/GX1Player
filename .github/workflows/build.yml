@@ -7931,6 +7931,31 @@ jobs:
       - name: Keep LibVLC seek mode aligned with VLC for Android
         working-directory: ${{ env.PROJECT_DIR }}
         run: python3 "$GITHUB_WORKSPACE/.github/scripts/enable_libvlc_fast_seek.py" "$GITHUB_WORKSPACE/${{ env.PROJECT_DIR }}"
+      - name: Match VLC for Android default precise seeking
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
+          s = p.read_text()
+          replacements = [
+              ("mediaPlayer.setTime(seek)", "mediaPlayer.setTime(seek, false)", "deferred seek"),
+              ("mediaPlayer.setTime(target)", "mediaPlayer.setTime(target, false)", "user seek"),
+              ("mediaPlayer.setTime(seek, true)", "mediaPlayer.setTime(seek, false)", "deferred fast seek"),
+              ("mediaPlayer.setTime(target, true)", "mediaPlayer.setTime(target, false)", "user fast seek"),
+          ]
+          for old, new, label in replacements:
+              if old in s:
+                  s = s.replace(old, new)
+          if "mediaPlayer.setTime(seek, false)" not in s:
+              raise SystemExit("Deferred seek call not found after safe replacements")
+          if "mediaPlayer.setTime(target, false)" not in s:
+              raise SystemExit("User seek call not found after safe replacements")
+          if "mediaPlayer.setTime(seek, true)" in s or "mediaPlayer.setTime(target, true)" in s:
+              raise SystemExit("Fast seek call remains")
+          p.write_text(s)
+          print("Deferred-start and user seeks use LibVLC default precise mode (fast=false).")
+          PY
       - name: Accumulate remote seek and seek once on release
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
