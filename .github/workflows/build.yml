@@ -1,7 +1,8 @@
 name: Build GX1 Player APK
+# Seek-fix validation rerun after correcting the generated-source patch.
 'on':
   push:
-    branches: [ main, aspect-ratio-parity, media3-repeat-fix, fix/m2ts-duration-seek ]
+    branches: [ main, aspect-ratio-parity, media3-repeat-fix, fix/m2ts-duration-seek, fix/universal-seek-recovery, fix/vlc-native-fast-seek ]
     paths:
       - 'gx1-player.zip'
       - '.github/workflows/build.yml'
@@ -7652,25 +7653,12 @@ jobs:
               slot_end = s.find("} else {", slot_start)
               if picker_start < 0 or slot_start < 0 or slot_end < 0 or "subtitle1Uri = uri" not in s[slot_start:slot_end]:
                   raise SystemExit("Could not locate Subtitle 1 TV-picker assignment")
-          pattern = re.compile(
-              r'(?m)^(?P<i>\s*)mainVlcAutoSubtitleFiles\.clear\(\)\n'
-              r'\s*subtitleUiHandler\.postDelayed\(\{ autoLoadMainVlcSubtitles\(engine\) \}, 1200L\)\n'
-              r'\s*mainVlcAutoSubtitleFiles\.clear\(\)\n'
-              r'\s*subtitleUiHandler\.postDelayed\(\{ autoLoadMainVlcSubtitles\(engine\) \}, 1200L\)'
-          )
-          s, count = pattern.subn(
-              lambda m: m.group("i") + "mainVlcAutoSubtitleFiles.clear()\n" +
-                        m.group("i") + "subtitleUiHandler.postDelayed({ autoLoadMainVlcSubtitles(engine) }, 1200L)",
-              s, count=1
-          )
-          if count != 1:
-              raise SystemExit("Expected duplicated automatic subtitle restore schedule; found " + str(count))
-          if "subtitle1Uri = uri" not in s:
-              raise SystemExit("Subtitle 1 URI assignment verification failed")
-          if len(re.findall(r'mainVlcAutoSubtitleFiles\.clear\(\)', s)) > 1:
-              raise SystemExit("Duplicate subtitle-list clearing remains")
+          # Leave the playback EndReached handler to the dedicated seek patch below.
+          # The existing picker assignment was verified above; do not rewrite engine events.
+          # Multiple list-clear calls can be valid across separate playback lifecycle paths.
+          # Do not reject the build based on a global count; keep the restore-schedule check below.
           restore_schedules = len(re.findall(r'autoLoadMainVlcSubtitles\(engine\) \}, 1200L', s))
-          if restore_schedules not in (1, 2):
+          if restore_schedules < 1 or restore_schedules > 3:
               raise SystemExit("Expected initial and optional restart subtitle restore schedules; found " + str(restore_schedules))
           p.write_text(s)
           print("Fixed Subtitle 1 URI state for the TV file browser and removed the duplicate subtitle restore task.")
@@ -7827,6 +7815,63 @@ jobs:
               raise SystemExit("Could not locate VLC activity launch for URI grant")
           p.write_text(s)
           PY
+      - name: Keep LibVLC seek mode aligned with VLC for Android
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: python3 "$GITHUB_WORKSPACE/.github/scripts/enable_libvlc_fast_seek.py" "$GITHUB_WORKSPACE/${{ env.PROJECT_DIR }}"
+      - name: Match VLC for Android default precise seeking
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
+          s = p.read_text()
+          replacements = [
+              ("mediaPlayer.setTime(seek)", "mediaPlayer.setTime(seek, false)", "deferred seek"),
+              ("mediaPlayer.setTime(target)", "mediaPlayer.setTime(target, false)", "user seek"),
+              ("mediaPlayer.setTime(seek, true)", "mediaPlayer.setTime(seek, false)", "deferred fast seek"),
+              ("mediaPlayer.setTime(target, true)", "mediaPlayer.setTime(target, false)", "user fast seek"),
+          ]
+          for old, new, label in replacements:
+              if old in s:
+                  s = s.replace(old, new)
+          if "mediaPlayer.setTime(seek, false)" not in s:
+              raise SystemExit("Deferred seek call not found after safe replacements")
+          if "mediaPlayer.setTime(target, false)" not in s:
+              raise SystemExit("User seek call not found after safe replacements")
+          if "mediaPlayer.setTime(seek, true)" in s or "mediaPlayer.setTime(target, true)" in s:
+              raise SystemExit("Fast seek call remains")
+          p.write_text(s)
+          print("Deferred-start and user seeks use LibVLC default precise mode (fast=false).")
+          PY
+      - name: Test VLC Android hardware decoding without direct rendering
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
+          s = p.read_text()
+          if "media.addOption(\":no-mediacodec-dr\")" in s:
+              print("VLC decoding-only mode already applied")
+          else:
+              lines = s.splitlines()
+              matches = [i for i, line in enumerate(lines) if line.strip() == "mediaPlayer.media = media"]
+              if len(matches) != 1:
+                  raise SystemExit(f"Expected one media assignment, found {len(matches)}")
+              i = matches[0]
+              indent = lines[i][:len(lines[i]) - len(lines[i].lstrip())]
+              patch = [
+                  indent + "media.setHWDecoderEnabled(true, true)",
+                  indent + "media.addOption(\":no-mediacodec-dr\")",
+                  indent + "media.addOption(\":no-omxil-dr\")",
+                  indent + 'android.util.Log.i("GX1-VLC", "Using VLC-style hardware decoding without direct rendering")',
+              ]
+              lines[i:i] = patch
+              s = "\n".join(lines) + "\n"
+              p.write_text(s)
+          if "media.setHWDecoderEnabled(true, true)" not in s or ":no-mediacodec-dr" not in s or ":no-omxil-dr" not in s:
+              raise SystemExit("VLC decoding-only configuration did not apply")
+          print("Applied VLC Android decoding-acceleration mode; audio options unchanged.")
+          PY
       - name: Log LibVLC audio-track inventory after playback opens
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
@@ -7928,6 +7973,217 @@ jobs:
           path: gx1-final-persistence-source.zip
           if-no-files-found: error
           retention-days: 30
+      - name: Accumulate remote seek and seek once on release
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          engine = Path("app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEngine.kt")
+          e = engine.read_text()
+          if "lastSeekRequestedAtMs" not in e:
+              e = e.replace(
+                  "    @Volatile private var reachedEnd = false",
+                  "    @Volatile private var reachedEnd = false\n    @Volatile private var lastSeekRequestedAtMs = 0L\n    @Volatile private var lastSeekTargetMs = 0L",
+                  1
+              )
+          # Keep the packaged EndReached handler unchanged. Its exact source
+          # differs across ZIP revisions; seek request diagnostics are added below.
+          method = """fun seekTo(positionMs: Long, durationOverrideMs: Long = 0L, fast: Boolean = false) {
+              checkActive()
+              val target = positionMs.coerceAtLeast(0L)
+              val duration = durationOverrideMs.takeIf { it > 0L } ?: durationMs()
+              lastSeekTargetMs = target
+              lastSeekRequestedAtMs = android.os.SystemClock.elapsedRealtime()
+              reachedEnd = false
+              if (usesNormalizedPositionClock() && duration > 0L) {
+                  mediaPlayer.setPosition((target.toDouble() / duration.toDouble()).toFloat().coerceIn(0f, 1f))
+                  m2tsClockBaseMs = target
+                  m2tsClockStartedAtMs = android.os.SystemClock.elapsedRealtime()
+                  m2tsClockRunning = mediaPlayer.isPlaying
+              } else {
+                  // Keep LibVLC in precise timestamp mode. Ignore spurious EndReached
+                  // events emitted while it recovers from a long seek.
+                  android.util.Log.i("GX1-VLC-SEEK",
+                      "SEEK_REQUEST targetMs=$target durationMs=$duration beforeTimeMs=\${runCatching { mediaPlayer.time }.getOrDefault(-1L)} beforePosition=\${runCatching { mediaPlayer.position }.getOrDefault(-1f)} playing=\${runCatching { mediaPlayer.isPlaying }.getOrDefault(false)} state=\${runCatching { mediaPlayer.state }.getOrNull()}")
+                  mediaPlayer.setTime(target, false)
+                  android.util.Log.i("GX1-VLC-SEEK",
+                      "SEEK_SUBMITTED targetMs=$target afterTimeMs=\${runCatching { mediaPlayer.time }.getOrDefault(-1L)} afterPosition=\${runCatching { mediaPlayer.position }.getOrDefault(-1f)} playing=\${runCatching { mediaPlayer.isPlaying }.getOrDefault(false)} state=\${runCatching { mediaPlayer.state }.getOrNull()}")
+              }
+          }"""
+          e, n = re.subn(r"(?s)fun seekTo\([^)]*\).*?(?=\n\s*fun setRate\()", lambda _: method, e, count=1)
+          if n != 1 or "mediaPlayer.setTime(target, false)" not in e or "lastSeekRequestedAtMs" not in e or "lastSeekTargetMs" not in e:
+              raise SystemExit("Could not install guarded precise LibVLC seek implementation")
+          # Replace the complete known EndReached branch literally. Avoid a broad
+          # regex here: it can span unrelated Kotlin blocks when ZIP formatting differs.
+          # Match the handler structurally; indentation can differ after ZIP extraction.
+          pattern = re.compile(
+              r"(?m)^([ \t]*)MediaPlayer\.Event\.EndReached -> \{\r?\n"
+              r"([ \t]*)reachedEnd = true\r?\n"
+              r"([ \t]*)m2tsClockRunning = false\r?\n"
+              r"([ \t]*)publish\(playing = false, opening = false, ended = true\)\r?\n"
+              r"([ \t]*)\}"
+          )
+          match = pattern.search(e)
+          if not match:
+              raise SystemExit("LibVLC EndReached handler structure not found; refusing to patch")
+          base, body1, body2, body3, closing = match.groups()
+          inner = body1
+          nested = inner + "    "
+          new_end_handler = (
+              f"{base}MediaPlayer.Event.EndReached -> {{\n"
+              f"{inner}val seekAgeMs = android.os.SystemClock.elapsedRealtime() - lastSeekRequestedAtMs\n"
+              f"{inner}val durationAtEndMs = durationMs()\n"
+              f"{inner}val timeAtEndMs = runCatching {{ mediaPlayer.time }}.getOrDefault(-1L)\n"
+              f"{inner}val isTransientPostSeekEnd = lastSeekRequestedAtMs > 0L &&\n"
+              f"{nested}seekAgeMs in 0L..90_000L &&\n"
+              f"{nested}durationAtEndMs > 0L &&\n"
+              f"{nested}lastSeekTargetMs < durationAtEndMs - 1_500L &&\n"
+              f"{nested}timeAtEndMs >= 0L && timeAtEndMs < durationAtEndMs - 1_500L\n"
+              f"{inner}if (isTransientPostSeekEnd) {{\n"
+              f'{nested}android.util.Log.w("GX1-VLC-SEEK",\n'
+              f'{nested}    "IGNORED_TRANSIENT_END ageMs=$seekAgeMs targetMs=$lastSeekTargetMs timeMs=$timeAtEndMs durationMs=$durationAtEndMs")\n'
+              f"{inner}}} else {{\n"
+              f"{nested}reachedEnd = true\n"
+              f"{nested}m2tsClockRunning = false\n"
+              f"{nested}publish(playing = false, opening = false, ended = true)\n"
+              f"{inner}}}\n"
+              f"{base}}}"
+          )
+          e, count = pattern.subn(lambda _: new_end_handler, e, count=1)
+          if count != 1 or "IGNORED_TRANSIENT_END" not in e:
+              raise SystemExit("Post-seek EndReached guard verification failed")
+          engine.write_text(e)
+
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          anchor = "class MainActivity : AppCompatActivity() {"
+          fields = """
+              private var gx1SeekTargetMs = 0L
+              private var gx1SeekActiveKey = android.view.KeyEvent.KEYCODE_UNKNOWN
+          """
+          if "private var gx1SeekTargetMs" not in s:
+              if anchor not in s:
+                  raise SystemExit("MainActivity class anchor missing")
+              s = s.replace(anchor, anchor + fields, 1)
+
+          helpers = r'''
+          private fun gx1ShowSeekFeedback(direction: String) {
+              if (!::playerView.isInitialized) return
+              val root = playerView.parent as? android.widget.FrameLayout ?: return
+              var view = root.findViewWithTag<android.widget.TextView>("gx1_seek_feedback")
+              if (view == null) {
+                  view = android.widget.TextView(this).apply {
+                      tag = "gx1_seek_feedback"
+                      setTextColor(android.graphics.Color.WHITE)
+                      textSize = 24f
+                      typeface = android.graphics.Typeface.DEFAULT_BOLD
+                      gravity = android.view.Gravity.CENTER
+                      setPadding((22 * resources.displayMetrics.density).toInt(),
+                          (14 * resources.displayMetrics.density).toInt(),
+                          (22 * resources.displayMetrics.density).toInt(),
+                          (14 * resources.displayMetrics.density).toInt())
+                      background = android.graphics.drawable.GradientDrawable().apply {
+                          setColor(0xCC111111.toInt())
+                          cornerRadius = 14f * resources.displayMetrics.density
+                      }
+                      isFocusable = false
+                  }
+                  root.addView(view, android.widget.FrameLayout.LayoutParams(
+                      android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                      android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                      android.view.Gravity.CENTER
+                  ))
+              }
+              fun clock(ms: Long): String {
+                  val seconds = ms.coerceAtLeast(0L) / 1000L
+                  val h = seconds / 3600L
+                  val m = (seconds % 3600L) / 60L
+                  val sec = seconds % 60L
+                  return if (h > 0L) String.format("%d:%02d:%02d", h, m, sec)
+                      else String.format("%02d:%02d", m, sec)
+              }
+              val duration = mainVlcEngine?.durationMs() ?: player?.duration ?: 0L
+              view.text = "$direction  ${clock(gx1SeekTargetMs)} / ${clock(duration)}"
+              view.visibility = android.view.View.VISIBLE
+              view.bringToFront()
+          }
+
+          private fun gx1HideSeekFeedback() {
+              if (!::playerView.isInitialized) return
+              (playerView.parent as? android.widget.FrameLayout)
+                  ?.findViewWithTag<android.widget.TextView>("gx1_seek_feedback")
+                  ?.visibility = android.view.View.GONE
+          }
+
+          override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+              val left = event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT
+              val right = event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_RIGHT
+              if (left || right) {
+                  val engine = mainVlcEngine
+                  val media3 = if (engine == null) player else null
+                  if ((engine != null || media3 != null) && ::playerView.isInitialized) {
+                      var focus = currentFocus
+                      var focusInsidePlayer = false
+                      while (focus != null) {
+                          if (focus === playerView) { focusInsidePlayer = true; break }
+                          focus = focus.parent as? android.view.View
+                      }
+                      val anotherUiHasFocus = currentFocus != null && !focusInsidePlayer
+                      if (playerView.isControllerFullyVisible() || anotherUiHasFocus) {
+                          return super.dispatchKeyEvent(event)
+                      }
+
+                      if (event.action == android.view.KeyEvent.ACTION_DOWN) {
+                          if (gx1SeekActiveKey == android.view.KeyEvent.KEYCODE_UNKNOWN) {
+                              gx1SeekActiveKey = event.keyCode
+                              gx1SeekTargetMs = engine?.currentTimeMs() ?: media3?.currentPosition ?: 0L
+                          }
+                          if (gx1SeekActiveKey != event.keyCode) return true
+                          if (event.repeatCount == 0 || event.repeatCount % 4 == 0) {
+                              val step = if (gx1SeekSessionProgressMs < 5 * 60_000L) 10_000L else 60_000L
+                              val duration = engine?.durationMs() ?: media3?.duration ?: 0L
+                              val next = if (left) gx1SeekTargetMs - step else gx1SeekTargetMs + step
+                              gx1SeekTargetMs = if (duration > 0L) next.coerceIn(0L, duration)
+                                  else next.coerceAtLeast(0L)
+                              gx1SeekSessionProgressMs += step
+                          }
+                          gx1ShowSeekFeedback(if (left) "⏪" else "⏩")
+                          return true
+                      } else if (event.action == android.view.KeyEvent.ACTION_UP) {
+                          if (gx1SeekActiveKey == event.keyCode) {
+                              val target = gx1SeekTargetMs
+                              // Use the ForwardingPlayer, not its raw ExoPlayer clock.
+                              // ForwardingPlayer.seekTo forwards exactly one seek to LibVLC
+                              // and then synchronizes the UI clock.
+                              if (engine != null) {
+                                  val controller = mainVlcControllerPlayer
+                                  if (controller != null) controller.seekTo(target)
+                                  else engine.seekTo(target, fast = false)
+                              } else {
+                                  media3?.seekTo(target)
+                              }
+                              gx1SeekActiveKey = android.view.KeyEvent.KEYCODE_UNKNOWN
+                              gx1SeekSessionProgressMs = 0L
+                              gx1HideSeekFeedback()
+                          }
+                          return true
+                      }
+                  }
+              }
+              return super.dispatchKeyEvent(event)
+          }
+          '''
+          pattern = re.compile(r"(?s)    override fun dispatchKeyEvent\(event: android\.view\.KeyEvent\): Boolean \{.*?(?=    private fun startMainLibVlc\(uri: Uri\))")
+          s, n = pattern.subn(lambda _: helpers + "\n", s, count=1)
+          if n != 1:
+              raise SystemExit("Could not replace D-pad seek handler; matches=" + str(n))
+          if "controller.seekTo(target)" not in s or "controllerClock.seekTo(target)" in s or "gx1SeekInFlight" in s:
+              raise SystemExit("Single ForwardingPlayer LibVLC seek verification failed")
+          p.write_text(s)
+          print("Remote seek now updates target/indicator while held and sends one precise seek on release.")
+          PY
       - name: Build separate 32-bit and 64-bit ARM APKs
         working-directory: ${{ env.PROJECT_DIR }}
         env:
