@@ -106,6 +106,69 @@ replace_once(
 if "gx1QueueSeek(target)" not in text or "clock.prepare()" in text:
     raise SystemExit("Seek fix verification failed")
 
+# Give LibVLC its own progress control. Media3's PlayerControlView relies on
+# timeline/listener events from its shadow player, which has no media source.
+# A dedicated SeekBar avoids both the frozen bar and competing Media3 updates.
+replace_once(
+    "    private var gx1SeekSessionProgressMs = 0L\\n",
+    "    private var gx1SeekSessionProgressMs = 0L\\n"
+    "    private var gx1VlcProgressBar: android.widget.SeekBar? = null\\n"
+    "    private var gx1VlcPositionText: android.widget.TextView? = null\\n"
+    "    private var gx1VlcDurationText: android.widget.TextView? = null\\n"
+    "    private var gx1VlcTracking = false\\n"
+    "    private val gx1VlcProgressHandler = android.os.Handler(android.os.Looper.getMainLooper())\\n"
+    "    private val gx1VlcProgressTicker = object : Runnable {\\n"
+    "        override fun run() {\\n"
+    "            val engine = mainVlcEngine\\n"
+    "            val duration = engine?.durationMs() ?: 0L\\n"
+    "            val position = engine?.currentTimeMs() ?: 0L\\n"
+    "            if (duration > 0L) {\\n"
+    "                gx1VlcProgressBar?.max = 10000\\n"
+    "                if (!gx1VlcTracking) gx1VlcProgressBar?.progress = ((position.coerceIn(0L, duration) * 10000L) / duration).toInt()\\n"
+    "                gx1VlcPositionText?.text = android.text.format.DateUtils.formatElapsedTime(position / 1000L)\\n"
+    "                gx1VlcDurationText?.text = android.text.format.DateUtils.formatElapsedTime(duration / 1000L)\\n"
+    "            }\\n"
+    "            gx1VlcProgressHandler.postDelayed(this, 250L)\\n"
+    "        }\\n"
+    "    }\\n",
+    "LibVLC progress state"
+)
+
+replace_once(
+    "mainVlcLayout.setBackgroundColor(Color.BLACK)\\n",
+    "mainVlcLayout.setBackgroundColor(Color.BLACK)\\n"
+    "val gx1ProgressRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(14, 4, 14, 4); setBackgroundColor(0xB0000000.toInt()) }\\n"
+    "gx1VlcPositionText = android.widget.TextView(this).apply { setTextColor(Color.WHITE); textSize = 12f; text = \"0:00\" }\\n"
+    "gx1VlcDurationText = android.widget.TextView(this).apply { setTextColor(Color.WHITE); textSize = 12f; text = \"0:00\" }\\n"
+    "gx1VlcProgressBar = android.widget.SeekBar(this).apply { max = 10000; isFocusable = true; setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener { override fun onProgressChanged(bar: android.widget.SeekBar?, value: Int, fromUser: Boolean) { if (fromUser) { val d = mainVlcEngine?.durationMs() ?: 0L; if (d > 0L) gx1VlcPositionText?.text = android.text.format.DateUtils.formatElapsedTime((d * value / 10000L) / 1000L) } }; override fun onStartTrackingTouch(bar: android.widget.SeekBar?) { gx1VlcTracking = true }; override fun onStopTrackingTouch(bar: android.widget.SeekBar?) { val d = mainVlcEngine?.durationMs() ?: 0L; if (d > 0L) mainVlcEngine?.seekTo(d * (bar?.progress ?: 0) / 10000L); gx1VlcTracking = false } }) }\\n"
+    "gx1ProgressRow.addView(gx1VlcPositionText, LinearLayout.LayoutParams(-2, -2))\\n"
+    "gx1ProgressRow.addView(gx1VlcProgressBar, LinearLayout.LayoutParams(0, -2, 1f))\\n"
+    "gx1ProgressRow.addView(gx1VlcDurationText, LinearLayout.LayoutParams(-2, -2))\\n"
+    "root.addView(gx1ProgressRow, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))\\n"
+    "gx1ProgressRow.visibility = View.GONE\\n"
+    "gx1VlcProgressHandler.post(gx1VlcProgressTicker)\\n",
+    "dedicated LibVLC progress bar"
+)
+
+replace_once(
+    "                    gx1MainPlaybackTitle?.visibility =\\n"
+    "                        if (mainVlcEngine != null) visibility else android.view.View.GONE\\n",
+    "                    gx1MainPlaybackTitle?.visibility =\\n"
+    "                        if (mainVlcEngine != null) visibility else android.view.View.GONE\\n"
+    "                    rootLayout.findViewWithTag<android.view.View>(\"gx1_vlc_progress_row\")?.visibility = visibility\\n",
+    "progress visibility binding"
+)
+# Tag the dedicated row using a stable marker.
+text = text.replace("val gx1ProgressRow = LinearLayout(this).apply { orientation", "val gx1ProgressRow = LinearLayout(this).apply { tag = \"gx1_vlc_progress_row\"; orientation", 1)
+
+replace_once(
+    "                playerView.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_progress)?.apply {\\n"
+    "                    visibility = View.VISIBLE",
+    "                playerView.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_progress)?.apply {\\n"
+    "                    visibility = if (mainVlcEngine != null) View.GONE else View.VISIBLE",
+    "hide shadow progress bar"
+)
+
 source.write_text(text)
 print("LibVLC main seek fix applied: shadow clock no longer loads media; D-pad seeks are queued.")
 
