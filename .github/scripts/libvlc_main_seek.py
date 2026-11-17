@@ -6,6 +6,7 @@ D-pad seeks are serialized so a new precise seek does not cancel one still
 being decoded, and hold-to-seek targets build from the last requested position.
 """
 from pathlib import Path
+import re
 import sys
 
 project = Path(sys.argv[1] if len(sys.argv) > 1 else ".")
@@ -115,10 +116,75 @@ engine = project / "app/src/main/java/com/example/gx1player/playback/Gx1LibVlcEn
 if not engine.is_file():
     raise SystemExit(f"Missing generated LibVLC engine: {engine}")
 engine_text = engine.read_text()
-old_seek = "              fun seekTo(positionMs: Long) { checkActive(); mediaPlayer.setTime(positionMs.coerceAtLeast(0L)) }"
-new_seek = "              fun seekTo(positionMs: Long) { checkActive(); mediaPlayer.setTime(positionMs.coerceAtLeast(0L), true) }"
-if engine_text.count(old_seek) != 1:
-    raise SystemExit(f"LibVLC seek method: expected one match, found {engine_text.count(old_seek)}")
-engine_text = engine_text.replace(old_seek, new_seek, 1)
+seek_pattern = re.compile(
+    r"fun seekTo\\(positionMs: Long\\)\\s*\\{\\s*checkActive\\(\\);\\s*"
+    r"mediaPlayer\\.setTime\\(positionMs\\.coerceAtLeast\\(0L\\)\\)\\s*\\}"
+)
+engine_text, seek_count = seek_pattern.subn(
+    "fun seekTo(positionMs: Long) { checkActive(); mediaPlayer.setTime(positionMs.coerceAtLeast(0L), true) }",
+    engine_text,
+    count=1,
+)
+if seek_count != 1:
+    raise SystemExit(f"LibVLC seek method: expected one match, found {seek_count}")
 engine.write_text(engine_text)
 print("LibVLC D-pad seeking now requests fast keyframe positioning.")
+
+# The Media3 controller's time bar is backed by a shadow player. Poll LibVLC
+# directly and push its live position into the actual controller widgets.
+activity = project / "app/src/main/java/com/example/gx1player/MainActivity.kt"
+activity_text = activity.read_text()
+anchor = "    private var mainVlcEngine: Gx1LibVlcEngine? = null\\n"
+progress_fields = """    private val gx1VlcProgressHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val gx1VlcProgressTicker = object : Runnable {
+        override fun run() {
+            val engine = mainVlcEngine ?: return
+            if (::playerView.isInitialized) {
+                val positionMs = engine.currentTimeMs().coerceAtLeast(0L)
+                val durationMs = engine.durationMs().coerceAtLeast(0L)
+                val timeBar = playerView.findViewById<android.view.View>(
+                    androidx.media3.ui.R.id.exo_progress
+                ) as? androidx.media3.ui.TimeBar
+                timeBar?.apply {
+                    setDuration(durationMs)
+                    setPosition(positionMs)
+                    setBufferedPosition(positionMs)
+                }
+                playerView.findViewById<android.widget.TextView>(
+                    androidx.media3.ui.R.id.exo_position
+                )?.text = android.text.format.DateUtils.formatElapsedTime(positionMs / 1000L)
+                playerView.findViewById<android.widget.TextView>(
+                    androidx.media3.ui.R.id.exo_duration
+                )?.text = android.text.format.DateUtils.formatElapsedTime(durationMs / 1000L)
+            }
+            gx1VlcProgressHandler.postDelayed(this, 250L)
+        }
+    }
+"""
+if "private val gx1VlcProgressTicker" not in activity_text:
+    if activity_text.count(anchor) != 1:
+        raise SystemExit("Could not find unique main LibVLC engine field for progress ticker")
+    activity_text = activity_text.replace(anchor, anchor + progress_fields, 1)
+
+open_anchor = "        engine.open(uri, resumeAt, digitalOutput = passthrough)\\n"
+if "gx1VlcProgressHandler.post(gx1VlcProgressTicker)" not in activity_text:
+    if activity_text.count(open_anchor) != 1:
+        raise SystemExit("Could not find unique main LibVLC open call for progress ticker")
+    activity_text = activity_text.replace(
+        open_anchor,
+        open_anchor + "        gx1VlcProgressHandler.removeCallbacks(gx1VlcProgressTicker)\\n"
+        "        gx1VlcProgressHandler.post(gx1VlcProgressTicker)\\n",
+        1,
+    )
+
+release_anchor = "    private fun releasePlayer() {\\n"
+if "gx1VlcProgressHandler.removeCallbacks(gx1VlcProgressTicker)" not in activity_text:
+    if activity_text.count(release_anchor) != 1:
+        raise SystemExit("Could not find unique releasePlayer method for progress ticker cleanup")
+    activity_text = activity_text.replace(
+        release_anchor,
+        release_anchor + "        gx1VlcProgressHandler.removeCallbacks(gx1VlcProgressTicker)\\n",
+        1,
+    )
+activity.write_text(activity_text)
+print("LibVLC progress bar now polls the active engine every 250 ms.")
