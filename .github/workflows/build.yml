@@ -7924,3 +7924,4 @@ jobs:
           path: GX1Player-VLC-64bit.apk
           if-no-files-found: error
           retention-days: 30
+# Rebuild after correcting the LibVLC progress patch script.
