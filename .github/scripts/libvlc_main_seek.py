@@ -181,9 +181,8 @@ release_anchor = "    private fun releasePlayer() {\n"
 release_start = activity_text.find(release_anchor)
 if release_start < 0 or activity_text.find(release_anchor, release_start + 1) >= 0:
     raise SystemExit("Could not find unique releasePlayer method for progress ticker cleanup")
-release_end = activity_text.find("\\n    //", release_start)
-release_block = activity_text[release_start:release_end if release_end >= 0 else len(activity_text)]
-if "gx1VlcProgressHandler.removeCallbacks(gx1VlcProgressTicker)" not in release_block:
+release_block_head = activity_text[release_start:release_start + 300]
+if "gx1VlcProgressHandler.removeCallbacks(gx1VlcProgressTicker)" not in release_block_head:
     activity_text = activity_text.replace(
         release_anchor,
         release_anchor + "        gx1VlcProgressHandler.removeCallbacks(gx1VlcProgressTicker)\n",
