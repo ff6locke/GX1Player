@@ -1,19 +1,9 @@
 #!/usr/bin/env python3
 """Seek fix for LibVLC as the main engine.
 
-Problems addressed (seek path only):
-1. The Media3 controller clock opened the same file a second time, so every
-   LibVLC playback had two demuxers reading one large MKV.
-2. Each D-pad press sent a new precise seek before the previous one finished.
-   Each new seek cancelled the one in flight, so holding a key never landed and
-   the decoder stalled.
-3. The D-pad target was built from VLC's current time, which does not move
-   until a seek lands, so holding a key kept requesting nearly the same position.
-
-Fix: the clock stays empty (no media, so its seeks are no-ops), and D-pad seeks
-go through a queue. The queue keeps one seek in flight, builds each target from
-the last requested position, and sends the latest target once the previous
-seek has landed.
+The Media3 controller clock must not open a second copy of the video.
+D-pad seeks are serialized so a new precise seek does not cancel one still
+being decoded, and hold-to-seek targets build from the last requested position.
 """
 from pathlib import Path
 import sys
@@ -31,18 +21,29 @@ def replace_once(old: str, new: str, label: str) -> None:
     count = text.count(old)
     if count != 1:
         raise SystemExit(f"{label}: expected one match, found {count}")
-    text = text.replace(old, new)
+    text = text.replace(old, new, 1)
 
 
-# 1. The controller clock keeps its player object but never opens the file.
-replace_once(
+# Support both controller-clock constructions used by the uploaded workflow
+# and older source revisions.
+clock_patterns = [
+    "        clock.setMediaItem(buildMediaItem(uri), resumeAt)\n"
+    "        clock.prepare()\n",
     "        clock.setMediaItem(MediaItem.fromUri(uri), resumeAt)\n"
     "        clock.prepare()\n",
+]
+matches = [pattern for pattern in clock_patterns if text.count(pattern)]
+if len(matches) != 1:
+    raise SystemExit(
+        "shadow clock media load: expected exactly one supported clock pattern, "
+        f"found {len(matches)}"
+    )
+replace_once(
+    matches[0],
     "        // LibVLC is the main engine. The controller clock must not open the file a second time.\n",
     "shadow clock media load",
 )
 
-# 2. Seek queue state and pump, declared at class level.
 replace_once(
     "    private var gx1SeekSessionProgressMs = 0L\n",
     "    private var gx1SeekSessionProgressMs = 0L\n"
@@ -87,7 +88,6 @@ replace_once(
     "seek queue declarations",
 )
 
-# 3. Hold-to-seek builds each target from the last requested position.
 replace_once(
     "                    val current = engine?.currentTimeMs() ?: media3Player?.currentPosition ?: 0L\n",
     "                    val current = gx1PendingSeekMs\n"
@@ -96,7 +96,6 @@ replace_once(
     "D-pad base position",
 )
 
-# 4. D-pad presses go through the queue, not straight to VLC.
 replace_once(
     "                    if (engine != null) engine.seekTo(target) else media3Player?.seekTo(target)\n",
     "                    if (engine != null) gx1QueueSeek(target) else media3Player?.seekTo(target)\n",
