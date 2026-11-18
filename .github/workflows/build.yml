@@ -6319,8 +6319,7 @@ jobs:
               patch = """lines.add("")
           lines.add("LibVLC native log (this app process)")
           val nativeLog = runCatching {
-              val command = arrayOf("logcat", "-d", "-v", "time",
-                  "--pid=" + android.os.Process.myPid().toString(), "*:V")
+              val command = arrayOf("logcat", "-d", "-v", "time")
               val process = Runtime.getRuntime().exec(command)
               val output = process.inputStream.bufferedReader().use { it.readText() }
               process.waitFor()
