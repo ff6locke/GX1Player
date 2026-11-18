@@ -8207,9 +8207,9 @@ jobs:
           p.write_text(s)
           print("Playback Open Video icon now calls the GX1 in-app storage browser.")
           PY
-      - name: Add selectable LibVLC video decoder modes
+      - name: Add Media3 video decoder preference
         working-directory: ${{ env.PROJECT_DIR }}
-        run: python3 "$GITHUB_WORKSPACE/.github/scripts/add_libvlc_decoder_mode.py"
+        run: python3 "$GITHUB_WORKSPACE/.github/scripts/add_media3_video_decoder_preference.py"
       - name: Build separate 32-bit and 64-bit ARM APKs
         working-directory: ${{ env.PROJECT_DIR }}
         env:
