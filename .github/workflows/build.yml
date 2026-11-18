@@ -8196,24 +8196,17 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
+          import re
           p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
           s = p.read_text()
-          old = """                    setOnClickListener {
-                        chooseLibraryLocation()
-                    }"""
-          new = """                    setOnClickListener {
-                        openVideoWithGX1Browser()
-                    }"""
-          count = s.count(old)
+          pattern = r'(?s)(tag = "gx1_open_video".*?setOnClickListener\s*\{)\s*chooseLibraryLocation\(\)\s*(\})'
+          s, count = re.subn(pattern, r'\1\n                        openVideoWithGX1Browser()\n                    \2', s, count=1)
           if count != 1:
-              raise SystemExit(f"Expected exactly one playback Open Video icon handler, found {count}")
+              raise SystemExit(f"Expected the tagged playback Open Video icon handler, found {count}")
           if "private fun openVideoWithGX1Browser()" not in s:
               raise SystemExit("GX1 in-app storage browser method is missing")
-          s = s.replace(old, new, 1)
           p.write_text(s)
-          if "setOnClickListener {\n                        openVideoWithGX1Browser()\n                    }" not in s:
-              raise SystemExit("Playback Open Video icon route verification failed")
-          print("Playback Open Video icon now opens the same GX1 in-app storage browser as the home-screen tile.")
+          print("Playback Open Video icon now calls the GX1 in-app storage browser.")
           PY
       - name: Build separate 32-bit and 64-bit ARM APKs
         working-directory: ${{ env.PROJECT_DIR }}
