@@ -12,6 +12,28 @@ fields = r"""    private var attachedLayout: VLCVideoLayout? = null
     @Volatile private var lastVideoSurfaceSnapshot = "not captured"
     @Volatile private var lastNativeVideoState = "not queried"
 
+    private fun describeNativeValue(value: Any?): String {
+        if (value == null) return "null"
+        if (value is Iterable<*>) return value.joinToString(prefix = "[", postfix = "]") { describeNativeValue(it) }
+        if (value.javaClass.isArray) {
+            val size = java.lang.reflect.Array.getLength(value)
+            return (0 until size).joinToString(prefix = "[", postfix = "]") {
+                describeNativeValue(java.lang.reflect.Array.get(value, it))
+            }
+        }
+        val fields = runCatching {
+            value.javaClass.methods
+                .filter { it.parameterCount == 0 && (it.name.startsWith("get") || it.name.startsWith("is")) }
+                .filterNot { it.name in setOf("getClass", "getDescription") }
+                .take(24)
+                .mapNotNull { method ->
+                    runCatching { method.name + "=" + method.invoke(value) }.getOrNull()
+                }
+        }.getOrDefault(emptyList())
+        return if (fields.isEmpty()) value.toString()
+            else value.javaClass.simpleName + "{" + fields.joinToString(", ") + "}"
+    }
+
     private fun queryNativeVideoState(): String {
         val names = listOf("getVoutCount", "getVideoTracksCount", "getVideoTrack", "getVideoTracks")
         return names.mapNotNull { name ->
@@ -19,9 +41,7 @@ fields = r"""    private var attachedLayout: VLCVideoLayout? = null
                 val method = mediaPlayer.javaClass.methods.firstOrNull {
                     it.name == name && it.parameterCount == 0
                 } ?: return@mapNotNull null
-                val value = method.invoke(mediaPlayer)
-                val rendered = if (value is Array<*>) value.joinToString(prefix = "[", postfix = "]") else value.toString()
-                "$name=$rendered"
+                "$name=${describeNativeValue(method.invoke(mediaPlayer))}"
             }.getOrNull()
         }.joinToString("; ").ifBlank { "No public zero-argument video-track/vout query available" }
     }
@@ -83,12 +103,12 @@ elif "captureVideoSurfaceSnapshot(\"attached and posted\")" not in engine:
 
 event_anchor = '            android.util.Log.i("GX1_FIRST_PLAY_TIMING",'
 event_insert = """            lastNativeVideoState = queryNativeVideoState()
+            android.util.Log.i("GX1-VLC-EVENT", "event=${event.type} native=$lastNativeVideoState")
             if (event.type == MediaPlayer.Event.Vout ||
                 event.type == MediaPlayer.Event.Playing ||
                 event.type == MediaPlayer.Event.EncounteredError) {
                 attachedLayout?.post { captureVideoSurfaceSnapshot("LibVLC event ${event.type}") }
             }
-            android.util.Log.i("GX1-VLC-SURFACE", "event=${event.type} native=$lastNativeVideoState")
 """
 if 'android.util.Log.i("GX1-VLC-SURFACE", "event=' not in engine:
     if event_anchor not in engine:
