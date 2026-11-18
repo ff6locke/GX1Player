@@ -1,7 +1,7 @@
 name: Build GX1 Player APK
 'on':
   push:
-    branches: [ main, aspect-ratio-parity, media3-repeat-fix, fix/m2ts-duration-seek, fix/vlc-native-fast-seek ]
+    branches: [ main, aspect-ratio-parity, media3-repeat-fix, fix/m2ts-duration-seek, fix/vlc-native-fast-seek, build1251-decoder-switch ]
     paths:
       - 'gx1-player.zip'
       - '.github/workflows/build.yml'
