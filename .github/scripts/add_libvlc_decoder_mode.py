@@ -46,7 +46,7 @@ decoder_block = """        when (decoderMode.trim().lowercase()) {
             }
         }
 """
-anchor = "        mediaCreatedAfterMs = android.os.SystemClock.elapsedRealtime() - openStartedAtMs"
+anchor = "            mediaPlayer.media = media"
 if decoder_block.strip() not in engine:
     if anchor not in engine:
         raise SystemExit("Could not find media creation point for decoder option")
