@@ -8,7 +8,7 @@ if not engine_path.is_file() or not main_path.is_file():
 
 engine = engine_path.read_text()
 marker = "    private var attachedLayout: VLCVideoLayout? = null"
-fields = """    private var attachedLayout: VLCVideoLayout? = null
+fields = r"""    private var attachedLayout: VLCVideoLayout? = null
     @Volatile private var lastVideoSurfaceSnapshot = "not captured"
     @Volatile private var lastNativeVideoState = "not queried"
 
