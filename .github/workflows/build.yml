@@ -8190,6 +8190,31 @@ jobs:
           p.write_text(s)
           print("Remote seek now updates target/indicator while held and sends one precise seek on release.")
           PY
+      - name: Route playback Open Video shortcut through GX1 storage browser
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/example/gx1player/MainActivity.kt")
+          s = p.read_text()
+          old = """                    setOnClickListener {
+                        chooseLibraryLocation()
+                    }"""
+          new = """                    setOnClickListener {
+                        openVideoWithGX1Browser()
+                    }"""
+          count = s.count(old)
+          if count != 1:
+              raise SystemExit(f"Expected exactly one playback Open Video icon handler, found {count}")
+          if "private fun openVideoWithGX1Browser()" not in s:
+              raise SystemExit("GX1 in-app storage browser method is missing")
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+          if "setOnClickListener {\n                        openVideoWithGX1Browser()\n                    }" not in s:
+              raise SystemExit("Playback Open Video icon route verification failed")
+          print("Playback Open Video icon now opens the same GX1 in-app storage browser as the home-screen tile.")
+          PY
       - name: Build separate 32-bit and 64-bit ARM APKs
         working-directory: ${{ env.PROJECT_DIR }}
         env:
