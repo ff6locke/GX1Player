@@ -13,6 +13,7 @@ old_ctor = """    context: Context,
 ) {"""
 new_ctor = """    context: Context,
     private val decoderMode: String = "auto",
+    private val videoOutputMode: String = "auto",
     private val onStateChanged: (State) -> Unit = {}
 ) {"""
 if old_ctor in engine:
@@ -51,6 +52,21 @@ if decoder_block.strip() not in engine:
     if anchor not in engine:
         raise SystemExit("Could not find media creation point for decoder option")
     engine = engine.replace(anchor, decoder_block + anchor, 1)
+libvlc_old = '    private val libVlc = try { LibVLC(appContext, arrayListOf<String>("--no-sub-autodetect-file")) } catch (t: Throwable) {'
+libvlc_new = """    private val libVlc = try {
+        val vlcOptions = arrayListOf("--no-sub-autodetect-file")
+        when (videoOutputMode.trim().lowercase()) {
+            "opengl" -> vlcOptions.add("--vout=gles2,none")
+            "android" -> vlcOptions.add("--vout=android_display,none")
+            else -> { /* Keep LibVLC automatic output selection. */ }
+        }
+        android.util.Log.i("GX1-VLC", "Video output mode=$videoOutputMode")
+        LibVLC(appContext, vlcOptions)
+    } catch (t: Throwable) {"""
+if libvlc_old in engine:
+    engine = engine.replace(libvlc_old, libvlc_new, 1)
+elif 'Video output mode=$videoOutputMode' not in engine:
+    raise SystemExit("Could not locate LibVLC instance options")
 engine_path.write_text(engine)
 
 main_path = root / "com/example/gx1player/MainActivity.kt"
@@ -61,7 +77,7 @@ if not main_path.is_file():
     main_path = candidates[0]
 main = main_path.read_text()
 old_call = "val engine = Gx1LibVlcEngine(this) { state -> runOnUiThread {"
-new_call = 'val engine = Gx1LibVlcEngine(this, decoderMode = prefs.getString("gx1_decoder_mode", "auto") ?: "auto") { state -> runOnUiThread {'
+new_call = 'val engine = Gx1LibVlcEngine(this, decoderMode = prefs.getString("gx1_decoder_mode", "auto") ?: "auto", videoOutputMode = prefs.getString("vlc_video_output", "auto") ?: "auto") { state -> runOnUiThread {'
 if old_call in main:
     main = main.replace(old_call, new_call, 1)
 elif new_call not in main:
@@ -94,4 +110,6 @@ if "sample_3840x2160" in engine:
     raise SystemExit("Filename-specific decoder diagnostic remains")
 if 'prefs.getString("gx1_decoder_mode"' not in main or "LibVLC video decoder" not in main:
     raise SystemExit("Decoder selector verification failed")
-print("LibVLC Auto/Hardware/Software selector verified. Audio passthrough code was not changed.")
+if 'prefs.getString("vlc_video_output"' not in main or "videoOutputMode =" not in main:
+    raise SystemExit("LibVLC video output selection wiring failed")
+print("LibVLC decoder and video-output selectors verified. Audio passthrough code was not changed.")
