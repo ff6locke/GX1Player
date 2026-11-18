@@ -56,7 +56,7 @@ if decoder_block.strip() not in engine:
     engine = engine.replace(anchor, decoder_block + anchor, 1)
 libvlc_old = '    private val libVlc = try { LibVLC(appContext, arrayListOf<String>("--no-sub-autodetect-file")) } catch (t: Throwable) {'
 libvlc_new = """    private val libVlc = try {
-        val vlcOptions = arrayListOf("--no-sub-autodetect-file")
+        val vlcOptions = arrayListOf("--no-sub-autodetect-file", "--verbose=2")
         when (videoOutputMode.trim().lowercase()) {
             "opengl" -> vlcOptions.add("--vout=gles2,none")
             "android" -> vlcOptions.add("--vout=android_display,none")
