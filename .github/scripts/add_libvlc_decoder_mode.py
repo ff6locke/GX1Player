@@ -35,8 +35,10 @@ if removed != 1 and "Diagnostic only: software decode" in engine:
 
 decoder_block = """            when (decoderMode.trim().lowercase()) {
                 "hardware" -> {
-                    media.addOption(":avcodec-hw=any")
-                    android.util.Log.i("GX1-VLC", "Video decoder mode=Hardware")
+                    // Match VLC for Android: try Android's native MediaCodec
+                    // decoder first, then the JNI module, then LibVLC software codecs.
+                    media.addOption(":codec=mediacodec_ndk,mediacodec_jni,all")
+                    android.util.Log.i("GX1-VLC", "Video decoder mode=VLC Android MediaCodec NDK/JNI, then software fallback")
                 }
                 "software" -> {
                     media.addOption(":avcodec-hw=none")
@@ -85,7 +87,7 @@ elif new_call not in main:
 
 menu_anchor = '        add("Built-in subtitle tracks") { showSubtitleTrackSelection() }'
 menu_item = r'''        add("LibVLC video decoder: " + (prefs.getString("gx1_decoder_mode", "auto") ?: "auto").replaceFirstChar { it.uppercase() }) {
-            val modes = arrayOf("Auto", "Hardware", "Software")
+            val modes = arrayOf("Auto", "VLC MediaCodec (NDK/JNI)", "Software")
             val values = arrayOf("auto", "hardware", "software")
             val current = prefs.getString("gx1_decoder_mode", "auto") ?: "auto"
             val selected = values.indexOf(current.lowercase()).coerceAtLeast(0)
