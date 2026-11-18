@@ -7015,9 +7015,9 @@ jobs:
           s = s.replace('addTile("Library", "Browse saved folders") { showGX1Library() }',
                         'addTile("Library", "Browse folders and media") { chooseLibraryLocation() }')
           s = re.sub(r'addTile\("Open video",\s*"[^"]*"\)\s*\{\s*openVideoWithGX1Browser\(\)\s*\}',
-                     'addTile("Open video", "Choose a video") { chooseLibraryLocation(videoOnly = true) }', s, count=1)
+                     'addTile("Open video", "Browse internal and USB storage") { openVideoWithGX1Browser() }', s, count=1)
           s = s.replace('add("Open video file") { openVideoWithGX1Browser() }',
-                        'add("Open video file") { chooseLibraryLocation(videoOnly = true) }')
+                        'add("Open video file") { openVideoWithGX1Browser() }')
           s = s.replace('private fun chooseLibraryLocation() {',
                         'private fun chooseLibraryLocation(videoOnly: Boolean = false) {', 1)
           # Open Video always uses the GX1 app's own storage browser on phones and TV.
