@@ -8213,6 +8213,9 @@ jobs:
       - name: Capture LibVLC video output and Android surface diagnostics
         working-directory: ${{ env.PROJECT_DIR }}
         run: python3 "$GITHUB_WORKSPACE/.github/scripts/diagnose_libvlc_video_surface.py"
+      - name: Show Playback Diagnostics in the playback gear menu
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: python3 "$GITHUB_WORKSPACE/.github/scripts/show_playback_diagnostics_menu.py"
       - name: Add Media3 video decoder preference
         working-directory: ${{ env.PROJECT_DIR }}
         run: python3 "$GITHUB_WORKSPACE/.github/scripts/add_media3_video_decoder_preference.py"
