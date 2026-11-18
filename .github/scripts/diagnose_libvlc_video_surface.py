@@ -32,15 +32,15 @@ fields = """    private var attachedLayout: VLCVideoLayout? = null
         fun walk(view: android.view.View, depth: Int) {
             val prefix = " ".repeat(depth * 2)
             val detail = StringBuilder(
-                "\${view.javaClass.simpleName} \${view.width}x\${view.height} " +
-                    "visibility=\${view.visibility} alpha=\${view.alpha}"
+                "${view.javaClass.simpleName} ${view.width}x${view.height} " +
+                    "visibility=${view.visibility} alpha=${view.alpha}"
             )
             when (view) {
                 is android.view.SurfaceView -> detail.append(
-                    " surfaceValid=\${runCatching { view.holder.surface?.isValid }.getOrNull()}"
+                    " surfaceValid=${runCatching { view.holder.surface?.isValid }.getOrNull()}"
                 )
                 is android.view.TextureView -> detail.append(
-                    " textureAvailable=\${view.isAvailable} surfaceTexture=\${view.surfaceTexture != null}"
+                    " textureAvailable=${view.isAvailable} surfaceTexture=${view.surfaceTexture != null}"
                 )
             }
             lines.add(prefix + detail)
@@ -86,9 +86,9 @@ event_insert = """            lastNativeVideoState = queryNativeVideoState()
             if (event.type == MediaPlayer.Event.Vout ||
                 event.type == MediaPlayer.Event.Playing ||
                 event.type == MediaPlayer.Event.EncounteredError) {
-                attachedLayout?.post { captureVideoSurfaceSnapshot("LibVLC event \${event.type}") }
+                attachedLayout?.post { captureVideoSurfaceSnapshot("LibVLC event ${event.type}") }
             }
-            android.util.Log.i("GX1-VLC-SURFACE", "event=\${event.type} native=$lastNativeVideoState")
+            android.util.Log.i("GX1-VLC-SURFACE", "event=${event.type} native=$lastNativeVideoState")
 """
 if 'android.util.Log.i("GX1-VLC-SURFACE", "event=' not in engine:
     if event_anchor not in engine:
