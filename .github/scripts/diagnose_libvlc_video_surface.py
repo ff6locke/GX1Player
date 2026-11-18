@@ -20,7 +20,17 @@ fields = r"""    private var attachedLayout: VLCVideoLayout? = null
                     it.name == name && it.parameterCount == 0
                 } ?: return@mapNotNull null
                 val value = method.invoke(mediaPlayer)
-                val rendered = if (value is Array<*>) value.joinToString(prefix = "[", postfix = "]") else value.toString()
+                val rendered = when (value) {
+                    is Array<*> -> value.joinToString(prefix = "[", postfix = "]") { track ->
+                        if (track == null) "null" else {
+                            val details = track.javaClass.methods
+                                .filter { it.parameterCount == 0 && it.name in listOf("getId", "getName", "getType", "getCodec", "getWidth", "getHeight", "getFrameRateNum", "getFrameRateDen") }
+                                .mapNotNull { method -> runCatching { method.name.removePrefix("get") + "=" + method.invoke(track) }.getOrNull() }
+                            track.javaClass.simpleName + "(" + details.joinToString(",") + ")"
+                        }
+                    }
+                    else -> value.toString()
+                }
                 "$name=$rendered"
             }.getOrNull()
         }.joinToString("; ").ifBlank { "No public zero-argument video-track/vout query available" }
