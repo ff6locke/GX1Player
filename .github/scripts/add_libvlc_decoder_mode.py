@@ -32,19 +32,19 @@ engine, removed = diagnostic.subn("\n", engine, count=1)
 if removed != 1 and "Diagnostic only: software decode" in engine:
     raise SystemExit("Could not safely remove filename-specific decoder diagnostic")
 
-decoder_block = """        when (decoderMode.trim().lowercase()) {
-            "hardware" -> {
-                media.addOption(":avcodec-hw=any")
-                android.util.Log.i("GX1-VLC", "Video decoder mode=Hardware")
+decoder_block = """            when (decoderMode.trim().lowercase()) {
+                "hardware" -> {
+                    media.addOption(":avcodec-hw=any")
+                    android.util.Log.i("GX1-VLC", "Video decoder mode=Hardware")
+                }
+                "software" -> {
+                    media.addOption(":avcodec-hw=none")
+                    android.util.Log.i("GX1-VLC", "Video decoder mode=Software")
+                }
+                else -> {
+                    android.util.Log.i("GX1-VLC", "Video decoder mode=Auto (LibVLC default)")
+                }
             }
-            "software" -> {
-                media.addOption(":avcodec-hw=none")
-                android.util.Log.i("GX1-VLC", "Video decoder mode=Software")
-            }
-            else -> {
-                android.util.Log.i("GX1-VLC", "Video decoder mode=Auto (LibVLC default)")
-            }
-        }
 """
 anchor = "            mediaPlayer.media = media"
 if decoder_block.strip() not in engine:
