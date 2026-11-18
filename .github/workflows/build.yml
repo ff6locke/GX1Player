@@ -7996,9 +7996,11 @@ jobs:
                   // Diagnostic-only watchdog: observe LibVLC after seeking without changing player state.
                   Thread({
                       val delays = longArrayOf(0L, 1000L, 3000L, 5000L, 10000L)
+                      val watchdogStartMs = android.os.SystemClock.elapsedRealtime()
                       for (delay in delays) {
-                          if (delay > 0L) {
-                              try { Thread.sleep(delay) } catch (_: InterruptedException) { return@Thread }
+                          val waitMs = watchdogStartMs + delay - android.os.SystemClock.elapsedRealtime()
+                          if (waitMs > 0L) {
+                              try { Thread.sleep(waitMs) } catch (_: InterruptedException) { return@Thread }
                           }
                           val timeNow = runCatching { mediaPlayer.time }.getOrDefault(-1L)
                           val positionNow = runCatching { mediaPlayer.position }.getOrDefault(-1f)
