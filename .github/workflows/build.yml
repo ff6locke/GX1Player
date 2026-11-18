@@ -7020,6 +7020,18 @@ jobs:
                         'add("Open video file") { chooseLibraryLocation(videoOnly = true) }')
           s = s.replace('private fun chooseLibraryLocation() {',
                         'private fun chooseLibraryLocation(videoOnly: Boolean = false) {', 1)
+          s = s.replace(
+              'private fun chooseLibraryLocation(videoOnly: Boolean = false) {',
+              '''private fun chooseLibraryLocation(videoOnly: Boolean = false) {
+              // Phones use Android's Storage Access Framework so USB OTG drives
+              // (including Samsung USB storage) remain accessible with scoped storage.
+              // Keep the app's own browser on Android TV and for the Library screen.
+              if (videoOnly && !packageManager.hasSystemFeature("android.software.leanback")) {
+                  pickVideo.launch(arrayOf("video/*", "application/octet-stream", "application/x-matroska"))
+                  return
+              }''',
+              1
+          )
           s = s.replace('if (missing.isEmpty()) showLibrary("") else libraryPermissionRequest.launch(missing.toTypedArray())',
                         'if (missing.isEmpty()) showLibrary("", videoOnly) else libraryPermissionRequest.launch(missing.toTypedArray())', 1)
           s = s.replace('} else {\n                          browseExternalSdCard()\n                      }',
