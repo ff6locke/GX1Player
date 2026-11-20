@@ -8197,10 +8197,10 @@ jobs:
           s, n = pattern.subn(lambda _: helpers + "\n", s, count=1)
           if n != 1:
               raise SystemExit("Could not replace D-pad seek handler; matches=" + str(n))
-          if "controller.seekTo(target)" not in s or "controllerClock.seekTo(target)" in s or "gx1SeekInFlight" in s:
-              raise SystemExit("Single ForwardingPlayer LibVLC seek verification failed")
+          if "engine.seekTo(target, fast = false)" not in s or "gx1HideSeekFeedback()" not in s or "gx1SeekActiveKey == event.keyCode" not in s:
+              raise SystemExit("Accumulate-on-hold / commit-on-release seek verification failed")
           p.write_text(s)
-          print("Remote seek now pauses playback, performs precise live seeks while held, and resumes only on release when previously playing.")
+          print("Remote seek now accumulates the target while held, commits one precise seek on release, and clears the feedback overlay.")
           PY
       - name: Route playback Open Video shortcut through GX1 storage browser
         working-directory: ${{ env.PROJECT_DIR }}
