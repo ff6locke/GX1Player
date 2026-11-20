@@ -639,6 +639,24 @@ s, home_launch_matches = re.subn(
     s, count=1)
 if home_launch_matches != 1:
     raise SystemExit("Could not replace first-launch picker with home screen")
+# Keep the playback surface clean by default. Media3's controller owns the
+# seek bar and previous/next controls, so hiding the controller hides them all.
+if "playerView.controllerShowTimeoutMs = 2500" not in s:
+    marker = "        setContentView(root)"
+    if marker not in s:
+        raise SystemExit("Could not find PlayerView root installation point")
+    s = s.replace(marker, """        playerView.controllerShowTimeoutMs = 2500
+        playerView.controllerAutoShow = false
+        playerView.controllerHideOnTouch = true
+        playerView.hideController()
+        setContentView(root)""", 1)
+s = s.replace('setOnClickListener { showMenu() }',
+              'setOnClickListener { playerView.hideController(); showMenu() }')
+s = s.replace('''        playerView.visibility = View.VISIBLE
+        homePanel.visibility = View.GONE''',
+              '''        playerView.visibility = View.VISIBLE
+        playerView.hideController()
+        homePanel.visibility = View.GONE''', 1)
 p.write_text(s)
 required = ['private fun buildHomePanel()', 'addTile("Open video"', 'addTile("Resume"', 'addTile("History"', 'homePanel.visibility = View.GONE']
 missing_ui = [item for item in required if item not in s]
