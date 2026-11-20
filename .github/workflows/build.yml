@@ -8126,76 +8126,71 @@ jobs:
           override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
               val left = event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT
               val right = event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_RIGHT
-              if (left || right) {
-                  val engine = mainVlcEngine
-                  val media3 = if (engine == null) player else null
-                  if ((engine != null || media3 != null) && ::playerView.isInitialized) {
-                      var focus = currentFocus
-                      var focusInsidePlayer = false
-                      while (focus != null) {
-                          if (focus === playerView) { focusInsidePlayer = true; break }
-                          focus = focus.parent as? android.view.View
-                      }
-                      val anotherUiHasFocus = currentFocus != null && !focusInsidePlayer
-                      if (playerView.isControllerFullyVisible() || anotherUiHasFocus) {
-                          return super.dispatchKeyEvent(event)
-                      }
+              if (!left && !right) return super.dispatchKeyEvent(event)
 
-                      if (event.action == android.view.KeyEvent.ACTION_DOWN) {
-                          if (gx1SeekActiveKey == android.view.KeyEvent.KEYCODE_UNKNOWN) {
-                              gx1SeekActiveKey = event.keyCode
-                              gx1SeekTargetMs = engine?.currentTimeMs() ?: media3?.currentPosition ?: 0L
-                              gx1SeekWasPlaying = engine?.isPlaying() ?: (media3?.isPlaying == true)
-                              // Freeze normal playback for the entire hold. The paused decoder
-                              // will render the frame at each precise seek target.
-                              if (gx1SeekWasPlaying) {
-                                  if (engine != null) engine.pause() else media3?.pause()
-                              }
-                          }
-                          if (gx1SeekActiveKey != event.keyCode) return true
-                          if (event.repeatCount == 0 || event.repeatCount % 4 == 0) {
-                              val step = if (gx1SeekSessionProgressMs < 5 * 60_000L) 10_000L else 60_000L
-                              val duration = engine?.durationMs() ?: media3?.duration ?: 0L
-                              val next = if (left) gx1SeekTargetMs - step else gx1SeekTargetMs + step
-                              gx1SeekTargetMs = if (duration > 0L) next.coerceIn(0L, duration)
-                                  else next.coerceAtLeast(0L)
-                              gx1SeekSessionProgressMs += step
-                              // Apply each displayed target while the key is held, rather than
-                              // accumulating a target and seeking only after key-up.
-                              if (engine != null) {
-                                  val controller = mainVlcControllerPlayer
-                                  if (controller != null) controller.seekTo(gx1SeekTargetMs)
-                                  else engine.seekTo(gx1SeekTargetMs, fast = false)
-                              } else {
-                                  media3?.seekTo(gx1SeekTargetMs)
-                              }
-                          }
-                          gx1ShowSeekFeedback(if (left) "⏪" else "⏩")
-                          return true
-                      } else if (event.action == android.view.KeyEvent.ACTION_UP) {
-                          if (gx1SeekActiveKey == event.keyCode) {
-                              val target = gx1SeekTargetMs
-                              // Commit the final exact frame, then resume only if playback
-                              // was running before the user began holding the seek key.
-                              if (engine != null) {
-                                  val controller = mainVlcControllerPlayer
-                                  if (controller != null) controller.seekTo(target)
-                                  else engine.seekTo(target, fast = false)
-                                  if (gx1SeekWasPlaying) engine.play()
-                              } else {
-                                  media3?.seekTo(target)
-                                  if (gx1SeekWasPlaying) media3?.play()
-                              }
-                              gx1SeekActiveKey = android.view.KeyEvent.KEYCODE_UNKNOWN
-                              gx1SeekSessionProgressMs = 0L
-                              gx1SeekWasPlaying = false
-                              gx1HideSeekFeedback()
-                          }
-                          return true
+              val engine = mainVlcEngine
+              val media3 = if (engine == null) player else null
+              if ((engine == null && media3 == null) || !::playerView.isInitialized) {
+                  return super.dispatchKeyEvent(event)
+              }
+
+              // Always consume the matching key-up first. Controller visibility/focus can
+              // change as soon as playback is paused, and must never strand the seek overlay.
+              if (event.action == android.view.KeyEvent.ACTION_UP &&
+                  gx1SeekActiveKey == event.keyCode) {
+                  val target = gx1SeekTargetMs
+                  if (engine != null) {
+                      engine.seekTo(target, fast = false)
+                      mainVlcControllerClock?.seekTo(target)
+                      if (gx1SeekWasPlaying) engine.play()
+                  } else {
+                      media3?.seekTo(target)
+                      if (gx1SeekWasPlaying) media3?.play()
+                  }
+                  gx1SeekActiveKey = android.view.KeyEvent.KEYCODE_UNKNOWN
+                  gx1SeekSessionProgressMs = 0L
+                  gx1SeekWasPlaying = false
+                  gx1HideSeekFeedback()
+                  return true
+              }
+
+              if (event.action == android.view.KeyEvent.ACTION_DOWN) {
+                  var focus = currentFocus
+                  var focusInsidePlayer = false
+                  while (focus != null) {
+                      if (focus === playerView) { focusInsidePlayer = true; break }
+                      focus = focus.parent as? android.view.View
+                  }
+                  val anotherUiHasFocus = currentFocus != null && !focusInsidePlayer
+                  if (gx1SeekActiveKey == android.view.KeyEvent.KEYCODE_UNKNOWN &&
+                      (playerView.isControllerFullyVisible() || anotherUiHasFocus)) {
+                      return super.dispatchKeyEvent(event)
+                  }
+
+                  if (gx1SeekActiveKey == android.view.KeyEvent.KEYCODE_UNKNOWN) {
+                      gx1SeekActiveKey = event.keyCode
+                      gx1SeekTargetMs = engine?.currentTimeMs() ?: media3?.currentPosition ?: 0L
+                      gx1SeekWasPlaying = engine?.isPlaying() ?: (media3?.isPlaying == true)
+                      if (gx1SeekWasPlaying) {
+                          if (engine != null) engine.pause() else media3?.pause()
                       }
                   }
+                  if (gx1SeekActiveKey != event.keyCode) return true
+
+                  if (event.repeatCount == 0 || event.repeatCount % 4 == 0) {
+                      val step = if (gx1SeekSessionProgressMs < 5 * 60_000L) 10_000L else 60_000L
+                      val duration = engine?.durationMs() ?: media3?.duration ?: 0L
+                      val next = if (left) gx1SeekTargetMs - step else gx1SeekTargetMs + step
+                      gx1SeekTargetMs = if (duration > 0L) next.coerceIn(0L, duration)
+                          else next.coerceAtLeast(0L)
+                      gx1SeekSessionProgressMs += step
+                  }
+                  // Do not issue repeated LibVLC seeks while paused: that can leave its
+                  // decoder stalled. Show the accumulating target and commit one seek on release.
+                  gx1ShowSeekFeedback(if (left) "⏪" else "⏩")
+                  return true
               }
-              return super.dispatchKeyEvent(event)
+              return if (gx1SeekActiveKey == event.keyCode) true else super.dispatchKeyEvent(event)
           }
           '''
           pattern = re.compile(r"(?s)    override fun dispatchKeyEvent\(event: android\.view\.KeyEvent\): Boolean \{.*?(?=    private fun startMainLibVlc\(uri: Uri\))")
