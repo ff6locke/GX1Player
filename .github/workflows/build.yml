@@ -786,11 +786,17 @@ jobs:
           button_start = s.rfind('val menuButton = Button(this).apply {', 0, gear)
           if button_start < 0:
               raise SystemExit("Playback gear button declaration not found")
-          bg = s.index('background = GradientDrawable().apply {', gear)
-          click = s.index('setOnClickListener { showMenu() }', bg)
-          s = s[:bg] + '''background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
+          bg = s.find('background = GradientDrawable().apply {', gear)
+          if bg >= 0:
+              click = s.find('setOnClickListener { showMenu() }', bg)
+              if click >= 0:
+                  s = s[:bg] + '''background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
                       elevation = 0f
                       ''' + s[click:]
+              else:
+                  print("No custom gear click listener found; leaving existing background unchanged.")
+          else:
+              print("Custom gear has no GradientDrawable background; leaving its existing styling unchanged.")
           s = s.replace('''val menuParams = FrameLayout.LayoutParams(
                       72,
                       72,''','''val menuParams = FrameLayout.LayoutParams(
