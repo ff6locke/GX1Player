@@ -8171,13 +8171,15 @@ jobs:
                       focus = focus.parent as? android.view.View
                   }
                   val anotherUiHasFocus = currentFocus != null && !focusInsidePlayer
-                  if (gx1SeekActiveKey == android.view.KeyEvent.KEYCODE_UNKNOWN &&
-                      (playerView.isControllerFullyVisible() || anotherUiHasFocus)) {
+                  if (gx1SeekActiveKey == android.view.KeyEvent.KEYCODE_UNKNOWN && anotherUiHasFocus) {
                       return super.dispatchKeyEvent(event)
                   }
 
                   if (gx1SeekActiveKey == android.view.KeyEvent.KEYCODE_UNKNOWN) {
                       gx1SeekActiveKey = event.keyCode
+                      // Hide Media3's controller as soon as the first seek key is pressed.
+                      playerView.hideController()
+                      playerView.clearFocus()
                       gx1SeekTargetMs = engine?.currentTimeMs() ?: media3?.currentPosition ?: 0L
                       gx1SeekWasPlaying = engine?.isPlaying() ?: (media3?.isPlaying == true)
                       if (gx1SeekWasPlaying) {
@@ -8212,6 +8214,10 @@ jobs:
                       }
                   }
                   gx1ShowSeekFeedback(if (left) "⏪" else "⏩")
+                  // PlayerView may auto-show controls after pause/play or a seek; hide
+                  // again on every held-key event so the bar/menu never overlays seeking.
+                  playerView.hideController()
+                  playerView.post { playerView.hideController() }
                   return true
               }
               return if (gx1SeekActiveKey == event.keyCode) true else super.dispatchKeyEvent(event)
