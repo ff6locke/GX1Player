@@ -8299,6 +8299,9 @@ jobs:
       - name: Add Media3 video decoder preference
         working-directory: ${{ env.PROJECT_DIR }}
         run: python3 "$GITHUB_WORKSPACE/.github/scripts/add_media3_video_decoder_preference.py"
+      - name: Synchronize all playback overlay elements
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: python3 "$GITHUB_WORKSPACE/.github/scripts/sync_playback_overlay.py"
       - name: Build separate 32-bit and 64-bit ARM APKs
         working-directory: ${{ env.PROJECT_DIR }}
         env:
