@@ -7991,7 +7991,7 @@ jobs:
                   // events emitted while it recovers from a long seek.
                   android.util.Log.i("GX1-VLC-SEEK",
                       "SEEK_REQUEST targetMs=$target durationMs=$duration beforeTimeMs=\${runCatching { mediaPlayer.time }.getOrDefault(-1L)} beforePosition=\${runCatching { mediaPlayer.position }.getOrDefault(-1f)} playing=\${runCatching { mediaPlayer.isPlaying }.getOrDefault(false)}}")
-                  mediaPlayer.setTime(target, false)
+                  mediaPlayer.setTime(target, fast)
                   android.util.Log.i("GX1-VLC-SEEK",
                       "SEEK_SUBMITTED targetMs=$target afterTimeMs=\${runCatching { mediaPlayer.time }.getOrDefault(-1L)} afterPosition=\${runCatching { mediaPlayer.position }.getOrDefault(-1f)} playing=\${runCatching { mediaPlayer.isPlaying }.getOrDefault(false)}}")
                   // Diagnostic-only watchdog: observe LibVLC after seeking without changing player state.
@@ -8018,7 +8018,7 @@ jobs:
               }
           }"""
           e, n = re.subn(r"(?s)fun seekTo\([^)]*\).*?(?=\n\s*fun setRate\()", lambda _: method, e, count=1)
-          if n != 1 or "mediaPlayer.setTime(target, false)" not in e or "lastSeekRequestedAtMs" not in e or "lastSeekTargetMs" not in e:
+          if n != 1 or "mediaPlayer.setTime(target, fast)" not in e or "lastSeekRequestedAtMs" not in e or "lastSeekTargetMs" not in e:
               raise SystemExit("Could not install guarded precise LibVLC seek implementation")
           # Replace the complete known EndReached branch literally. Avoid a broad
           # regex here: it can span unrelated Kotlin blocks when ZIP formatting differs.
@@ -8227,7 +8227,7 @@ jobs:
                           val previewKey = event.keyCode
                           val previewGeneration = ++gx1SeekPreviewGeneration
                           engine.play()
-                          engine.seekTo(gx1SeekTargetMs, fast = false)
+                          engine.seekTo(gx1SeekTargetMs, fast = true)
                           playerView.postDelayed({
                               if (gx1SeekActiveKey == previewKey &&
                                   gx1SeekPreviewGeneration == previewGeneration &&
