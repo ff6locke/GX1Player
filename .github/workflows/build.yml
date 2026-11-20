@@ -1,7 +1,7 @@
 name: Build GX1 Player APK
 'on':
   push:
-    branches: [ main, aspect-ratio-parity, media3-repeat-fix, fix/m2ts-duration-seek, fix/vlc-native-fast-seek, build1251-decoder-switch ]
+    branches: [ main, aspect-ratio-parity, media3-repeat-fix, fix/m2ts-duration-seek, fix/vlc-native-fast-seek, build1251-decoder-switch, build1272-vout-diagnostics ]
     paths:
       - 'gx1-player.zip'
       - '.github/workflows/build.yml'
@@ -8067,6 +8067,7 @@ jobs:
           fields = """
               private var gx1SeekTargetMs = 0L
               private var gx1SeekActiveKey = android.view.KeyEvent.KEYCODE_UNKNOWN
+              private var gx1SeekWasPlaying = false
           """
           if "private var gx1SeekTargetMs" not in s:
               if anchor not in s:
@@ -8144,6 +8145,12 @@ jobs:
                           if (gx1SeekActiveKey == android.view.KeyEvent.KEYCODE_UNKNOWN) {
                               gx1SeekActiveKey = event.keyCode
                               gx1SeekTargetMs = engine?.currentTimeMs() ?: media3?.currentPosition ?: 0L
+                              gx1SeekWasPlaying = engine?.isPlaying() ?: (media3?.isPlaying == true)
+                              // Freeze normal playback for the entire hold. The paused decoder
+                              // will render the frame at each precise seek target.
+                              if (gx1SeekWasPlaying) {
+                                  if (engine != null) engine.pause() else media3?.pause()
+                              }
                           }
                           if (gx1SeekActiveKey != event.keyCode) return true
                           if (event.repeatCount == 0 || event.repeatCount % 4 == 0) {
@@ -8153,24 +8160,35 @@ jobs:
                               gx1SeekTargetMs = if (duration > 0L) next.coerceIn(0L, duration)
                                   else next.coerceAtLeast(0L)
                               gx1SeekSessionProgressMs += step
+                              // Apply each displayed target while the key is held, rather than
+                              // accumulating a target and seeking only after key-up.
+                              if (engine != null) {
+                                  val controller = mainVlcControllerPlayer
+                                  if (controller != null) controller.seekTo(gx1SeekTargetMs)
+                                  else engine.seekTo(gx1SeekTargetMs, fast = false)
+                              } else {
+                                  media3?.seekTo(gx1SeekTargetMs)
+                              }
                           }
                           gx1ShowSeekFeedback(if (left) "⏪" else "⏩")
                           return true
                       } else if (event.action == android.view.KeyEvent.ACTION_UP) {
                           if (gx1SeekActiveKey == event.keyCode) {
                               val target = gx1SeekTargetMs
-                              // Use the ForwardingPlayer, not its raw ExoPlayer clock.
-                              // ForwardingPlayer.seekTo forwards exactly one seek to LibVLC
-                              // and then synchronizes the UI clock.
+                              // Commit the final exact frame, then resume only if playback
+                              // was running before the user began holding the seek key.
                               if (engine != null) {
                                   val controller = mainVlcControllerPlayer
                                   if (controller != null) controller.seekTo(target)
                                   else engine.seekTo(target, fast = false)
+                                  if (gx1SeekWasPlaying) engine.play()
                               } else {
                                   media3?.seekTo(target)
+                                  if (gx1SeekWasPlaying) media3?.play()
                               }
                               gx1SeekActiveKey = android.view.KeyEvent.KEYCODE_UNKNOWN
                               gx1SeekSessionProgressMs = 0L
+                              gx1SeekWasPlaying = false
                               gx1HideSeekFeedback()
                           }
                           return true
@@ -8187,7 +8205,7 @@ jobs:
           if "controller.seekTo(target)" not in s or "controllerClock.seekTo(target)" in s or "gx1SeekInFlight" in s:
               raise SystemExit("Single ForwardingPlayer LibVLC seek verification failed")
           p.write_text(s)
-          print("Remote seek now updates target/indicator while held and sends one precise seek on release.")
+          print("Remote seek now pauses playback, performs precise live seeks while held, and resumes only on release when previously playing.")
           PY
       - name: Route playback Open Video shortcut through GX1 storage browser
         working-directory: ${{ env.PROJECT_DIR }}
