@@ -8068,6 +8068,7 @@ jobs:
               private var gx1SeekTargetMs = 0L
               private var gx1SeekActiveKey = android.view.KeyEvent.KEYCODE_UNKNOWN
               private var gx1SeekWasPlaying = false
+              private var gx1SeekPreviewGeneration = 0
           """
           if "private var gx1SeekTargetMs" not in s:
               if anchor not in s:
@@ -8140,9 +8141,14 @@ jobs:
                   gx1SeekActiveKey == event.keyCode) {
                   val target = gx1SeekTargetMs
                   if (engine != null) {
-                      engine.seekTo(target, fast = false)
+                      if (gx1SeekWasPlaying) {
+                          engine.play()
+                          engine.seekTo(target, fast = false)
+                      } else {
+                          engine.pause()
+                          engine.seekTo(target, fast = false)
+                      }
                       mainVlcControllerClock?.seekTo(target)
-                      if (gx1SeekWasPlaying) engine.play()
                   } else {
                       media3?.seekTo(target)
                       if (gx1SeekWasPlaying) media3?.play()
@@ -8150,7 +8156,10 @@ jobs:
                   gx1SeekActiveKey = android.view.KeyEvent.KEYCODE_UNKNOWN
                   gx1SeekSessionProgressMs = 0L
                   gx1SeekWasPlaying = false
+                  gx1SeekPreviewGeneration++
                   gx1HideSeekFeedback()
+                  playerView.hideController()
+                  playerView.clearFocus()
                   return true
               }
 
@@ -8184,9 +8193,24 @@ jobs:
                       gx1SeekTargetMs = if (duration > 0L) next.coerceIn(0L, duration)
                           else next.coerceAtLeast(0L)
                       gx1SeekSessionProgressMs += step
+                      if (engine != null) {
+                          // Run LibVLC briefly at each preview position so its decoder
+                          // produces a new picture, then pause while the remote key remains held.
+                          val previewKey = event.keyCode
+                          val previewGeneration = ++gx1SeekPreviewGeneration
+                          engine.play()
+                          engine.seekTo(gx1SeekTargetMs, fast = false)
+                          playerView.postDelayed({
+                              if (gx1SeekActiveKey == previewKey &&
+                                  gx1SeekPreviewGeneration == previewGeneration &&
+                                  mainVlcEngine === engine && engine.isPlaying()) {
+                                  engine.pause()
+                              }
+                          }, 220L)
+                      } else {
+                          media3?.seekTo(gx1SeekTargetMs)
+                      }
                   }
-                  // Do not issue repeated LibVLC seeks while paused: that can leave its
-                  // decoder stalled. Show the accumulating target and commit one seek on release.
                   gx1ShowSeekFeedback(if (left) "⏪" else "⏩")
                   return true
               }
@@ -8199,8 +8223,14 @@ jobs:
               raise SystemExit("Could not replace D-pad seek handler; matches=" + str(n))
           if "engine.seekTo(target, fast = false)" not in s or "gx1HideSeekFeedback()" not in s or "gx1SeekActiveKey == event.keyCode" not in s:
               raise SystemExit("Accumulate-on-hold / commit-on-release seek verification failed")
+          controller_anchor = "setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)"
+          if controller_anchor in s and "setControllerShowTimeoutMs(2500)" not in s:
+              s = s.replace(controller_anchor,
+                  controller_anchor + "\n            setControllerShowTimeoutMs(2500)\n            setControllerHideOnTouch(true)", 1)
+          if "setControllerShowTimeoutMs(2500)" not in s:
+              raise SystemExit("Could not configure Media3 controller auto-hide timeout")
           p.write_text(s)
-          print("Remote seek now accumulates the target while held, commits one precise seek on release, and clears the feedback overlay.")
+          print("Remote seek previews decoded frames while held; release commits the final seek and hides Media3 controls.")
           PY
       - name: Route playback Open Video shortcut through GX1 storage browser
         working-directory: ${{ env.PROJECT_DIR }}
