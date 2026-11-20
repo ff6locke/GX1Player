@@ -8171,7 +8171,10 @@ jobs:
                       focus = focus.parent as? android.view.View
                   }
                   val anotherUiHasFocus = currentFocus != null && !focusInsidePlayer
-                  if (gx1SeekActiveKey == android.view.KeyEvent.KEYCODE_UNKNOWN && anotherUiHasFocus) {
+                  if (gx1SeekActiveKey == android.view.KeyEvent.KEYCODE_UNKNOWN &&
+                      (playerView.isControllerFullyVisible() || anotherUiHasFocus)) {
+                      // Menu/controller is open: let DPAD Left/Right navigate its items.
+                      // Seeking is enabled only after the playback controls are hidden.
                       return super.dispatchKeyEvent(event)
                   }
 
