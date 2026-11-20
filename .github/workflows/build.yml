@@ -8077,11 +8077,18 @@ jobs:
               s = s.replace(anchor, anchor + fields, 1)
 
           helpers = r'''
+          private fun gx1ControllerIsShowing(): Boolean {
+              if (!::playerView.isInitialized) return false
+              val controller = playerView.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_controller)
+              return playerView.isControllerFullyVisible() ||
+                  (controller != null && controller.visibility == android.view.View.VISIBLE && controller.alpha > 0.01f)
+          }
+
           private fun gx1SuppressSeekController(durationMs: Long) {
               if (!::playerView.isInitialized) return
               gx1SeekControllerSuppressUntilMs = android.os.SystemClock.elapsedRealtime() + durationMs
               playerView.hideController()
-              for (delay in longArrayOf(40L, 120L, 250L, 450L, 650L)) {
+              for (delay in longArrayOf(0L, 40L, 120L, 250L, 450L, 700L, 1000L, 1400L, 1800L)) {
                   playerView.postDelayed({
                       if (::playerView.isInitialized &&
                           android.os.SystemClock.elapsedRealtime() <= gx1SeekControllerSuppressUntilMs) {
@@ -8187,7 +8194,7 @@ jobs:
                   }
                   val anotherUiHasFocus = currentFocus != null && !focusInsidePlayer
                   if (gx1SeekActiveKey == android.view.KeyEvent.KEYCODE_UNKNOWN &&
-                      (playerView.isControllerFullyVisible() || anotherUiHasFocus)) {
+                      (gx1ControllerIsShowing() || anotherUiHasFocus)) {
                       // Menu/controller is open: let DPAD Left/Right navigate its items.
                       // Seeking is enabled only after the playback controls are hidden.
                       return super.dispatchKeyEvent(event)
@@ -8197,7 +8204,7 @@ jobs:
                       gx1SeekActiveKey = event.keyCode
                       // Hide now and again after Media3 processes the DPAD event; it can
                       // otherwise auto-show the controller briefly on the initial press.
-                      gx1SuppressSeekController(700L)
+                      gx1SuppressSeekController(1800L)
                       playerView.clearFocus()
                       gx1SeekTargetMs = engine?.currentTimeMs() ?: media3?.currentPosition ?: 0L
                       gx1SeekWasPlaying = engine?.isPlaying() ?: (media3?.isPlaying == true)
@@ -8235,7 +8242,7 @@ jobs:
                   gx1ShowSeekFeedback(if (left) "⏪" else "⏩")
                   // PlayerView may auto-show controls after pause/play or a seek; hide
                   // again on every held-key event so the bar/menu never overlays seeking.
-                  gx1SuppressSeekController(700L)
+                  gx1SuppressSeekController(1800L)
                   return true
               }
               return if (gx1SeekActiveKey == event.keyCode) true else super.dispatchKeyEvent(event)
@@ -8250,7 +8257,7 @@ jobs:
           controller_anchor = "setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)"
           if controller_anchor in s and "setControllerShowTimeoutMs(2500)" not in s:
               s = s.replace(controller_anchor,
-                  controller_anchor + "\n            setControllerShowTimeoutMs(2500)\n            setControllerHideOnTouch(true)", 1)
+                  controller_anchor + "\n            setControllerAutoShow(false)\n            setControllerShowTimeoutMs(2500)\n            setControllerHideOnTouch(true)", 1)
           if "setControllerShowTimeoutMs(2500)" not in s:
               raise SystemExit("Could not configure Media3 controller auto-hide timeout")
           p.write_text(s)
