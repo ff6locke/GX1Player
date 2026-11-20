@@ -8069,6 +8069,7 @@ jobs:
               private var gx1SeekActiveKey = android.view.KeyEvent.KEYCODE_UNKNOWN
               private var gx1SeekWasPlaying = false
               private var gx1SeekPreviewGeneration = 0
+              private var gx1SeekControllerSuppressUntilMs = 0L
           """
           if "private var gx1SeekTargetMs" not in s:
               if anchor not in s:
@@ -8076,6 +8077,20 @@ jobs:
               s = s.replace(anchor, anchor + fields, 1)
 
           helpers = r'''
+          private fun gx1SuppressSeekController(durationMs: Long) {
+              if (!::playerView.isInitialized) return
+              gx1SeekControllerSuppressUntilMs = android.os.SystemClock.elapsedRealtime() + durationMs
+              playerView.hideController()
+              for (delay in longArrayOf(40L, 120L, 250L, 450L, 650L)) {
+                  playerView.postDelayed({
+                      if (::playerView.isInitialized &&
+                          android.os.SystemClock.elapsedRealtime() <= gx1SeekControllerSuppressUntilMs) {
+                          playerView.hideController()
+                      }
+                  }, delay)
+              }
+          }
+
           private fun gx1ShowSeekFeedback(direction: String) {
               if (!::playerView.isInitialized) return
               val root = playerView.parent as? android.widget.FrameLayout ?: return
@@ -8158,7 +8173,7 @@ jobs:
                   gx1SeekWasPlaying = false
                   gx1SeekPreviewGeneration++
                   gx1HideSeekFeedback()
-                  playerView.hideController()
+                  gx1SuppressSeekController(500L)
                   playerView.clearFocus()
                   return true
               }
@@ -8180,8 +8195,9 @@ jobs:
 
                   if (gx1SeekActiveKey == android.view.KeyEvent.KEYCODE_UNKNOWN) {
                       gx1SeekActiveKey = event.keyCode
-                      // Hide Media3's controller as soon as the first seek key is pressed.
-                      playerView.hideController()
+                      // Hide now and again after Media3 processes the DPAD event; it can
+                      // otherwise auto-show the controller briefly on the initial press.
+                      gx1SuppressSeekController(700L)
                       playerView.clearFocus()
                       gx1SeekTargetMs = engine?.currentTimeMs() ?: media3?.currentPosition ?: 0L
                       gx1SeekWasPlaying = engine?.isPlaying() ?: (media3?.isPlaying == true)
@@ -8219,8 +8235,7 @@ jobs:
                   gx1ShowSeekFeedback(if (left) "⏪" else "⏩")
                   // PlayerView may auto-show controls after pause/play or a seek; hide
                   // again on every held-key event so the bar/menu never overlays seeking.
-                  playerView.hideController()
-                  playerView.post { playerView.hideController() }
+                  gx1SuppressSeekController(700L)
                   return true
               }
               return if (gx1SeekActiveKey == event.keyCode) true else super.dispatchKeyEvent(event)
